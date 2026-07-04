@@ -17,6 +17,17 @@ export function WorkloadPage() {
     },
   })
 
+  const { data: kpi } = useQuery({
+    queryKey: ['v_employee_kpi'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('v_employee_kpi').select('*')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const kpiFor = (profileId: string) => kpi?.find((k) => k.profile_id === profileId)
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t('workload.title')}</h1>
@@ -25,11 +36,22 @@ export function WorkloadPage() {
         {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
         {workload?.map((row) => {
           const overloaded = row.open_task_count > row.max_open_tasks
+          const employeeKpi = kpiFor(row.profile_id)
           return (
             <Card key={row.profile_id}>
               <CardContent className="flex items-center justify-between py-3">
                 <p className="text-sm font-medium">{row.full_name}</p>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
+                  {employeeKpi && (
+                    <span className="text-xs text-muted-foreground">
+                      {t('kpi.tasksCompleted')}: {employeeKpi.tasks_completed} ·{' '}
+                      {t('kpi.avgPercent')}:{' '}
+                      {employeeKpi.avg_percent_complete
+                        ? Math.round(employeeKpi.avg_percent_complete)
+                        : 0}
+                      %
+                    </span>
+                  )}
                   <span className="text-sm text-muted-foreground">
                     {row.open_task_count} / {row.max_open_tasks} {t('workload.openTasks').toLowerCase()}
                   </span>

@@ -11,6 +11,8 @@ import {
   FileText,
   Wallet,
   BarChart3,
+  CalendarDays,
+  BookOpen,
 } from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
@@ -75,11 +77,15 @@ export function AppShell() {
           <NavItem to="/cabinet" icon={LayoutGrid} label={t('nav.cabinet')} />
           <NavItem to="/tasks" icon={ListTodo} label={t('nav.tasks')} />
           {canSeeProjects && <NavItem to="/projects" icon={Users} label={t('nav.projects')} />}
+          {canSeeProjects && (
+            <NavItem to="/content-plan" icon={CalendarDays} label={t('nav.contentPlan')} />
+          )}
           {canSeeAll && <NavItem to="/workload" icon={Gauge} label={t('nav.workload')} />}
           {canSeeSales && <NavItem to="/clients" icon={Contact} label={t('nav.clients')} />}
           {canSeeSales && <NavItem to="/leads" icon={Contact} label={t('nav.leads')} />}
           <NavItem to="/org" icon={Building2} label={t('nav.org')} />
           <NavItem to="/docs" icon={FileText} label={t('nav.docs')} />
+          <NavItem to="/kb" icon={BookOpen} label={t('kb.title')} />
           {canSeeFinance && <NavItem to="/finance" icon={Wallet} label={t('finance.title')} />}
           {canSeeFinance && <NavItem to="/kpi" icon={BarChart3} label={t('kpi.title')} />}
         </nav>

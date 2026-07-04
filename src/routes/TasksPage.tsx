@@ -9,8 +9,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { CreateTaskDialog } from './CreateTaskDialog'
+import { TasksKanban } from './TasksKanban'
 
 export function TasksPage() {
   const { t } = useTranslation()
@@ -18,9 +20,14 @@ export function TasksPage() {
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
+      // Smart-sort: the view already computes sort_score (priority + deadline
+      // proximity), but a view's internal ORDER BY isn't guaranteed to survive
+      // an outer query — order explicitly here so it's actually honored.
       const { data, error } = await supabase
         .from('v_task_queue')
-        .select('id, title, status_id, deadline, percent_complete, is_urgent, is_important')
+        .select('id, title, status_id, deadline, percent_complete, is_urgent, is_important, sort_score')
+        .order('sort_score', { ascending: false })
+        .order('deadline', { ascending: true, nullsFirst: false })
       if (error) throw error
       return data
     },
@@ -33,39 +40,52 @@ export function TasksPage() {
         <CreateTaskDialog />
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('tasks.title')}</TableHead>
-              <TableHead>{t('tasks.deadline')}</TableHead>
-              <TableHead>{t('tasks.percentComplete')}</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
-                  {t('common.loading')}...
-                </TableCell>
-              </TableRow>
-            )}
-            {tasks?.map((task) => (
-              <TableRow key={task.id}>
-                <TableCell className="font-medium">{task.title}</TableCell>
-                <TableCell>
-                  {task.deadline ? new Date(task.deadline).toLocaleDateString('ru-RU') : '—'}
-                </TableCell>
-                <TableCell>{task.percent_complete}%</TableCell>
-                <TableCell>
-                  {task.is_urgent && <Badge variant="destructive">Urgent</Badge>}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <Tabs defaultValue="list">
+        <TabsList>
+          <TabsTrigger value="list">{t('tasks.title')}</TabsTrigger>
+          <TabsTrigger value="kanban">{t('kanban.title')}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="list">
+          <div className="overflow-hidden rounded-lg border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('tasks.title')}</TableHead>
+                  <TableHead>{t('tasks.deadline')}</TableHead>
+                  <TableHead>{t('tasks.percentComplete')}</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      {t('common.loading')}...
+                    </TableCell>
+                  </TableRow>
+                )}
+                {tasks?.map((task) => (
+                  <TableRow key={task.id}>
+                    <TableCell className="font-medium">{task.title}</TableCell>
+                    <TableCell>
+                      {task.deadline ? new Date(task.deadline).toLocaleDateString('ru-RU') : '—'}
+                    </TableCell>
+                    <TableCell>{task.percent_complete}%</TableCell>
+                    <TableCell>
+                      {task.is_urgent && <Badge variant="destructive">Urgent</Badge>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="kanban">
+          <TasksKanban />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table'
 import { CreateFixedSalaryDialog } from './CreateFixedSalaryDialog'
 import { CreateRateDialog } from './CreateRateDialog'
+import { PayrollRuns } from './PayrollRuns'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
@@ -146,6 +147,8 @@ export function PayrollSection() {
           </Table>
         </div>
       </div>
+
+      <PayrollRuns />
     </div>
   )
 }

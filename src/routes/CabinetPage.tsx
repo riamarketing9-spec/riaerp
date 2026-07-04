@@ -5,6 +5,7 @@ import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { DailyChecklist } from './DailyChecklist'
 
 export function CabinetPage() {
   const { t } = useTranslation()
@@ -18,6 +19,8 @@ export function CabinetPage() {
         .from('v_task_queue')
         .select('*')
         .eq('assignee_profile_id', profile!.id)
+        .order('sort_score', { ascending: false })
+        .order('deadline', { ascending: true, nullsFirst: false })
       if (error) throw error
       return data
     },
@@ -29,6 +32,8 @@ export function CabinetPage() {
         <h1 className="text-2xl font-semibold tracking-tight">{t('cabinet.title')}</h1>
         <p className="text-sm text-muted-foreground">{profile?.full_name}</p>
       </div>
+
+      <DailyChecklist />
 
       <Card>
         <CardHeader>

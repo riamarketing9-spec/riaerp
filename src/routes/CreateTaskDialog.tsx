@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -36,6 +37,8 @@ const schema = z.object({
   priority_id: z.string().optional(),
   deadline: z.string().optional(),
   deliverable_text: z.string().optional(),
+  is_urgent: z.boolean(),
+  is_important: z.boolean(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -85,13 +88,30 @@ export function CreateTaskDialog() {
     },
   })
 
+  const { data: workload } = useQuery({
+    queryKey: ['workload'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('v_employee_workload').select('*')
+      if (error) throw error
+      return data
+    },
+  })
+
   const {
     register,
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) })
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { is_urgent: false, is_important: false },
+  })
+
+  const selectedAssigneeId = watch('assignee_profile_id')
+  const selectedWorkload = workload?.find((w) => w.profile_id === selectedAssigneeId)
+  const isOverWip = !!selectedWorkload && selectedWorkload.open_task_count >= selectedWorkload.max_open_tasks
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -103,6 +123,8 @@ export function CreateTaskDialog() {
         priority_id: values.priority_id || null,
         deadline: values.deadline ? new Date(values.deadline).toISOString() : null,
         deliverable_text: values.deliverable_text || null,
+        is_urgent: values.is_urgent,
+        is_important: values.is_important,
         created_by: profile?.id ?? null,
       })
       if (error) throw error
@@ -172,6 +194,35 @@ export function CreateTaskDialog() {
                 ))}
               </SelectContent>
             </Select>
+            {isOverWip && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                ⚠ {selectedWorkload?.open_task_count}/{selectedWorkload?.max_open_tasks}{' '}
+                {t('workload.openTasks').toLowerCase()} — {t('workload.overloaded').toLowerCase()}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="is_urgent"
+                checked={watch('is_urgent')}
+                onCheckedChange={(checked) => setValue('is_urgent', checked === true)}
+              />
+              <Label htmlFor="is_urgent" className="font-normal">
+                Срочно
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="is_important"
+                checked={watch('is_important')}
+                onCheckedChange={(checked) => setValue('is_important', checked === true)}
+              />
+              <Label htmlFor="is_important" className="font-normal">
+                Важно
+              </Label>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

@@ -13,6 +13,8 @@ import { OrgStructurePage } from '@/routes/OrgStructurePage'
 import { DocumentsPage } from '@/routes/DocumentsPage'
 import { FinancePage } from '@/routes/FinancePage'
 import { KpiDashboardPage } from '@/routes/KpiDashboardPage'
+import { ContentPlanPage } from '@/routes/ContentPlanPage'
+import { KnowledgeBasePage } from '@/routes/KnowledgeBasePage'
 import { RequireCapability } from '@/routes/RequireCapability'
 
 const router = createBrowserRouter(
@@ -57,6 +59,15 @@ const router = createBrowserRouter(
         },
         { path: 'org', element: <OrgStructurePage /> },
         { path: 'docs', element: <DocumentsPage /> },
+        { path: 'kb', element: <KnowledgeBasePage /> },
+        {
+          path: 'content-plan',
+          element: (
+            <RequireCapability anyOf={['projects.manage', 'projects.read_scoped']}>
+              <ContentPlanPage />
+            </RequireCapability>
+          ),
+        },
         {
           path: 'finance',
           element: (

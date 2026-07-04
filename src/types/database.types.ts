@@ -270,6 +270,28 @@ type CeoDashboardViewRow = {
   overloaded_employees: number
 }
 
+type ContentPlanPlatformRow = { content_plan_item_id: string; platform_id: string }
+
+type KbArticleRow = {
+  id: string
+  title: string
+  body_markdown: string | null
+  video_url: string | null
+  role_id: string | null
+  department_id: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+type EmployeeKpiViewRow = {
+  profile_id: string
+  full_name: string
+  tasks_completed: number
+  tasks_on_time: number
+  avg_percent_complete: number | null
+}
+
 type TaskQueueViewRow = TaskRow & {
   priority_weight: number | null
   deadline_boost: number
@@ -338,12 +360,15 @@ export type Database = {
       payroll_fixed_salary: ReturnType<typeof table<PayrollFixedSalaryRow, 'profile_id' | 'monthly_amount' | 'effective_from'>>
       payroll_runs: ReturnType<typeof table<PayrollRunRow, 'period_month'>>
       payroll_run_lines: ReturnType<typeof table<PayrollRunLineRow, 'payroll_run_id' | 'profile_id'>>
+      content_plan_platforms: { Row: ContentPlanPlatformRow; Insert: ContentPlanPlatformRow; Update: Partial<ContentPlanPlatformRow>; Relationships: [] }
+      kb_articles: ReturnType<typeof table<KbArticleRow, 'title'>>
     }
     Views: {
       v_task_queue: { Row: TaskQueueViewRow; Relationships: [] }
       v_employee_workload: { Row: EmployeeWorkloadViewRow; Relationships: [] }
       v_project_profit: { Row: ProjectProfitViewRow; Relationships: [] }
       v_ceo_dashboard: { Row: CeoDashboardViewRow; Relationships: [] }
+      v_employee_kpi: { Row: EmployeeKpiViewRow; Relationships: [] }
     }
     Functions: Record<string, never>
     Enums: Record<string, never>
