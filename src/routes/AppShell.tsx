@@ -42,6 +42,10 @@ export function AppShell() {
   const { t } = useTranslation()
   const { profile, role, hasCapability, signOut } = useAuth()
   const canSeeAll = hasCapability('cabinets.read_all')
+  // Specialists (montajchi/designer/syomkachi/...) get only their own cabinet
+  // and tasks — no project briefs, per TZ: "мутаxассис: faqat o'z shkafi,
+  // brief ko'rmaydi".
+  const canSeeProjects = hasCapability('projects.manage') || hasCapability('projects.read_scoped')
 
   return (
     <div className="flex min-h-svh bg-background">
@@ -57,7 +61,7 @@ export function AppShell() {
         <nav className="flex flex-1 flex-col gap-1">
           <NavItem to="/cabinet" icon={LayoutGrid} label={t('nav.cabinet')} />
           <NavItem to="/tasks" icon={ListTodo} label={t('nav.tasks')} />
-          <NavItem to="/projects" icon={Users} label={t('nav.projects')} />
+          {canSeeProjects && <NavItem to="/projects" icon={Users} label={t('nav.projects')} />}
           {canSeeAll && <NavItem to="/workload" icon={Gauge} label={t('nav.workload')} />}
         </nav>
 

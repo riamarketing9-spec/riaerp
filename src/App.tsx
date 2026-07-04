@@ -7,6 +7,7 @@ import { CabinetPage } from '@/routes/CabinetPage'
 import { TasksPage } from '@/routes/TasksPage'
 import { ProjectsPage } from '@/routes/ProjectsPage'
 import { WorkloadPage } from '@/routes/WorkloadPage'
+import { RequireCapability } from '@/routes/RequireCapability'
 
 const router = createBrowserRouter(
   [
@@ -16,8 +17,22 @@ const router = createBrowserRouter(
         { index: true, element: <Navigate to="/cabinet" replace /> },
         { path: 'cabinet', element: <CabinetPage /> },
         { path: 'tasks', element: <TasksPage /> },
-        { path: 'projects', element: <ProjectsPage /> },
-        { path: 'workload', element: <WorkloadPage /> },
+        {
+          path: 'projects',
+          element: (
+            <RequireCapability anyOf={['projects.manage', 'projects.read_scoped']}>
+              <ProjectsPage />
+            </RequireCapability>
+          ),
+        },
+        {
+          path: 'workload',
+          element: (
+            <RequireCapability anyOf={['cabinets.read_all']}>
+              <WorkloadPage />
+            </RequireCapability>
+          ),
+        },
       ],
     },
   ],
