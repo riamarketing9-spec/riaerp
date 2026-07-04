@@ -138,6 +138,63 @@ type ChecklistInstanceRow = {
 
 type ChecklistInstanceItemRow = { id: string; instance_id: string; template_item_id: string; is_checked: boolean; note: string | null }
 
+type IndustryRow = { id: string; slug: string; label_ru: string; label_uz: string }
+
+type ClientStatusRow = { id: string; slug: string; label_ru: string; label_uz: string }
+
+type ClientRow = {
+  id: string
+  name: string
+  contact_name: string | null
+  contact_phone: string | null
+  contact_telegram: string | null
+  industry_id: string | null
+  status_id: string
+  created_at: string
+  updated_at: string
+}
+
+type LeadStageRow = { id: string; slug: string; label_ru: string; label_uz: string; sort_order: number }
+
+type LeadRow = {
+  id: string
+  client_id: string
+  stage_id: string
+  owner_profile_id: string | null
+  expected_value: number | null
+  next_action_date: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+type OrgPositionRow = {
+  id: string
+  title: string
+  parent_position_id: string | null
+  profile_id: string | null
+  created_at: string
+}
+
+type DocumentCategoryRow = { id: string; slug: string; label_ru: string; label_uz: string }
+
+type DocumentRow = {
+  id: string
+  title: string
+  storage_path: string
+  category_id: string | null
+  uploaded_by: string | null
+  is_org_wide: boolean
+  created_at: string
+}
+
+type DocumentVisibilityRow = {
+  document_id: string
+  profile_id: string
+  granted_by: string | null
+  granted_at: string
+}
+
 type TaskQueueViewRow = TaskRow & {
   priority_weight: number | null
   deadline_boost: number
@@ -188,6 +245,15 @@ export type Database = {
       checklist_template_items: ReturnType<typeof table<ChecklistTemplateItemRow, 'template_id' | 'label'>>
       checklist_instances: ReturnType<typeof table<ChecklistInstanceRow, 'template_id' | 'profile_id' | 'period_date'>>
       checklist_instance_items: ReturnType<typeof table<ChecklistInstanceItemRow, 'instance_id' | 'template_item_id'>>
+      industries: ReturnType<typeof table<IndustryRow, 'slug' | 'label_ru' | 'label_uz'>>
+      client_statuses: ReturnType<typeof table<ClientStatusRow, 'slug' | 'label_ru' | 'label_uz'>>
+      clients: ReturnType<typeof table<ClientRow, 'name' | 'status_id'>>
+      lead_stages: ReturnType<typeof table<LeadStageRow, 'slug' | 'label_ru' | 'label_uz'>>
+      leads: ReturnType<typeof table<LeadRow, 'client_id' | 'stage_id'>>
+      org_positions: ReturnType<typeof table<OrgPositionRow, 'title'>>
+      document_categories: ReturnType<typeof table<DocumentCategoryRow, 'slug' | 'label_ru' | 'label_uz'>>
+      documents: ReturnType<typeof table<DocumentRow, 'title' | 'storage_path'>>
+      document_visibility: { Row: DocumentVisibilityRow; Insert: Pick<DocumentVisibilityRow, 'document_id' | 'profile_id'> & Partial<DocumentVisibilityRow>; Update: Partial<DocumentVisibilityRow>; Relationships: [] }
     }
     Views: {
       v_task_queue: { Row: TaskQueueViewRow; Relationships: [] }

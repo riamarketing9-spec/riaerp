@@ -1,6 +1,15 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { LayoutGrid, ListTodo, Users, Gauge, LogOut } from 'lucide-react'
+import {
+  LayoutGrid,
+  ListTodo,
+  Users,
+  Gauge,
+  LogOut,
+  Building2,
+  Contact,
+  FileText,
+} from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { cn } from '@/lib/utils'
@@ -46,6 +55,7 @@ export function AppShell() {
   // and tasks — no project briefs, per TZ: "мутаxассис: faqat o'z shkafi,
   // brief ko'rmaydi".
   const canSeeProjects = hasCapability('projects.manage') || hasCapability('projects.read_scoped')
+  const canSeeSales = hasCapability('sales.read') || hasCapability('sales.manage')
 
   return (
     <div className="flex min-h-svh bg-background">
@@ -63,6 +73,10 @@ export function AppShell() {
           <NavItem to="/tasks" icon={ListTodo} label={t('nav.tasks')} />
           {canSeeProjects && <NavItem to="/projects" icon={Users} label={t('nav.projects')} />}
           {canSeeAll && <NavItem to="/workload" icon={Gauge} label={t('nav.workload')} />}
+          {canSeeSales && <NavItem to="/clients" icon={Contact} label={t('nav.clients')} />}
+          {canSeeSales && <NavItem to="/leads" icon={Contact} label={t('nav.leads')} />}
+          <NavItem to="/org" icon={Building2} label={t('nav.org')} />
+          <NavItem to="/docs" icon={FileText} label={t('nav.docs')} />
         </nav>
 
         <div className="flex items-center gap-2 rounded-lg px-2 py-2">
