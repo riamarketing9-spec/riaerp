@@ -9,6 +9,8 @@ import {
   Building2,
   Contact,
   FileText,
+  Wallet,
+  BarChart3,
 } from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
@@ -56,6 +58,7 @@ export function AppShell() {
   // brief ko'rmaydi".
   const canSeeProjects = hasCapability('projects.manage') || hasCapability('projects.read_scoped')
   const canSeeSales = hasCapability('sales.read') || hasCapability('sales.manage')
+  const canSeeFinance = hasCapability('finance.read') || hasCapability('finance.write')
 
   return (
     <div className="flex min-h-svh bg-background">
@@ -77,6 +80,8 @@ export function AppShell() {
           {canSeeSales && <NavItem to="/leads" icon={Contact} label={t('nav.leads')} />}
           <NavItem to="/org" icon={Building2} label={t('nav.org')} />
           <NavItem to="/docs" icon={FileText} label={t('nav.docs')} />
+          {canSeeFinance && <NavItem to="/finance" icon={Wallet} label={t('finance.title')} />}
+          {canSeeFinance && <NavItem to="/kpi" icon={BarChart3} label={t('kpi.title')} />}
         </nav>
 
         <div className="flex items-center gap-2 rounded-lg px-2 py-2">

@@ -195,6 +195,81 @@ type DocumentVisibilityRow = {
   granted_at: string
 }
 
+type ExpenseCategoryRow = { id: string; slug: string; label_ru: string; label_uz: string }
+
+type ExpenseScopeRow = { id: string; slug: string }
+
+type DeliverableTypeRow = { id: string; slug: string; label_ru: string; label_uz: string }
+
+type FinanceProjectRevenueRow = {
+  id: string
+  project_id: string
+  month: string
+  amount: number
+  created_at: string
+}
+
+type FinanceExpenseRow = {
+  id: string
+  expense_date: string
+  amount: number
+  category_id: string | null
+  scope_id: string
+  project_id: string | null
+  note: string | null
+  receipt_storage_path: string | null
+  created_at: string
+}
+
+type PayrollRateRow = {
+  id: string
+  profile_id: string
+  deliverable_type_id: string
+  rate: number
+  effective_from: string
+  effective_to: string | null
+}
+
+type PayrollFixedSalaryRow = {
+  id: string
+  profile_id: string
+  monthly_amount: number
+  effective_from: string
+  effective_to: string | null
+}
+
+type PayrollRunRow = {
+  id: string
+  period_month: string
+  generated_at: string
+  status: string
+}
+
+type PayrollRunLineRow = {
+  id: string
+  payroll_run_id: string
+  profile_id: string
+  fixed_component: number
+  piece_rate_component: number
+  total: number
+  detail_json: unknown
+}
+
+type ProjectProfitViewRow = {
+  project_id: string
+  name: string
+  total_revenue: number
+  total_expenses: number
+  profit: number
+}
+
+type CeoDashboardViewRow = {
+  mrr: number
+  active_projects: number
+  overdue_tasks: number
+  overloaded_employees: number
+}
+
 type TaskQueueViewRow = TaskRow & {
   priority_weight: number | null
   deadline_boost: number
@@ -254,10 +329,21 @@ export type Database = {
       document_categories: ReturnType<typeof table<DocumentCategoryRow, 'slug' | 'label_ru' | 'label_uz'>>
       documents: ReturnType<typeof table<DocumentRow, 'title' | 'storage_path'>>
       document_visibility: { Row: DocumentVisibilityRow; Insert: Pick<DocumentVisibilityRow, 'document_id' | 'profile_id'> & Partial<DocumentVisibilityRow>; Update: Partial<DocumentVisibilityRow>; Relationships: [] }
+      expense_categories: ReturnType<typeof table<ExpenseCategoryRow, 'slug' | 'label_ru' | 'label_uz'>>
+      expense_scopes: { Row: ExpenseScopeRow; Insert: Pick<ExpenseScopeRow, 'slug'> & Partial<ExpenseScopeRow>; Update: Partial<ExpenseScopeRow>; Relationships: [] }
+      deliverable_types: ReturnType<typeof table<DeliverableTypeRow, 'slug' | 'label_ru' | 'label_uz'>>
+      finance_project_revenue: ReturnType<typeof table<FinanceProjectRevenueRow, 'project_id' | 'month' | 'amount'>>
+      finance_expenses: ReturnType<typeof table<FinanceExpenseRow, 'expense_date' | 'amount' | 'scope_id'>>
+      payroll_rate_table: ReturnType<typeof table<PayrollRateRow, 'profile_id' | 'deliverable_type_id' | 'rate' | 'effective_from'>>
+      payroll_fixed_salary: ReturnType<typeof table<PayrollFixedSalaryRow, 'profile_id' | 'monthly_amount' | 'effective_from'>>
+      payroll_runs: ReturnType<typeof table<PayrollRunRow, 'period_month'>>
+      payroll_run_lines: ReturnType<typeof table<PayrollRunLineRow, 'payroll_run_id' | 'profile_id'>>
     }
     Views: {
       v_task_queue: { Row: TaskQueueViewRow; Relationships: [] }
       v_employee_workload: { Row: EmployeeWorkloadViewRow; Relationships: [] }
+      v_project_profit: { Row: ProjectProfitViewRow; Relationships: [] }
+      v_ceo_dashboard: { Row: CeoDashboardViewRow; Relationships: [] }
     }
     Functions: Record<string, never>
     Enums: Record<string, never>
