@@ -33,6 +33,7 @@ const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
+  const [sessionChecked, setSessionChecked] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [role, setRole] = useState<Role | null>(null)
   const [capabilities, setCapabilities] = useState<Set<string>>(new Set())
@@ -41,16 +42,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
+      setSessionChecked(true)
     })
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession)
+      setSessionChecked(true)
     })
 
     return () => listener.subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
+    // Wait for the real session lookup (localStorage/network) before deciding
+    // there's no user — otherwise the initial `session === null` default state
+    // races ahead and flashes the login page before we've actually checked.
+    if (!sessionChecked) return
+
     let cancelled = false
 
     async function loadProfile() {
@@ -105,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [session])
+  }, [session, sessionChecked])
 
   const hasCapability = (cap: string) => capabilities.has(cap)
   const isCeo = role?.slug === 'ceo'

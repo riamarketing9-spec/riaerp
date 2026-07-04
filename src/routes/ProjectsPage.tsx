@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { CreateProjectDialog } from './CreateProjectDialog'
 
 export function ProjectsPage() {
   const { t } = useTranslation()
@@ -20,7 +21,10 @@ export function ProjectsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">{t('projects.title')}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">{t('projects.title')}</h1>
+        <CreateProjectDialog />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
