@@ -1,0 +1,130 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabaseClient'
+
+type Profile = {
+  id: string
+  full_name: string
+  role_id: string
+  avatar_url: string | null
+}
+
+type Role = {
+  id: string
+  slug: string
+  label_ru: string
+  label_uz: string
+  is_management: boolean
+  max_open_tasks: number
+}
+
+type AuthState = {
+  session: Session | null
+  profile: Profile | null
+  role: Role | null
+  capabilities: Set<string>
+  isLoading: boolean
+  hasCapability: (cap: string) => boolean
+  isCeo: boolean
+  signOut: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthState | null>(null)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [role, setRole] = useState<Role | null>(null)
+  const [capabilities, setCapabilities] = useState<Set<string>>(new Set())
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+    })
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession)
+    })
+
+    return () => listener.subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadProfile() {
+      if (!session?.user) {
+        setProfile(null)
+        setRole(null)
+        setCapabilities(new Set())
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('id, full_name, role_id, avatar_url')
+        .eq('auth_user_id', session.user.id)
+        .single()
+
+      if (cancelled) return
+
+      if (!profileRow) {
+        setProfile(null)
+        setRole(null)
+        setCapabilities(new Set())
+        setIsLoading(false)
+        return
+      }
+
+      setProfile(profileRow)
+
+      const { data: roleRow } = await supabase
+        .from('roles')
+        .select('id, slug, label_ru, label_uz, is_management, max_open_tasks')
+        .eq('id', profileRow.role_id)
+        .single()
+
+      if (cancelled) return
+      setRole(roleRow)
+
+      const { data: capRows } = await supabase
+        .from('role_capabilities')
+        .select('capability')
+        .eq('role_id', profileRow.role_id)
+
+      if (cancelled) return
+      setCapabilities(new Set((capRows ?? []).map((c) => c.capability)))
+      setIsLoading(false)
+    }
+
+    loadProfile()
+    return () => {
+      cancelled = true
+    }
+  }, [session])
+
+  const hasCapability = (cap: string) => capabilities.has(cap)
+  const isCeo = role?.slug === 'ceo'
+
+  const signOut = async () => {
+    await supabase.auth.signOut()
+  }
+
+  return (
+    <AuthContext.Provider
+      value={{ session, profile, role, capabilities, isLoading, hasCapability, isCeo, signOut }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
+  return ctx
+}

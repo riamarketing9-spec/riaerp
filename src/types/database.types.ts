@@ -1,0 +1,199 @@
+// Hand-written to match supabase/migrations/*.sql (Stage 1 tables + views used by the app).
+// Regenerate/replace with `supabase gen types typescript` once a CLI access token is available;
+// keep this file's shape (Database.public.Tables/Views) so supabase-js generics keep working.
+
+type RoleRow = {
+  id: string
+  slug: string
+  label_ru: string
+  label_uz: string
+  is_management: boolean
+  max_open_tasks: number
+  created_at: string
+}
+
+type RoleCapabilityRow = { role_id: string; capability: string }
+
+type DepartmentRow = { id: string; slug: string; label_ru: string; label_uz: string; created_at: string }
+
+type StaffStatusRow = { id: string; slug: string; label_ru: string; label_uz: string }
+
+type WorkloadLevelRow = { id: string; slug: string; label_ru: string; label_uz: string; color: string; sort_order: number }
+
+type ProfileRow = {
+  id: string
+  auth_user_id: string | null
+  full_name: string
+  phone: string | null
+  telegram_chat_id: string | null
+  role_id: string
+  department_id: string | null
+  staff_status_id: string | null
+  workload_level_id: string | null
+  hire_date: string | null
+  avatar_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+type ProjectTypeRow = { id: string; slug: string; label_ru: string; label_uz: string }
+
+type ProjectStatusRow = { id: string; slug: string; label_ru: string; label_uz: string; sort_order: number }
+
+type ProjectRow = {
+  id: string
+  name: string
+  department_id: string | null
+  project_type_id: string
+  status_id: string
+  pm_profile_id: string
+  client_id: string | null
+  goal: string | null
+  target_audience: string | null
+  monthly_quota_posts: number | null
+  monthly_quota_reels: number | null
+  monthly_quota_stories: number | null
+  monthly_quota_shoots: number | null
+  billing_day: number | null
+  deliverables_text: string | null
+  brief_detail_text: string | null
+  created_at: string
+  updated_at: string
+}
+
+type ProjectMemberRow = { project_id: string; profile_id: string; role_on_project: string | null }
+
+type TaskStatusRow = { id: string; slug: string; label_ru: string; label_uz: string; sort_order: number }
+
+type PriorityRow = { id: string; slug: string; label_ru: string; label_uz: string; weight: number }
+
+type RecurrenceTypeRow = { id: string; slug: string; label_ru: string; label_uz: string }
+
+type TaskRow = {
+  id: string
+  title: string
+  project_id: string | null
+  assignee_profile_id: string | null
+  status_id: string
+  priority_id: string | null
+  is_urgent: boolean
+  is_important: boolean
+  recurrence_id: string | null
+  deadline: string | null
+  percent_complete: number
+  blocker_text: string | null
+  deliverable_text: string | null
+  content_plan_item_id: string | null
+  created_by: string | null
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+type ContentFormatRow = { id: string; slug: string; label_ru: string; label_uz: string }
+
+type PlatformRow = { id: string; slug: string; label_ru: string; label_uz: string }
+
+type ContentStatusRow = { id: string; slug: string; label_ru: string; label_uz: string; sort_order: number }
+
+type ContentPlanItemRow = {
+  id: string
+  project_id: string
+  topic: string
+  format_id: string
+  script: string | null
+  shooter_profile_id: string | null
+  editor_profile_id: string | null
+  responsible_profile_id: string | null
+  shoot_date: string | null
+  edit_done_date: string | null
+  cover_done_date: string | null
+  publish_date: string | null
+  status_id: string
+  created_at: string
+  updated_at: string
+}
+
+type ChecklistCadenceRow = { id: string; slug: string }
+
+type ChecklistTemplateRow = {
+  id: string
+  cadence_id: string
+  role_id: string | null
+  department_id: string | null
+  title: string
+  applies_to_all: boolean
+}
+
+type ChecklistTemplateItemRow = { id: string; template_id: string; label: string; sort_order: number; requires_note: boolean }
+
+type ChecklistInstanceRow = {
+  id: string
+  template_id: string
+  profile_id: string
+  period_date: string
+  completed_at: string | null
+  created_at: string
+}
+
+type ChecklistInstanceItemRow = { id: string; instance_id: string; template_item_id: string; is_checked: boolean; note: string | null }
+
+type TaskQueueViewRow = TaskRow & {
+  priority_weight: number | null
+  deadline_boost: number
+  sort_score: number
+}
+
+type EmployeeWorkloadViewRow = {
+  profile_id: string
+  full_name: string
+  role_id: string
+  open_task_count: number
+  max_open_tasks: number
+  workload_level_id: string | null
+}
+
+function table<Row, RequiredKeys extends keyof Row>(): {
+  Row: Row
+  Insert: Partial<Row> & Pick<Row, RequiredKeys>
+  Update: Partial<Row>
+  Relationships: []
+} {
+  return null as never
+}
+
+export type Database = {
+  public: {
+    Tables: {
+      roles: ReturnType<typeof table<RoleRow, 'slug' | 'label_ru' | 'label_uz'>>
+      role_capabilities: { Row: RoleCapabilityRow; Insert: RoleCapabilityRow; Update: Partial<RoleCapabilityRow>; Relationships: [] }
+      departments: ReturnType<typeof table<DepartmentRow, 'slug' | 'label_ru' | 'label_uz'>>
+      staff_statuses: ReturnType<typeof table<StaffStatusRow, 'slug' | 'label_ru' | 'label_uz'>>
+      workload_levels: ReturnType<typeof table<WorkloadLevelRow, 'slug' | 'label_ru' | 'label_uz' | 'color'>>
+      profiles: ReturnType<typeof table<ProfileRow, 'full_name' | 'role_id'>>
+      project_types: ReturnType<typeof table<ProjectTypeRow, 'slug' | 'label_ru' | 'label_uz'>>
+      project_statuses: ReturnType<typeof table<ProjectStatusRow, 'slug' | 'label_ru' | 'label_uz'>>
+      projects: ReturnType<typeof table<ProjectRow, 'name' | 'project_type_id' | 'status_id' | 'pm_profile_id'>>
+      project_members: { Row: ProjectMemberRow; Insert: ProjectMemberRow; Update: Partial<ProjectMemberRow>; Relationships: [] }
+      task_statuses: ReturnType<typeof table<TaskStatusRow, 'slug' | 'label_ru' | 'label_uz'>>
+      priorities: ReturnType<typeof table<PriorityRow, 'slug' | 'label_ru' | 'label_uz'>>
+      recurrence_types: ReturnType<typeof table<RecurrenceTypeRow, 'slug' | 'label_ru' | 'label_uz'>>
+      tasks: ReturnType<typeof table<TaskRow, 'title' | 'status_id'>>
+      content_formats: ReturnType<typeof table<ContentFormatRow, 'slug' | 'label_ru' | 'label_uz'>>
+      platforms: ReturnType<typeof table<PlatformRow, 'slug' | 'label_ru' | 'label_uz'>>
+      content_statuses: ReturnType<typeof table<ContentStatusRow, 'slug' | 'label_ru' | 'label_uz'>>
+      content_plan_items: ReturnType<typeof table<ContentPlanItemRow, 'project_id' | 'topic' | 'format_id' | 'status_id'>>
+      checklist_cadences: { Row: ChecklistCadenceRow; Insert: ChecklistCadenceRow; Update: Partial<ChecklistCadenceRow>; Relationships: [] }
+      checklist_templates: ReturnType<typeof table<ChecklistTemplateRow, 'cadence_id' | 'title'>>
+      checklist_template_items: ReturnType<typeof table<ChecklistTemplateItemRow, 'template_id' | 'label'>>
+      checklist_instances: ReturnType<typeof table<ChecklistInstanceRow, 'template_id' | 'profile_id' | 'period_date'>>
+      checklist_instance_items: ReturnType<typeof table<ChecklistInstanceItemRow, 'instance_id' | 'template_item_id'>>
+    }
+    Views: {
+      v_task_queue: { Row: TaskQueueViewRow; Relationships: [] }
+      v_employee_workload: { Row: EmployeeWorkloadViewRow; Relationships: [] }
+    }
+    Functions: Record<string, never>
+    Enums: Record<string, never>
+  }
+}
