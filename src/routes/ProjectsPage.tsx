@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CreateProjectDialog } from './CreateProjectDialog'
+import { AiClientReportDialog } from './AiClientReportDialog'
 
 export function ProjectsPage() {
   const { t } = useTranslation()
@@ -40,6 +41,9 @@ export function ProjectsPage() {
                   {t('projects.billingDay')}: {project.billing_day}
                 </Badge>
               )}
+              <div>
+                <AiClientReportDialog projectId={project.id} />
+              </div>
             </CardContent>
           </Card>
         ))}

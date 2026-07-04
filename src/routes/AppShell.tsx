@@ -13,6 +13,7 @@ import {
   BarChart3,
   CalendarDays,
   BookOpen,
+  UserPlus,
 } from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
@@ -53,7 +54,7 @@ function InitialsTile({ name }: { name: string }) {
 
 export function AppShell() {
   const { t } = useTranslation()
-  const { profile, role, hasCapability, signOut } = useAuth()
+  const { profile, role, hasCapability, isCeo, signOut } = useAuth()
   const canSeeAll = hasCapability('cabinets.read_all')
   // Specialists (montajchi/designer/syomkachi/...) get only their own cabinet
   // and tasks — no project briefs, per TZ: "мутаxассис: faqat o'z shkafi,
@@ -88,6 +89,7 @@ export function AppShell() {
           <NavItem to="/kb" icon={BookOpen} label={t('kb.title')} />
           {canSeeFinance && <NavItem to="/finance" icon={Wallet} label={t('finance.title')} />}
           {canSeeFinance && <NavItem to="/kpi" icon={BarChart3} label={t('kpi.title')} />}
+          {isCeo && <NavItem to="/team" icon={UserPlus} label={t('team.title')} />}
         </nav>
 
         <div className="flex items-center gap-2 rounded-lg px-2 py-2">

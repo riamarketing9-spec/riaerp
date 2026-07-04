@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { Card, CardContent } from '@/components/ui/card'
+import { BackupExportButton } from './BackupExportButton'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
@@ -41,7 +42,10 @@ export function KpiDashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">{t('kpi.title')}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">{t('kpi.title')}</h1>
+        <BackupExportButton />
+      </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard

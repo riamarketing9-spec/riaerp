@@ -188,4 +188,28 @@ export const ru = {
     videoUrl: 'Ссылка на видео',
     empty: 'Статей пока нет',
   },
+  team: {
+    title: 'Команда',
+    newEmployee: 'Добавить сотрудника',
+    fullName: 'ФИО',
+    email: 'Email',
+    password: 'Пароль',
+    role: 'Роль',
+    telegramLink: 'Ссылка для подключения Telegram',
+    telegramConnected: 'Telegram подключен',
+    telegramNotConnected: 'Telegram не подключен',
+    copyLink: 'Скопировать ссылку',
+    linkCopied: 'Ссылка скопирована',
+  },
+  backup: {
+    export: 'Скачать бэкап',
+    exporting: 'Формируем бэкап...',
+  },
+  aiReport: {
+    title: 'Отчёт клиенту (ИИ)',
+    generate: 'Сгенерировать отчёт',
+    periodStart: 'Начало периода',
+    periodEnd: 'Конец периода',
+    generating: 'Генерируем...',
+  },
 }

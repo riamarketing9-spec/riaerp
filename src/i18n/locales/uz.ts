@@ -188,4 +188,28 @@ export const uz = {
     videoUrl: 'Video havolasi',
     empty: "Maqolalar hozircha yo'q",
   },
+  team: {
+    title: 'Jamoa',
+    newEmployee: "Xodim qo'shish",
+    fullName: 'F.I.Sh.',
+    email: 'Email',
+    password: 'Parol',
+    role: 'Roli',
+    telegramLink: 'Telegram ulash havolasi',
+    telegramConnected: 'Telegram ulangan',
+    telegramNotConnected: 'Telegram ulanmagan',
+    copyLink: 'Havolani nusxalash',
+    linkCopied: 'Havola nusxalandi',
+  },
+  backup: {
+    export: 'Backup yuklab olish',
+    exporting: 'Backup tayyorlanmoqda...',
+  },
+  aiReport: {
+    title: 'Mijozga hisobot (AI)',
+    generate: 'Hisobot yaratish',
+    periodStart: 'Davr boshi',
+    periodEnd: 'Davr oxiri',
+    generating: 'Yaratilmoqda...',
+  },
 }
