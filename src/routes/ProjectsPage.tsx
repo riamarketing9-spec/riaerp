@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CreateProjectDialog } from './CreateProjectDialog'
 import { AiClientReportDialog } from './AiClientReportDialog'
+import { ProjectMonthlyGoals } from './ProjectMonthlyGoals'
 
 export function ProjectsPage() {
   const { t } = useTranslation()
@@ -41,6 +42,7 @@ export function ProjectsPage() {
                   {t('projects.billingDay')}: {project.billing_day}
                 </Badge>
               )}
+              <ProjectMonthlyGoals projectId={project.id} />
               <div>
                 <AiClientReportDialog projectId={project.id} />
               </div>

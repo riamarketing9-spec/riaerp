@@ -37,9 +37,17 @@ const schema = z.object({
   priority_id: z.string().optional(),
   deadline: z.string().optional(),
   deliverable_text: z.string().optional(),
+  deliverable_type_id: z.string().optional(),
   is_urgent: z.boolean(),
   is_important: z.boolean(),
 })
+
+function isDeadlineSoon(dateStr: string) {
+  if (!dateStr) return false
+  const deadline = new Date(dateStr).getTime()
+  const now = Date.now()
+  return deadline - now <= 3 * 24 * 60 * 60 * 1000
+}
 
 type FormValues = z.infer<typeof schema>
 
@@ -88,6 +96,15 @@ export function CreateTaskDialog() {
     },
   })
 
+  const { data: deliverableTypes } = useQuery({
+    queryKey: ['deliverable_types'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru')
+      if (error) throw error
+      return data
+    },
+  })
+
   const { data: workload } = useQuery({
     queryKey: ['workload'],
     queryFn: async () => {
@@ -123,6 +140,7 @@ export function CreateTaskDialog() {
         priority_id: values.priority_id || null,
         deadline: values.deadline ? new Date(values.deadline).toISOString() : null,
         deliverable_text: values.deliverable_text || null,
+        deliverable_type_id: values.deliverable_type_id || null,
         is_urgent: values.is_urgent,
         is_important: values.is_important,
         created_by: profile?.id ?? null,
@@ -168,7 +186,9 @@ export function CreateTaskDialog() {
             <Label>{t('projects.title')}</Label>
             <Select onValueChange={(v: string | null) => setValue('project_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => projects?.find((p) => p.id === watch('project_id'))?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {projects?.map((p) => (
@@ -184,7 +204,9 @@ export function CreateTaskDialog() {
             <Label>{t('tasks.assignee')}</Label>
             <Select onValueChange={(v: string | null) => setValue('assignee_profile_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => assignees?.find((a) => a.id === watch('assignee_profile_id'))?.full_name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {assignees?.map((a) => (
@@ -230,7 +252,9 @@ export function CreateTaskDialog() {
               <Label>{t('tasks.status')}</Label>
               <Select onValueChange={(v: string | null) => setValue('status_id', v ?? '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="—">
+                    {() => statuses?.find((s) => s.id === watch('status_id'))?.label_ru}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {statuses?.map((s) => (
@@ -249,7 +273,9 @@ export function CreateTaskDialog() {
               <Label>{t('tasks.priority')}</Label>
               <Select onValueChange={(v: string | null) => setValue('priority_id', v ?? '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="—">
+                    {() => priorities?.find((p) => p.id === watch('priority_id'))?.label_ru}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {priorities?.map((p) => (
@@ -264,12 +290,41 @@ export function CreateTaskDialog() {
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="deadline">{t('tasks.deadline')}</Label>
-            <Input id="deadline" type="date" {...register('deadline')} />
+            <Input
+              id="deadline"
+              type="date"
+              {...register('deadline', {
+                onChange: (e) => {
+                  if (isDeadlineSoon(e.target.value)) setValue('is_urgent', true)
+                },
+              })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Если дедлайн ближе 3 дней — «Срочно» проставится автоматически (можно снять вручную)
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="deliverable_text">{t('tasks.deliverable')}</Label>
             <Textarea id="deliverable_text" rows={2} {...register('deliverable_text')} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('payroll.deliverableType')}</Label>
+            <Select onValueChange={(v: string | null) => setValue('deliverable_type_id', v ?? '')}>
+              <SelectTrigger>
+                <SelectValue placeholder="—">
+                  {() => deliverableTypes?.find((d) => d.id === watch('deliverable_type_id'))?.label_ru}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {deliverableTypes?.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.label_ru}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <DialogFooter>

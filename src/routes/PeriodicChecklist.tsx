@@ -1,29 +1,43 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 
-function todayKey() {
-  return new Date().toISOString().slice(0, 10)
+function periodKey(cadenceSlug: 'daily' | 'weekly' | 'monthly') {
+  const now = new Date()
+  if (cadenceSlug === 'daily') return now.toISOString().slice(0, 10)
+  if (cadenceSlug === 'monthly') {
+    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+  }
+  // weekly: Monday of the current ISO week
+  const day = now.getDay() || 7
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - day + 1)
+  return monday.toISOString().slice(0, 10)
 }
 
-export function DailyChecklist() {
-  const { t } = useTranslation()
+export function PeriodicChecklist({
+  cadenceSlug,
+  title,
+}: {
+  cadenceSlug: 'daily' | 'weekly' | 'monthly'
+  title: string
+}) {
   const { profile } = useAuth()
   const queryClient = useQueryClient()
-  const periodDate = todayKey()
+  const periodDate = periodKey(cadenceSlug)
+  const queryKey = ['periodic-checklist', cadenceSlug, profile?.id, periodDate]
 
-  const { data: instance, isLoading, error } = useQuery({
-    queryKey: ['daily-checklist', profile?.id, periodDate],
+  const { data: instance, isLoading } = useQuery({
+    queryKey,
     enabled: !!profile,
     queryFn: async () => {
       const { data: cadence } = await supabase
         .from('checklist_cadences')
         .select('id')
-        .eq('slug', 'daily')
+        .eq('slug', cadenceSlug)
         .single()
       if (!cadence) return null
 
@@ -71,7 +85,7 @@ export function DailyChecklist() {
 
       const { data: instanceItems, error: itemsErr } = await supabase
         .from('checklist_instance_items')
-        .select('id, template_item_id, is_checked')
+        .select('id, template_item_id, is_checked, note')
         .eq('instance_id', instanceId)
       if (itemsErr) throw itemsErr
 
@@ -101,17 +115,16 @@ export function DailyChecklist() {
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['daily-checklist', profile?.id, periodDate] })
+      queryClient.invalidateQueries({ queryKey })
     },
   })
 
-  if (error) console.error('DailyChecklist error:', error)
   if (isLoading || !instance) return null
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-medium">{t('cabinet.dailyChecklist')}</CardTitle>
+        <CardTitle className="text-base font-medium">{title}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2.5">
         {instance.items.map((item) => (

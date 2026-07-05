@@ -70,6 +70,7 @@ export function CreateLeadDialog() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
@@ -116,7 +117,9 @@ export function CreateLeadDialog() {
             <Label>{t('leads.client')}</Label>
             <Select onValueChange={(v: string | null) => setValue('client_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => clients?.find((c) => c.id === watch('client_id'))?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {clients?.map((c) => (
@@ -135,7 +138,9 @@ export function CreateLeadDialog() {
             <Label>{t('leads.stage')}</Label>
             <Select onValueChange={(v: string | null) => setValue('stage_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => stages?.find((s) => s.id === watch('stage_id'))?.label_ru}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {stages?.map((s) => (

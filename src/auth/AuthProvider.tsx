@@ -70,7 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      setIsLoading(true)
+      // Supabase silently refreshes the access token in the background
+      // (token rotation, tab-focus revalidation, etc.), which fires this
+      // effect again with a new `session` object for the SAME user. Only
+      // show the splash for a genuine login (no profile loaded yet) —
+      // not for every background token refresh.
+      if (!profile) setIsLoading(true)
 
       const { data: profileRow } = await supabase
         .from('profiles')
@@ -113,7 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [session, sessionChecked])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id, sessionChecked])
 
   const hasCapability = (cap: string) => capabilities.has(cap)
   const isCeo = role?.slug === 'ceo'

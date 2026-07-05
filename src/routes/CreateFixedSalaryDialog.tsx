@@ -53,6 +53,7 @@ export function CreateFixedSalaryDialog() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
@@ -96,7 +97,9 @@ export function CreateFixedSalaryDialog() {
             <Label>{t('payroll.employee')}</Label>
             <Select onValueChange={(v: string | null) => setValue('profile_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => profiles?.find((p) => p.id === watch('profile_id'))?.full_name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {profiles?.map((p) => (

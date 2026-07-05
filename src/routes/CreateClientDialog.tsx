@@ -65,6 +65,7 @@ export function CreateClientDialog() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
@@ -134,7 +135,9 @@ export function CreateClientDialog() {
               <Label>{t('clients.industry')}</Label>
               <Select onValueChange={(v: string | null) => setValue('industry_id', v ?? '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="—">
+                    {() => industries?.find((i) => i.id === watch('industry_id'))?.label_ru}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {industries?.map((i) => (
@@ -149,7 +152,9 @@ export function CreateClientDialog() {
               <Label>{t('clients.status')}</Label>
               <Select onValueChange={(v: string | null) => setValue('status_id', v ?? '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="—">
+                    {() => statuses?.find((s) => s.id === watch('status_id'))?.label_ru}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {statuses?.map((s) => (

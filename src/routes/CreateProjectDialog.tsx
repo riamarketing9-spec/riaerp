@@ -79,6 +79,7 @@ export function CreateProjectDialog() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
@@ -133,7 +134,9 @@ export function CreateProjectDialog() {
               <Label>{t('projects.type')}</Label>
               <Select onValueChange={(v: string | null) => setValue('project_type_id', v ?? '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="—">
+                    {() => projectTypes?.find((pt) => pt.id === watch('project_type_id'))?.label_ru}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {projectTypes?.map((pt) => (
@@ -152,7 +155,9 @@ export function CreateProjectDialog() {
               <Label>{t('projects.status')}</Label>
               <Select onValueChange={(v: string | null) => setValue('status_id', v ?? '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="—">
+                    {() => projectStatuses?.find((ps) => ps.id === watch('status_id'))?.label_ru}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {projectStatuses?.map((ps) => (
@@ -172,7 +177,9 @@ export function CreateProjectDialog() {
             <Label>{t('projects.pm')}</Label>
             <Select onValueChange={(v: string | null) => setValue('pm_profile_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => managers?.find((m) => m.id === watch('pm_profile_id'))?.full_name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {managers?.map((m) => (

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
@@ -5,11 +6,13 @@ import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CreateClientDialog } from './CreateClientDialog'
+import { ClientHistorySheet } from './ClientHistorySheet'
 
 export function ClientsPage() {
   const { t } = useTranslation()
   const { hasCapability } = useAuth()
   const canManage = hasCapability('sales.manage')
+  const [openClientId, setOpenClientId] = useState<string | null>(null)
 
   const { data: clients, isLoading } = useQuery({
     queryKey: ['clients'],
@@ -21,6 +24,8 @@ export function ClientsPage() {
       return data
     },
   })
+
+  const openClient = clients?.find((c) => c.id === openClientId)
 
   return (
     <div className="flex flex-col gap-6">
@@ -35,7 +40,11 @@ export function ClientsPage() {
           <p className="text-sm text-muted-foreground">{t('clients.empty')}</p>
         )}
         {clients?.map((c) => (
-          <Card key={c.id}>
+          <Card
+            key={c.id}
+            className="cursor-pointer"
+            onClick={() => setOpenClientId(c.id)}
+          >
             <CardContent className="flex items-center justify-between py-3">
               <div>
                 <p className="text-sm font-medium">{c.name}</p>
@@ -51,6 +60,13 @@ export function ClientsPage() {
           </Card>
         ))}
       </div>
+
+      <ClientHistorySheet
+        open={!!openClientId}
+        onOpenChange={(open) => !open && setOpenClientId(null)}
+        clientId={openClientId}
+        clientName={openClient?.name ?? ''}
+      />
     </div>
   )
 }

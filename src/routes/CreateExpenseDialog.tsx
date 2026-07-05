@@ -74,6 +74,7 @@ export function CreateExpenseDialog() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
@@ -139,7 +140,9 @@ export function CreateExpenseDialog() {
               <Label>{t('finance.category')}</Label>
               <Select onValueChange={(v: string | null) => setValue('category_id', v ?? '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="—">
+                    {() => categories?.find((c) => c.id === watch('category_id'))?.label_ru}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {categories?.map((c) => (
@@ -154,7 +157,12 @@ export function CreateExpenseDialog() {
               <Label>{t('finance.scope')}</Label>
               <Select onValueChange={(v: string | null) => setValue('scope_id', v ?? '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="—">
+                    {() => {
+                      const s = scopes?.find((s) => s.id === watch('scope_id'))
+                      return s ? (s.slug === 'business' ? 'Бизнес' : 'Личное') : null
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {scopes?.map((s) => (
@@ -174,7 +182,9 @@ export function CreateExpenseDialog() {
             <Label>{t('finance.project')}</Label>
             <Select onValueChange={(v: string | null) => setValue('project_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => projects?.find((p) => p.id === watch('project_id'))?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {projects?.map((p) => (

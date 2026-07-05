@@ -54,6 +54,7 @@ export function InviteEmployeeDialog() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
@@ -136,7 +137,9 @@ export function InviteEmployeeDialog() {
             <Label>{t('team.role')}</Label>
             <Select onValueChange={(v: string | null) => setValue('role_slug', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => roles?.find((r) => r.slug === watch('role_slug'))?.label_ru}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {roles?.map((r) => (

@@ -53,6 +53,7 @@ export function CreateRevenueDialog() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
@@ -99,7 +100,9 @@ export function CreateRevenueDialog() {
             <Label>{t('finance.project')}</Label>
             <Select onValueChange={(v: string | null) => setValue('project_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => projects?.find((p) => p.id === watch('project_id'))?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {projects?.map((p) => (

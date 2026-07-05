@@ -87,7 +87,9 @@ export function GrantDocumentAccessDialog({ documentId }: { documentId: string }
         <div className="flex flex-col gap-3">
           <Select onValueChange={(v: string | null) => setSelected(v)}>
             <SelectTrigger>
-              <SelectValue placeholder="—" />
+              <SelectValue placeholder="—">
+                {() => profiles?.find((p) => p.id === selected)?.full_name}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {profiles

@@ -84,6 +84,7 @@ type TaskRow = {
   blocker_text: string | null
   deliverable_text: string | null
   content_plan_item_id: string | null
+  deliverable_type_id: string | null
   created_by: string | null
   completed_at: string | null
   created_at: string
@@ -102,6 +103,8 @@ type ContentPlanItemRow = {
   topic: string
   format_id: string
   script: string | null
+  tor_text: string | null
+  deliverable_type_id: string | null
   shooter_profile_id: string | null
   editor_profile_id: string | null
   responsible_profile_id: string | null
@@ -166,6 +169,22 @@ type LeadRow = {
   notes: string | null
   created_at: string
   updated_at: string
+}
+
+type ClientInteractionRow = {
+  id: string
+  client_id: string
+  profile_id: string | null
+  note: string
+  created_at: string
+}
+
+type ProjectMonthlyGoalRow = {
+  id: string
+  project_id: string
+  month: string
+  goal_text: string
+  created_at: string
 }
 
 type OrgPositionRow = {
@@ -348,6 +367,8 @@ export type Database = {
       lead_stages: ReturnType<typeof table<LeadStageRow, 'slug' | 'label_ru' | 'label_uz'>>
       leads: ReturnType<typeof table<LeadRow, 'client_id' | 'stage_id'>>
       org_positions: ReturnType<typeof table<OrgPositionRow, 'title'>>
+      client_interactions: ReturnType<typeof table<ClientInteractionRow, 'client_id' | 'note'>>
+      project_monthly_goals: ReturnType<typeof table<ProjectMonthlyGoalRow, 'project_id' | 'month' | 'goal_text'>>
       document_categories: ReturnType<typeof table<DocumentCategoryRow, 'slug' | 'label_ru' | 'label_uz'>>
       documents: ReturnType<typeof table<DocumentRow, 'title' | 'storage_path'>>
       document_visibility: { Row: DocumentVisibilityRow; Insert: Pick<DocumentVisibilityRow, 'document_id' | 'profile_id'> & Partial<DocumentVisibilityRow>; Update: Partial<DocumentVisibilityRow>; Relationships: [] }

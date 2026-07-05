@@ -62,6 +62,7 @@ export function CreatePositionDialog() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
@@ -112,7 +113,9 @@ export function CreatePositionDialog() {
             <Label>{t('org.parent')}</Label>
             <Select onValueChange={(v: string | null) => setValue('parent_position_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder={t('org.none')} />
+                <SelectValue placeholder={t('org.none')}>
+                  {() => positions?.find((p) => p.id === watch('parent_position_id'))?.title}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {positions?.map((p) => (
@@ -128,7 +131,9 @@ export function CreatePositionDialog() {
             <Label>{t('org.person')}</Label>
             <Select onValueChange={(v: string | null) => setValue('profile_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder={t('org.none')} />
+                <SelectValue placeholder={t('org.none')}>
+                  {() => profiles?.find((p) => p.id === watch('profile_id'))?.full_name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {profiles?.map((p) => (

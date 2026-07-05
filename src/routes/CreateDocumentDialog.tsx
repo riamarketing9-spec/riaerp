@@ -117,7 +117,9 @@ export function CreateDocumentDialog() {
             <Label>{t('docs.category')}</Label>
             <Select onValueChange={(v: string | null) => setValue('category_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => categories?.find((c) => c.id === watch('category_id'))?.label_ru}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {categories?.map((c) => (

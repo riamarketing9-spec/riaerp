@@ -5,7 +5,7 @@ import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { DailyChecklist } from './DailyChecklist'
+import { PeriodicChecklist } from './PeriodicChecklist'
 
 export function CabinetPage() {
   const { t } = useTranslation()
@@ -33,7 +33,11 @@ export function CabinetPage() {
         <p className="text-sm text-muted-foreground">{profile?.full_name}</p>
       </div>
 
-      <DailyChecklist />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <PeriodicChecklist cadenceSlug="daily" title={t('checklist.daily')} />
+        <PeriodicChecklist cadenceSlug="weekly" title={t('checklist.weekly')} />
+        <PeriodicChecklist cadenceSlug="monthly" title={t('checklist.monthly')} />
+      </div>
 
       <Card>
         <CardHeader>

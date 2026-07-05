@@ -63,6 +63,7 @@ export function CreateRateDialog() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
@@ -107,7 +108,9 @@ export function CreateRateDialog() {
             <Label>{t('payroll.employee')}</Label>
             <Select onValueChange={(v: string | null) => setValue('profile_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => profiles?.find((p) => p.id === watch('profile_id'))?.full_name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {profiles?.map((p) => (
@@ -126,7 +129,9 @@ export function CreateRateDialog() {
             <Label>{t('payroll.deliverableType')}</Label>
             <Select onValueChange={(v: string | null) => setValue('deliverable_type_id', v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="—">
+                  {() => deliverableTypes?.find((d) => d.id === watch('deliverable_type_id'))?.label_ru}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {deliverableTypes?.map((d) => (
