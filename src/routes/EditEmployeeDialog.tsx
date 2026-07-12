@@ -203,7 +203,7 @@ export function EditEmployeeDialog({
           <SheetTitle>{profileRow?.full_name ?? t('team.editEmployee')}</SheetTitle>
         </SheetHeader>
         <div className="flex flex-col gap-4 px-4 pb-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>{t('team.role')}</Label>
               <Select value={roleId} onValueChange={(v: string | null) => setRoleId(v ?? '')}>

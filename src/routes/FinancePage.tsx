@@ -101,7 +101,7 @@ export function FinancePage() {
           <div className="flex justify-end">
             <CreateRevenueDialog />
           </div>
-          <div className="overflow-hidden rounded-lg border border-border">
+          <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -146,7 +146,7 @@ export function FinancePage() {
           <div className="flex justify-end">
             <CreateExpenseDialog />
           </div>
-          <div className="overflow-hidden rounded-lg border border-border">
+          <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
                 <TableRow>

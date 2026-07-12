@@ -130,7 +130,7 @@ export function CreateProjectDialog() {
             {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>{t('projects.type')}</Label>
               <Select onValueChange={(v: string | null) => setValue('project_type_id', v ?? '')}>
@@ -200,7 +200,7 @@ export function CreateProjectDialog() {
             <Textarea id="goal" rows={2} {...register('goal')} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="target_audience">{t('projects.audience')}</Label>
               <Input id="target_audience" {...register('target_audience')} />

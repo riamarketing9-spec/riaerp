@@ -119,7 +119,7 @@ export function CreateExpenseDialog() {
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
           className="flex flex-col gap-4"
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="expense_date">{t('finance.date')}</Label>
               <Input id="expense_date" type="date" {...register('expense_date')} />
@@ -136,7 +136,7 @@ export function CreateExpenseDialog() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>{t('finance.category')}</Label>
               <Select onValueChange={(v: string | null) => setValue('category_id', v ?? '')}>

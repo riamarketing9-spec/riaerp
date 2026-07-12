@@ -115,7 +115,7 @@ export function CreateClientDialog() {
             {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="contact_name">{t('clients.contactName')}</Label>
               <Input id="contact_name" {...register('contact_name')} />
@@ -131,7 +131,7 @@ export function CreateClientDialog() {
             <Input id="contact_telegram" {...register('contact_telegram')} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>{t('clients.industry')}</Label>
               <Select onValueChange={(v: string | null) => setValue('industry_id', v ?? '')}>

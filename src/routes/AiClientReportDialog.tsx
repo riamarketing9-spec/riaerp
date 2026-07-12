@@ -79,7 +79,7 @@ export function AiClientReportDialog({ projectId }: { projectId: string }) {
           <DialogTitle>{t('aiReport.title')}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="period_start">{t('aiReport.periodStart')}</Label>
               <Input

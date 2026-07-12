@@ -269,7 +269,7 @@ export function ContentItemSheet({
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>{t('contentPlan.format')}</Label>
               <Select
@@ -330,7 +330,7 @@ export function ContentItemSheet({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>{t('contentPlan.shooter')}</Label>
               <Select
@@ -399,7 +399,7 @@ export function ContentItemSheet({
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="shoot_date">{t('contentPlan.shootDate')}</Label>
               <Input id="shoot_date" type="date" {...register('shoot_date')} />

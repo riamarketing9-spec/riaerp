@@ -199,6 +199,7 @@ function RunLines({ runId, status }: { runId: string; status: string }) {
   })
 
   return (
+    <div className="overflow-x-auto">
     <Table>
       <TableHeader>
         <TableRow>
@@ -233,6 +234,7 @@ function RunLines({ runId, status }: { runId: string; status: string }) {
         ))}
       </TableBody>
     </Table>
+    </div>
   )
 }
 

@@ -72,7 +72,7 @@ export function PayrollSection() {
           <h2 className="text-sm font-semibold">{t('payroll.fixedSalary')}</h2>
           <CreateFixedSalaryDialog />
         </div>
-        <div className="overflow-hidden rounded-lg border border-border">
+        <div className="overflow-x-auto rounded-lg border border-border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -113,7 +113,7 @@ export function PayrollSection() {
           <h2 className="text-sm font-semibold">{t('payroll.rates')}</h2>
           <CreateRateDialog />
         </div>
-        <div className="overflow-hidden rounded-lg border border-border">
+        <div className="overflow-x-auto rounded-lg border border-border">
           <Table>
             <TableHeader>
               <TableRow>

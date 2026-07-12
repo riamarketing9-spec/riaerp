@@ -22,6 +22,9 @@
 create policy profiles_select_finance on profiles
   for select using (is_finance());
 
+-- v_ceo_dashboard reads from v_employee_workload, so it must be dropped
+-- alongside it and recreated afterward (identical to its 0003 definition).
+drop view if exists v_ceo_dashboard;
 drop view if exists v_employee_workload;
 create view v_employee_workload with (security_invoker = false) as
 select
@@ -53,3 +56,10 @@ left join tasks t on t.assignee_profile_id = pr.id
 left join task_statuses ts on ts.id = t.status_id
 where is_ceo() or has_capability('cabinets.read_all')
 group by pr.id, pr.full_name;
+
+create view v_ceo_dashboard with (security_invoker = true) as
+select
+  (select coalesce(sum(amount), 0) from finance_project_revenue where month = date_trunc('month', now())::date) as mrr,
+  (select count(*) from projects proj join project_statuses ps on ps.id = proj.status_id where ps.slug = 'active') as active_projects,
+  (select count(*) from tasks where deadline < now() and status_id not in (select id from task_statuses where slug = 'done')) as overdue_tasks,
+  (select count(*) from v_employee_workload where open_task_count > max_open_tasks) as overloaded_employees;
