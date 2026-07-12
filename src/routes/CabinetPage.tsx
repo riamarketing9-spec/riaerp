@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { PeriodicChecklist } from './PeriodicChecklist'
+import { formatLocalDate } from '@/lib/localizedLabel'
 
 export function CabinetPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { profile } = useAuth()
 
   const { data: tasks, isLoading } = useQuery({
@@ -58,12 +59,12 @@ export function CabinetPage() {
                 <div className="mt-1 flex items-center gap-2">
                   {task.is_urgent && (
                     <Badge variant="destructive" className="text-[10px]">
-                      Urgent
+                      {t('tasks.urgent')}
                     </Badge>
                   )}
                   {task.deadline && (
                     <span className="text-xs text-muted-foreground">
-                      {new Date(task.deadline).toLocaleDateString('ru-RU')}
+                      {formatLocalDate(task.deadline, i18n.language)}
                     </span>
                   )}
                 </div>

@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { email, password, full_name, role_slug } = await req.json()
+    const { email, password, full_name, role_slug, department_slug } = await req.json()
     if (!email || !password || !full_name || !role_slug) {
       throw new Error('email, password, full_name, role_slug are all required')
     }
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name, role_slug },
+      user_metadata: { full_name, role_slug, department_slug },
     })
     if (createErr) throw createErr
 

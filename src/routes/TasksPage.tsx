@@ -13,9 +13,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { CreateTaskDialog } from './CreateTaskDialog'
 import { TasksKanban } from './TasksKanban'
+import { formatLocalDate } from '@/lib/localizedLabel'
 
 export function TasksPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['tasks'],
@@ -65,15 +66,20 @@ export function TasksPage() {
                     </TableCell>
                   </TableRow>
                 )}
+                {!isLoading && (tasks?.length ?? 0) === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      {t('tasks.empty')}
+                    </TableCell>
+                  </TableRow>
+                )}
                 {tasks?.map((task) => (
                   <TableRow key={task.id}>
                     <TableCell className="font-medium">{task.title}</TableCell>
-                    <TableCell>
-                      {task.deadline ? new Date(task.deadline).toLocaleDateString('ru-RU') : '—'}
-                    </TableCell>
+                    <TableCell>{formatLocalDate(task.deadline, i18n.language)}</TableCell>
                     <TableCell>{task.percent_complete}%</TableCell>
                     <TableCell>
-                      {task.is_urgent && <Badge variant="destructive">Urgent</Badge>}
+                      {task.is_urgent && <Badge variant="destructive">{t('tasks.urgent')}</Badge>}
                     </TableCell>
                   </TableRow>
                 ))}

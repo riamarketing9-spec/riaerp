@@ -27,6 +27,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
+import { pickLabel } from '@/lib/localizedLabel'
 
 const schema = z.object({
   title: z.string().min(1, 'Обязательное поле'),
@@ -38,7 +39,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function CreateDocumentDialog() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { profile } = useAuth()
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
@@ -46,7 +47,7 @@ export function CreateDocumentDialog() {
   const { data: categories } = useQuery({
     queryKey: ['document_categories'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('document_categories').select('id, label_ru')
+      const { data, error } = await supabase.from('document_categories').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -118,13 +119,13 @@ export function CreateDocumentDialog() {
             <Select onValueChange={(v: string | null) => setValue('category_id', v ?? '')}>
               <SelectTrigger>
                 <SelectValue placeholder="—">
-                  {() => categories?.find((c) => c.id === watch('category_id'))?.label_ru}
+                  {() => pickLabel(categories?.find((c) => c.id === watch('category_id')), i18n.language)}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {categories?.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.label_ru}
+                    {pickLabel(c, i18n.language)}
                   </SelectItem>
                 ))}
               </SelectContent>

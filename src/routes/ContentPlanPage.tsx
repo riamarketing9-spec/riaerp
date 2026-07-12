@@ -21,10 +21,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ContentItemSheet } from './ContentItemSheet'
+import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
 import { Plus } from 'lucide-react'
 
 export function ContentPlanPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [projectFilter, setProjectFilter] = useState<string>('')
@@ -67,7 +68,7 @@ export function ContentPlanPage() {
   const { data: statuses } = useQuery({
     queryKey: ['content_statuses'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('content_statuses').select('id, label_ru')
+      const { data, error } = await supabase.from('content_statuses').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -76,18 +77,19 @@ export function ContentPlanPage() {
   const { data: platforms } = useQuery({
     queryKey: ['platforms'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('platforms').select('id, label_ru')
+      const { data, error } = await supabase.from('platforms').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
   })
 
   const projectName = (id: string) => projects?.find((p) => p.id === id)?.name ?? '—'
-  const statusLabel = (id: string) => statuses?.find((s) => s.id === id)?.label_ru ?? '—'
+  const statusLabel = (id: string) =>
+    pickLabel(statuses?.find((s) => s.id === id), i18n.language) ?? '—'
   const platformsFor = (itemId: string) =>
     (itemPlatforms ?? [])
       .filter((ip) => ip.content_plan_item_id === itemId)
-      .map((ip) => platforms?.find((p) => p.id === ip.platform_id)?.label_ru)
+      .map((ip) => pickLabel(platforms?.find((p) => p.id === ip.platform_id), i18n.language))
       .filter(Boolean)
 
   const filtered = useMemo(() => {
@@ -150,13 +152,13 @@ export function ContentPlanPage() {
           <Select value={platformFilter} onValueChange={(v: string | null) => setPlatformFilter(v ?? '')}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder={t('contentPlan.allPlatforms')}>
-                {() => platforms?.find((p) => p.id === platformFilter)?.label_ru}
+                {() => pickLabel(platforms?.find((p) => p.id === platformFilter), i18n.language)}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {platforms?.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  {p.label_ru}
+                  {pickLabel(p, i18n.language)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -233,14 +235,8 @@ export function ContentPlanPage() {
                 <TableCell>
                   <Badge variant="secondary">{statusLabel(item.status_id)}</Badge>
                 </TableCell>
-                <TableCell>
-                  {item.shoot_date ? new Date(item.shoot_date).toLocaleDateString('ru-RU') : '—'}
-                </TableCell>
-                <TableCell>
-                  {item.publish_date
-                    ? new Date(item.publish_date).toLocaleDateString('ru-RU')
-                    : '—'}
-                </TableCell>
+                <TableCell>{formatLocalDate(item.shoot_date, i18n.language)}</TableCell>
+                <TableCell>{formatLocalDate(item.publish_date, i18n.language)}</TableCell>
               </TableRow>
             ))}
           </TableBody>

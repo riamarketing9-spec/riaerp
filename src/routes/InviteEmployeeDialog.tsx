@@ -25,25 +25,36 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
+import { pickLabel } from '@/lib/localizedLabel'
 
 const schema = z.object({
   full_name: z.string().min(1, 'Обязательное поле'),
   email: z.string().email('Некорректный email'),
   password: z.string().min(6, 'Минимум 6 символов'),
   role_slug: z.string().min(1, 'Обязательное поле'),
+  department_slug: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
 
 export function InviteEmployeeDialog() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: roles } = useQuery({
     queryKey: ['roles-lookup'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('roles').select('id, slug, label_ru')
+      const { data, error } = await supabase.from('roles').select('id, slug, label_ru, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: departments } = useQuery({
+    queryKey: ['departments'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('departments').select('id, slug, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -77,6 +88,7 @@ export function InviteEmployeeDialog() {
             password: values.password,
             full_name: values.full_name,
             role_slug: values.role_slug,
+            department_slug: values.department_slug || undefined,
           }),
         }
       )
@@ -138,13 +150,13 @@ export function InviteEmployeeDialog() {
             <Select onValueChange={(v: string | null) => setValue('role_slug', v ?? '')}>
               <SelectTrigger>
                 <SelectValue placeholder="—">
-                  {() => roles?.find((r) => r.slug === watch('role_slug'))?.label_ru}
+                  {() => pickLabel(roles?.find((r) => r.slug === watch('role_slug')), i18n.language)}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {roles?.map((r) => (
                   <SelectItem key={r.id} value={r.slug}>
-                    {r.label_ru}
+                    {pickLabel(r, i18n.language)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -152,6 +164,24 @@ export function InviteEmployeeDialog() {
             {errors.role_slug && (
               <p className="text-xs text-destructive">{errors.role_slug.message}</p>
             )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('team.department')}</Label>
+            <Select onValueChange={(v: string | null) => setValue('department_slug', v ?? '')}>
+              <SelectTrigger>
+                <SelectValue placeholder={t('org.none')}>
+                  {() => pickLabel(departments?.find((d) => d.slug === watch('department_slug')), i18n.language)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {departments?.map((d) => (
+                  <SelectItem key={d.id} value={d.slug}>
+                    {pickLabel(d, i18n.language)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <DialogFooter>

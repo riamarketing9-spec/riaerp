@@ -14,6 +14,14 @@ type RoleRow = {
 
 type RoleCapabilityRow = { role_id: string; capability: string }
 
+type ProfileCapabilityOverrideRow = {
+  profile_id: string
+  capability: string
+  granted: boolean
+  granted_by: string | null
+  created_at: string
+}
+
 type DepartmentRow = { id: string; slug: string; label_ru: string; label_uz: string; created_at: string }
 
 type StaffStatusRow = { id: string; slug: string; label_ru: string; label_uz: string }
@@ -128,7 +136,7 @@ type ChecklistTemplateRow = {
   applies_to_all: boolean
 }
 
-type ChecklistTemplateItemRow = { id: string; template_id: string; label: string; sort_order: number; requires_note: boolean }
+type ChecklistTemplateItemRow = { id: string; template_id: string; label_ru: string; label_uz: string; sort_order: number; requires_note: boolean }
 
 type ChecklistInstanceRow = {
   id: string
@@ -340,6 +348,7 @@ export type Database = {
     Tables: {
       roles: ReturnType<typeof table<RoleRow, 'slug' | 'label_ru' | 'label_uz'>>
       role_capabilities: { Row: RoleCapabilityRow; Insert: RoleCapabilityRow; Update: Partial<RoleCapabilityRow>; Relationships: [] }
+      profile_capability_overrides: { Row: ProfileCapabilityOverrideRow; Insert: Pick<ProfileCapabilityOverrideRow, 'profile_id' | 'capability' | 'granted'> & Partial<ProfileCapabilityOverrideRow>; Update: Partial<ProfileCapabilityOverrideRow>; Relationships: [] }
       departments: ReturnType<typeof table<DepartmentRow, 'slug' | 'label_ru' | 'label_uz'>>
       staff_statuses: ReturnType<typeof table<StaffStatusRow, 'slug' | 'label_ru' | 'label_uz'>>
       workload_levels: ReturnType<typeof table<WorkloadLevelRow, 'slug' | 'label_ru' | 'label_uz' | 'color'>>
@@ -358,7 +367,7 @@ export type Database = {
       content_plan_items: ReturnType<typeof table<ContentPlanItemRow, 'project_id' | 'topic' | 'format_id' | 'status_id'>>
       checklist_cadences: { Row: ChecklistCadenceRow; Insert: ChecklistCadenceRow; Update: Partial<ChecklistCadenceRow>; Relationships: [] }
       checklist_templates: ReturnType<typeof table<ChecklistTemplateRow, 'cadence_id' | 'title'>>
-      checklist_template_items: ReturnType<typeof table<ChecklistTemplateItemRow, 'template_id' | 'label'>>
+      checklist_template_items: ReturnType<typeof table<ChecklistTemplateItemRow, 'template_id' | 'label_ru' | 'label_uz'>>
       checklist_instances: ReturnType<typeof table<ChecklistInstanceRow, 'template_id' | 'profile_id' | 'period_date'>>
       checklist_instance_items: ReturnType<typeof table<ChecklistInstanceItemRow, 'instance_id' | 'template_item_id'>>
       industries: ReturnType<typeof table<IndustryRow, 'slug' | 'label_ru' | 'label_uz'>>

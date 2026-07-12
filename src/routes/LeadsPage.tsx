@@ -12,9 +12,10 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { CreateLeadDialog } from './CreateLeadDialog'
+import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
 
 export function LeadsPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { hasCapability } = useAuth()
   const canManage = hasCapability('sales.manage')
 
@@ -43,7 +44,7 @@ export function LeadsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('lead_stages')
-        .select('id, label_ru')
+        .select('id, label_ru, label_uz')
         .order('sort_order')
       if (error) throw error
       return data
@@ -51,7 +52,7 @@ export function LeadsPage() {
   })
 
   const clientName = (id: string) => clients?.find((c) => c.id === id)?.name ?? '—'
-  const stageName = (id: string) => stages?.find((s) => s.id === id)?.label_ru ?? '—'
+  const stageName = (id: string) => pickLabel(stages?.find((s) => s.id === id), i18n.language) ?? '—'
 
   return (
     <div className="flex flex-col gap-6">
@@ -92,11 +93,7 @@ export function LeadsPage() {
                   <Badge variant="secondary">{stageName(lead.stage_id)}</Badge>
                 </TableCell>
                 <TableCell>{lead.expected_value ?? '—'}</TableCell>
-                <TableCell>
-                  {lead.next_action_date
-                    ? new Date(lead.next_action_date).toLocaleDateString('ru-RU')
-                    : '—'}
-                </TableCell>
+                <TableCell>{formatLocalDate(lead.next_action_date, i18n.language)}</TableCell>
               </TableRow>
             ))}
           </TableBody>

@@ -110,7 +110,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('role_id', profileRow.role_id)
 
       if (cancelled) return
-      setCapabilities(new Set((capRows ?? []).map((c) => c.capability)))
+      const effective = new Set((capRows ?? []).map((c) => c.capability))
+
+      const { data: overrideRows } = await supabase
+        .from('profile_capability_overrides')
+        .select('capability, granted')
+        .eq('profile_id', profileRow.id)
+
+      if (cancelled) return
+      for (const o of overrideRows ?? []) {
+        if (o.granted) effective.add(o.capability)
+        else effective.delete(o.capability)
+      }
+
+      setCapabilities(effective)
       setIsLoading(false)
     }
 

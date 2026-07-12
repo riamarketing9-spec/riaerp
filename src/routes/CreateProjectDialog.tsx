@@ -26,6 +26,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
+import { pickLabel } from '@/lib/localizedLabel'
 
 const schema = z.object({
   name: z.string().min(1, 'Обязательное поле'),
@@ -40,14 +41,14 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function CreateProjectDialog() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: projectTypes } = useQuery({
     queryKey: ['project_types'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('project_types').select('id, label_ru')
+      const { data, error } = await supabase.from('project_types').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -58,7 +59,7 @@ export function CreateProjectDialog() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('project_statuses')
-        .select('id, label_ru')
+        .select('id, label_ru, label_uz')
         .order('sort_order')
       if (error) throw error
       return data
@@ -135,13 +136,13 @@ export function CreateProjectDialog() {
               <Select onValueChange={(v: string | null) => setValue('project_type_id', v ?? '')}>
                 <SelectTrigger>
                   <SelectValue placeholder="—">
-                    {() => projectTypes?.find((pt) => pt.id === watch('project_type_id'))?.label_ru}
+                    {() => pickLabel(projectTypes?.find((pt) => pt.id === watch('project_type_id')), i18n.language)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {projectTypes?.map((pt) => (
                     <SelectItem key={pt.id} value={pt.id}>
-                      {pt.label_ru}
+                      {pickLabel(pt, i18n.language)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -156,13 +157,13 @@ export function CreateProjectDialog() {
               <Select onValueChange={(v: string | null) => setValue('status_id', v ?? '')}>
                 <SelectTrigger>
                   <SelectValue placeholder="—">
-                    {() => projectStatuses?.find((ps) => ps.id === watch('status_id'))?.label_ru}
+                    {() => pickLabel(projectStatuses?.find((ps) => ps.id === watch('status_id')), i18n.language)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {projectStatuses?.map((ps) => (
                     <SelectItem key={ps.id} value={ps.id}>
-                      {ps.label_ru}
+                      {pickLabel(ps, i18n.language)}
                     </SelectItem>
                   ))}
                 </SelectContent>

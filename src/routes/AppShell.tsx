@@ -17,7 +17,9 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { cn } from '@/lib/utils'
+import { pickLabel } from '@/lib/localizedLabel'
 
 function NavItem({ to, icon: Icon, label }: { to: string; icon: typeof LayoutGrid; label: string }) {
   return (
@@ -53,7 +55,7 @@ function InitialsTile({ name }: { name: string }) {
 }
 
 export function AppShell() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { profile, role, hasCapability, isCeo, signOut } = useAuth()
   const canSeeAll = hasCapability('cabinets.read_all')
   // Specialists (montajchi/designer/syomkachi/...) get only their own cabinet
@@ -96,8 +98,9 @@ export function AppShell() {
           <InitialsTile name={profile?.full_name ?? '?'} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{profile?.full_name}</p>
-            <p className="truncate text-xs text-muted-foreground">{role?.label_ru}</p>
+            <p className="truncate text-xs text-muted-foreground">{pickLabel(role, i18n.language)}</p>
           </div>
+          <ThemeToggle />
           <button
             onClick={() => signOut()}
             className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"

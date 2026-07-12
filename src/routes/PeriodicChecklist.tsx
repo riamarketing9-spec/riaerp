@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { pickLabel } from '@/lib/localizedLabel'
 
 function periodKey(cadenceSlug: 'daily' | 'weekly' | 'monthly') {
   const now = new Date()
@@ -26,9 +28,10 @@ export function PeriodicChecklist({
   title: string
 }) {
   const { profile } = useAuth()
+  const { i18n } = useTranslation()
   const queryClient = useQueryClient()
   const periodDate = periodKey(cadenceSlug)
-  const queryKey = ['periodic-checklist', cadenceSlug, profile?.id, periodDate]
+  const queryKey = ['periodic-checklist', cadenceSlug, profile?.id, periodDate, i18n.language]
 
   const { data: instance, isLoading } = useQuery({
     queryKey,
@@ -51,7 +54,7 @@ export function PeriodicChecklist({
 
       const { data: templateItems } = await supabase
         .from('checklist_template_items')
-        .select('id, label, sort_order')
+        .select('id, label_ru, label_uz, sort_order')
         .eq('template_id', template.id)
         .order('sort_order')
 
@@ -96,7 +99,7 @@ export function PeriodicChecklist({
             const ti = templateItems?.find((t) => t.id === ii.template_item_id)
             return {
               id: ii.id,
-              label: ti?.label ?? '',
+              label: pickLabel(ti, i18n.language) ?? '',
               sortOrder: ti?.sort_order ?? 0,
               isChecked: ii.is_checked,
             }

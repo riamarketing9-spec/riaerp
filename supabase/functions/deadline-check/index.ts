@@ -60,11 +60,11 @@ Deno.serve(async (req) => {
 
     if (!profile?.telegram_chat_id) continue
 
-    const deadlineStr = new Date(task.deadline!).toLocaleDateString('ru-RU')
+    const deadlineStr = new Date(task.deadline!).toLocaleDateString('uz-Latn-UZ')
     const text =
       type === 'missed_deadline'
-        ? `⚠ Просрочена задача: "${task.title}" (дедлайн был ${deadlineStr})`
-        : `⏰ Дедлайн приближается: "${task.title}" — ${deadlineStr}`
+        ? `⚠ Muddati o'tgan vazifa: "${task.title}" (muddat ${deadlineStr} edi)`
+        : `⏰ Muddat yaqinlashmoqda: "${task.title}" — ${deadlineStr}`
 
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',

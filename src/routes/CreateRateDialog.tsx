@@ -25,6 +25,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
+import { pickLabel } from '@/lib/localizedLabel'
 
 const schema = z.object({
   profile_id: z.string().min(1, 'Обязательное поле'),
@@ -36,7 +37,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function CreateRateDialog() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
 
@@ -52,7 +53,7 @@ export function CreateRateDialog() {
   const { data: deliverableTypes } = useQuery({
     queryKey: ['deliverable_types'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru')
+      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -130,13 +131,13 @@ export function CreateRateDialog() {
             <Select onValueChange={(v: string | null) => setValue('deliverable_type_id', v ?? '')}>
               <SelectTrigger>
                 <SelectValue placeholder="—">
-                  {() => deliverableTypes?.find((d) => d.id === watch('deliverable_type_id'))?.label_ru}
+                  {() => pickLabel(deliverableTypes?.find((d) => d.id === watch('deliverable_type_id')), i18n.language)}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {deliverableTypes?.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
-                    {d.label_ru}
+                    {pickLabel(d, i18n.language)}
                   </SelectItem>
                 ))}
               </SelectContent>

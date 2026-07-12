@@ -14,13 +14,14 @@ import { Card, CardContent } from '@/components/ui/card'
 import { CreateRevenueDialog } from './CreateRevenueDialog'
 import { CreateExpenseDialog } from './CreateExpenseDialog'
 import { PayrollSection } from './PayrollSection'
+import { formatLocalDate } from '@/lib/localizedLabel'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
 }
 
 export function FinancePage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const { data: revenue, isLoading: loadingRevenue } = useQuery({
     queryKey: ['finance_project_revenue'],
@@ -128,10 +129,10 @@ export function FinancePage() {
                   <TableRow key={r.id}>
                     <TableCell className="font-medium">{projectName(r.project_id)}</TableCell>
                     <TableCell>
-                      {new Date(r.month).toLocaleDateString('ru-RU', {
-                        month: 'long',
-                        year: 'numeric',
-                      })}
+                      {new Date(r.month).toLocaleDateString(
+                        i18n.language.startsWith('uz') ? 'uz-Latn-UZ' : 'ru-RU',
+                        { month: 'long', year: 'numeric' }
+                      )}
                     </TableCell>
                     <TableCell>{formatMoney(r.amount)}</TableCell>
                   </TableRow>
@@ -171,7 +172,7 @@ export function FinancePage() {
                 )}
                 {expenses?.map((e) => (
                   <TableRow key={e.id}>
-                    <TableCell>{new Date(e.expense_date).toLocaleDateString('ru-RU')}</TableCell>
+                    <TableCell>{formatLocalDate(e.expense_date, i18n.language)}</TableCell>
                     <TableCell className="font-medium">{formatMoney(e.amount)}</TableCell>
                     <TableCell className="text-muted-foreground">{e.note ?? '—'}</TableCell>
                   </TableRow>

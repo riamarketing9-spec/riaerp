@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
+import { pickLabel } from '@/lib/localizedLabel'
 
 const schema = z.object({
   project_id: z.string().min(1, 'Обязательное поле'),
@@ -48,7 +49,7 @@ export function ContentItemSheet({
   itemId: string | null
   defaultProjectId?: string
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const isEdit = !!itemId
 
@@ -63,7 +64,7 @@ export function ContentItemSheet({
   const { data: formats } = useQuery({
     queryKey: ['content_formats'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('content_formats').select('id, label_ru')
+      const { data, error } = await supabase.from('content_formats').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -73,7 +74,7 @@ export function ContentItemSheet({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('content_statuses')
-        .select('id, label_ru')
+        .select('id, label_ru, label_uz')
         .order('sort_order')
       if (error) throw error
       return data
@@ -82,7 +83,7 @@ export function ContentItemSheet({
   const { data: deliverableTypes } = useQuery({
     queryKey: ['deliverable_types'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru')
+      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -98,7 +99,7 @@ export function ContentItemSheet({
   const { data: platforms } = useQuery({
     queryKey: ['platforms'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('platforms').select('id, label_ru')
+      const { data, error } = await supabase.from('platforms').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -225,6 +226,7 @@ export function ContentItemSheet({
       toast.success(isEdit ? 'Сохранено' : 'Добавлено в контент-план')
       queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
       queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', itemId] })
+      queryClient.invalidateQueries({ queryKey: ['content_plan_platforms-all'] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
@@ -276,13 +278,13 @@ export function ContentItemSheet({
               >
                 <SelectTrigger>
                   <SelectValue placeholder="—">
-                    {() => formats?.find((f) => f.id === watch('format_id'))?.label_ru}
+                    {() => pickLabel(formats?.find((f) => f.id === watch('format_id')), i18n.language)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {formats?.map((f) => (
                     <SelectItem key={f.id} value={f.id}>
-                      {f.label_ru}
+                      {pickLabel(f, i18n.language)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -296,13 +298,13 @@ export function ContentItemSheet({
               >
                 <SelectTrigger>
                   <SelectValue placeholder="—">
-                    {() => statuses?.find((s) => s.id === watch('status_id'))?.label_ru}
+                    {() => pickLabel(statuses?.find((s) => s.id === watch('status_id')), i18n.language)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {statuses?.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      {s.label_ru}
+                      {pickLabel(s, i18n.language)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -321,7 +323,7 @@ export function ContentItemSheet({
                     onCheckedChange={(checked) => togglePlatform(p.id, checked === true)}
                   />
                   <Label htmlFor={`platform-${p.id}`} className="font-normal">
-                    {p.label_ru}
+                    {pickLabel(p, i18n.language)}
                   </Label>
                 </div>
               ))}
@@ -379,13 +381,18 @@ export function ContentItemSheet({
             >
               <SelectTrigger>
                 <SelectValue placeholder="—">
-                  {() => deliverableTypes?.find((d) => d.id === watch('deliverable_type_id'))?.label_ru}
+                  {() =>
+                    pickLabel(
+                      deliverableTypes?.find((d) => d.id === watch('deliverable_type_id')),
+                      i18n.language
+                    )
+                  }
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {deliverableTypes?.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
-                    {d.label_ru}
+                    {pickLabel(d, i18n.language)}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -27,6 +27,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
+import { pickLabel } from '@/lib/localizedLabel'
 
 const schema = z.object({
   client_id: z.string().min(1, 'Обязательное поле'),
@@ -39,7 +40,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function CreateLeadDialog() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { profile } = useAuth()
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
@@ -58,7 +59,7 @@ export function CreateLeadDialog() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('lead_stages')
-        .select('id, label_ru')
+        .select('id, label_ru, label_uz')
         .order('sort_order')
       if (error) throw error
       return data
@@ -139,13 +140,13 @@ export function CreateLeadDialog() {
             <Select onValueChange={(v: string | null) => setValue('stage_id', v ?? '')}>
               <SelectTrigger>
                 <SelectValue placeholder="—">
-                  {() => stages?.find((s) => s.id === watch('stage_id'))?.label_ru}
+                  {() => pickLabel(stages?.find((s) => s.id === watch('stage_id')), i18n.language)}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {stages?.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
-                    {s.label_ru}
+                    {pickLabel(s, i18n.language)}
                   </SelectItem>
                 ))}
               </SelectContent>

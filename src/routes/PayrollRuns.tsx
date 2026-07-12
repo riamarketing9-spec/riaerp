@@ -263,7 +263,7 @@ async function downloadTaxCsv(runId: string, periodLabel: string) {
 }
 
 export function PayrollRuns() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
 
   const { data: runs, isLoading } = useQuery({
@@ -309,10 +309,10 @@ export function PayrollRuns() {
         <div key={run.id} className="flex flex-col gap-2 rounded-lg border border-border p-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">
-              {new Date(run.period_month).toLocaleDateString('ru-RU', {
-                month: 'long',
-                year: 'numeric',
-              })}
+              {new Date(run.period_month).toLocaleDateString(
+                i18n.language.startsWith('uz') ? 'uz-Latn-UZ' : 'ru-RU',
+                { month: 'long', year: 'numeric' }
+              )}
             </p>
             <div className="flex items-center gap-2">
               <Badge variant={run.status === 'finalized' ? 'default' : 'secondary'}>

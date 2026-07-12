@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
 
 type TaskCard = {
   id: string
@@ -28,6 +29,7 @@ type TaskCard = {
 }
 
 function DraggableCard({ task }: { task: TaskCard }) {
+  const { t, i18n } = useTranslation()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
   })
@@ -50,12 +52,12 @@ function DraggableCard({ task }: { task: TaskCard }) {
       <div className="mt-1.5 flex items-center gap-1.5">
         {task.is_urgent && (
           <Badge variant="destructive" className="text-[10px]">
-            Urgent
+            {t('tasks.urgent')}
           </Badge>
         )}
         {task.deadline && (
           <span className="text-xs text-muted-foreground">
-            {new Date(task.deadline).toLocaleDateString('ru-RU')}
+            {formatLocalDate(task.deadline, i18n.language)}
           </span>
         )}
       </div>
@@ -94,7 +96,7 @@ function DroppableColumn({
 }
 
 export function TasksKanban() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [activeTask, setActiveTask] = useState<TaskCard | null>(null)
 
@@ -103,7 +105,7 @@ export function TasksKanban() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_statuses')
-        .select('id, label_ru')
+        .select('id, label_ru, label_uz')
         .order('sort_order')
       if (error) throw error
       return data
@@ -166,7 +168,7 @@ export function TasksKanban() {
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-3 overflow-x-auto pb-2">
           {columns.map((col) => (
-            <DroppableColumn key={col.id} id={col.id} label={col.label_ru} tasks={col.tasks} />
+            <DroppableColumn key={col.id} id={col.id} label={pickLabel(col, i18n.language) ?? ''} tasks={col.tasks} />
           ))}
         </div>
         <DragOverlay>

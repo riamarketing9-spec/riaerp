@@ -28,6 +28,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
+import { pickLabel } from '@/lib/localizedLabel'
 
 const schema = z.object({
   title: z.string().min(1, 'Обязательное поле'),
@@ -52,7 +53,7 @@ function isDeadlineSoon(dateStr: string) {
 type FormValues = z.infer<typeof schema>
 
 export function CreateTaskDialog() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { profile } = useAuth()
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
@@ -62,7 +63,7 @@ export function CreateTaskDialog() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_statuses')
-        .select('id, label_ru')
+        .select('id, label_ru, label_uz')
         .order('sort_order')
       if (error) throw error
       return data
@@ -72,7 +73,7 @@ export function CreateTaskDialog() {
   const { data: priorities } = useQuery({
     queryKey: ['priorities'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('priorities').select('id, label_ru')
+      const { data, error } = await supabase.from('priorities').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -99,7 +100,7 @@ export function CreateTaskDialog() {
   const { data: deliverableTypes } = useQuery({
     queryKey: ['deliverable_types'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru')
+      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -232,7 +233,7 @@ export function CreateTaskDialog() {
                 onCheckedChange={(checked) => setValue('is_urgent', checked === true)}
               />
               <Label htmlFor="is_urgent" className="font-normal">
-                Срочно
+                {t('tasks.urgent')}
               </Label>
             </div>
             <div className="flex items-center gap-2">
@@ -242,7 +243,7 @@ export function CreateTaskDialog() {
                 onCheckedChange={(checked) => setValue('is_important', checked === true)}
               />
               <Label htmlFor="is_important" className="font-normal">
-                Важно
+                {t('tasks.important')}
               </Label>
             </div>
           </div>
@@ -253,13 +254,13 @@ export function CreateTaskDialog() {
               <Select onValueChange={(v: string | null) => setValue('status_id', v ?? '')}>
                 <SelectTrigger>
                   <SelectValue placeholder="—">
-                    {() => statuses?.find((s) => s.id === watch('status_id'))?.label_ru}
+                    {() => pickLabel(statuses?.find((s) => s.id === watch('status_id')), i18n.language)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {statuses?.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      {s.label_ru}
+                      {pickLabel(s, i18n.language)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -274,13 +275,13 @@ export function CreateTaskDialog() {
               <Select onValueChange={(v: string | null) => setValue('priority_id', v ?? '')}>
                 <SelectTrigger>
                   <SelectValue placeholder="—">
-                    {() => priorities?.find((p) => p.id === watch('priority_id'))?.label_ru}
+                    {() => pickLabel(priorities?.find((p) => p.id === watch('priority_id')), i18n.language)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {priorities?.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.label_ru}
+                      {pickLabel(p, i18n.language)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -299,9 +300,7 @@ export function CreateTaskDialog() {
                 },
               })}
             />
-            <p className="text-xs text-muted-foreground">
-              Если дедлайн ближе 3 дней — «Срочно» проставится автоматически (можно снять вручную)
-            </p>
+            <p className="text-xs text-muted-foreground">{t('tasks.autoUrgentHint')}</p>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -314,13 +313,13 @@ export function CreateTaskDialog() {
             <Select onValueChange={(v: string | null) => setValue('deliverable_type_id', v ?? '')}>
               <SelectTrigger>
                 <SelectValue placeholder="—">
-                  {() => deliverableTypes?.find((d) => d.id === watch('deliverable_type_id'))?.label_ru}
+                  {() => pickLabel(deliverableTypes?.find((d) => d.id === watch('deliverable_type_id')), i18n.language)}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {deliverableTypes?.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
-                    {d.label_ru}
+                    {pickLabel(d, i18n.language)}
                   </SelectItem>
                 ))}
               </SelectContent>

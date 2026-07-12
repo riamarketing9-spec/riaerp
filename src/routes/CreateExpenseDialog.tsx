@@ -25,6 +25,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
+import { pickLabel } from '@/lib/localizedLabel'
 
 const schema = z.object({
   expense_date: z.string().min(1, 'Обязательное поле'),
@@ -38,14 +39,14 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function CreateExpenseDialog() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: categories } = useQuery({
     queryKey: ['expense_categories'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('expense_categories').select('id, label_ru')
+      const { data, error } = await supabase.from('expense_categories').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -141,13 +142,13 @@ export function CreateExpenseDialog() {
               <Select onValueChange={(v: string | null) => setValue('category_id', v ?? '')}>
                 <SelectTrigger>
                   <SelectValue placeholder="—">
-                    {() => categories?.find((c) => c.id === watch('category_id'))?.label_ru}
+                    {() => pickLabel(categories?.find((c) => c.id === watch('category_id')), i18n.language)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {categories?.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.label_ru}
+                      {pickLabel(c, i18n.language)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -160,14 +161,14 @@ export function CreateExpenseDialog() {
                   <SelectValue placeholder="—">
                     {() => {
                       const s = scopes?.find((s) => s.id === watch('scope_id'))
-                      return s ? (s.slug === 'business' ? 'Бизнес' : 'Личное') : null
+                      return s ? (s.slug === 'business' ? t('finance.scopeBusiness') : t('finance.scopePersonal')) : null
                     }}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {scopes?.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      {s.slug === 'business' ? 'Бизнес' : 'Личное'}
+                      {s.slug === 'business' ? t('finance.scopeBusiness') : t('finance.scopePersonal')}
                     </SelectItem>
                   ))}
                 </SelectContent>

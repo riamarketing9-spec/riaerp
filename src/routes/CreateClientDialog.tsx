@@ -25,6 +25,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
+import { pickLabel } from '@/lib/localizedLabel'
 
 const schema = z.object({
   name: z.string().min(1, 'Обязательное поле'),
@@ -38,14 +39,14 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function CreateClientDialog() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: statuses } = useQuery({
     queryKey: ['client_statuses'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('client_statuses').select('id, label_ru')
+      const { data, error } = await supabase.from('client_statuses').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -54,7 +55,7 @@ export function CreateClientDialog() {
   const { data: industries } = useQuery({
     queryKey: ['industries'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('industries').select('id, label_ru')
+      const { data, error } = await supabase.from('industries').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -136,13 +137,13 @@ export function CreateClientDialog() {
               <Select onValueChange={(v: string | null) => setValue('industry_id', v ?? '')}>
                 <SelectTrigger>
                   <SelectValue placeholder="—">
-                    {() => industries?.find((i) => i.id === watch('industry_id'))?.label_ru}
+                    {() => pickLabel(industries?.find((i) => i.id === watch('industry_id')), i18n.language)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {industries?.map((i) => (
                     <SelectItem key={i.id} value={i.id}>
-                      {i.label_ru}
+                      {pickLabel(i, i18n.language)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -153,13 +154,13 @@ export function CreateClientDialog() {
               <Select onValueChange={(v: string | null) => setValue('status_id', v ?? '')}>
                 <SelectTrigger>
                   <SelectValue placeholder="—">
-                    {() => statuses?.find((s) => s.id === watch('status_id'))?.label_ru}
+                    {() => pickLabel(statuses?.find((s) => s.id === watch('status_id')), i18n.language)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {statuses?.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      {s.label_ru}
+                      {pickLabel(s, i18n.language)}
                     </SelectItem>
                   ))}
                 </SelectContent>

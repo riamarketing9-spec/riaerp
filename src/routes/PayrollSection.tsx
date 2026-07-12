@@ -12,13 +12,14 @@ import {
 import { CreateFixedSalaryDialog } from './CreateFixedSalaryDialog'
 import { CreateRateDialog } from './CreateRateDialog'
 import { PayrollRuns } from './PayrollRuns'
+import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
 }
 
 export function PayrollSection() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const { data: fixedSalaries, isLoading: loadingFixed } = useQuery({
     queryKey: ['payroll_fixed_salary'],
@@ -54,7 +55,7 @@ export function PayrollSection() {
   const { data: deliverableTypes } = useQuery({
     queryKey: ['deliverable_types'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru')
+      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -62,7 +63,7 @@ export function PayrollSection() {
 
   const personName = (id: string) => profiles?.find((p) => p.id === id)?.full_name ?? '—'
   const deliverableLabel = (id: string) =>
-    deliverableTypes?.find((d) => d.id === id)?.label_ru ?? '—'
+    pickLabel(deliverableTypes?.find((d) => d.id === id), i18n.language) ?? '—'
 
   return (
     <div className="flex flex-col gap-8">
@@ -99,7 +100,7 @@ export function PayrollSection() {
                 <TableRow key={f.id}>
                   <TableCell className="font-medium">{personName(f.profile_id)}</TableCell>
                   <TableCell>{formatMoney(f.monthly_amount)}</TableCell>
-                  <TableCell>{new Date(f.effective_from).toLocaleDateString('ru-RU')}</TableCell>
+                  <TableCell>{formatLocalDate(f.effective_from, i18n.language)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
