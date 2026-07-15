@@ -233,6 +233,8 @@ export const ru = {
     departmentNameUz: 'Название (узб.)',
     departmentAdded: 'Отдел добавлен',
     departmentDeactivated: 'Отдел деактивирован',
+    secondaryRoles: 'Дополнительные должности',
+    secondaryRolesHint: 'Если человек совмещает несколько ролей — отметь их здесь (не влияет на права доступа, только для учёта)',
     permissions: 'Права доступа',
     permissionsHint: 'По умолчанию — права по роли; отметьте, чтобы выдать или забрать конкретное право у этого сотрудника',
     permissionFromRole: 'по роли',

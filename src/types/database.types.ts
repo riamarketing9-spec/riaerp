@@ -14,6 +14,8 @@ type RoleRow = {
 
 type RoleCapabilityRow = { role_id: string; capability: string }
 
+type EmployeeRoleRow = { profile_id: string; role_id: string }
+
 type ProfileCapabilityOverrideRow = {
   profile_id: string
   capability: string
@@ -348,6 +350,7 @@ export type Database = {
     Tables: {
       roles: ReturnType<typeof table<RoleRow, 'slug' | 'label_ru' | 'label_uz'>>
       role_capabilities: { Row: RoleCapabilityRow; Insert: RoleCapabilityRow; Update: Partial<RoleCapabilityRow>; Relationships: [] }
+      employee_roles: { Row: EmployeeRoleRow; Insert: EmployeeRoleRow; Update: Partial<EmployeeRoleRow>; Relationships: [] }
       profile_capability_overrides: { Row: ProfileCapabilityOverrideRow; Insert: Pick<ProfileCapabilityOverrideRow, 'profile_id' | 'capability' | 'granted'> & Partial<ProfileCapabilityOverrideRow>; Update: Partial<ProfileCapabilityOverrideRow>; Relationships: [] }
       departments: ReturnType<typeof table<DepartmentRow, 'slug' | 'label_ru' | 'label_uz'>>
       staff_statuses: ReturnType<typeof table<StaffStatusRow, 'slug' | 'label_ru' | 'label_uz'>>

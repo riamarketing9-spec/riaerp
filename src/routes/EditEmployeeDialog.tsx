@@ -46,6 +46,7 @@ export function EditEmployeeDialog({
   const [departmentId, setDepartmentId] = useState('')
   const [staffStatusId, setStaffStatusId] = useState('')
   const [effectiveCaps, setEffectiveCaps] = useState<Set<string>>(new Set())
+  const [secondaryRoleIds, setSecondaryRoleIds] = useState<Set<string>>(new Set())
 
   const { data: profileRow } = useQuery({
     queryKey: ['employee-detail', profileId],
@@ -114,6 +115,19 @@ export function EditEmployeeDialog({
     },
   })
 
+  const { data: employeeRoles } = useQuery({
+    queryKey: ['employee_roles', profileId],
+    enabled: !!profileId && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('employee_roles')
+        .select('role_id')
+        .eq('profile_id', profileId!)
+      if (error) throw error
+      return data
+    },
+  })
+
   useEffect(() => {
     if (profileRow) {
       setRoleId(profileRow.role_id)
@@ -132,11 +146,24 @@ export function EditEmployeeDialog({
     setEffectiveCaps(next)
   }, [roleDefaults, overrides])
 
+  useEffect(() => {
+    setSecondaryRoleIds(new Set((employeeRoles ?? []).map((r) => r.role_id)))
+  }, [employeeRoles])
+
   function toggleCap(slug: string, checked: boolean) {
     setEffectiveCaps((prev) => {
       const next = new Set(prev)
       if (checked) next.add(slug)
       else next.delete(slug)
+      return next
+    })
+  }
+
+  function toggleSecondaryRole(id: string, checked: boolean) {
+    setSecondaryRoleIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
       return next
     })
   }
@@ -185,12 +212,31 @@ export function EditEmployeeDialog({
           .upsert(toUpsert, { onConflict: 'profile_id,capability' })
         if (upsertErr) throw upsertErr
       }
+
+      const currentSecondary = new Set((employeeRoles ?? []).map((r) => r.role_id))
+      const toAddRoles = [...secondaryRoleIds].filter((id) => !currentSecondary.has(id))
+      const toRemoveRoles = [...currentSecondary].filter((id) => !secondaryRoleIds.has(id))
+
+      if (toRemoveRoles.length) {
+        await supabase
+          .from('employee_roles')
+          .delete()
+          .eq('profile_id', profileId!)
+          .in('role_id', toRemoveRoles)
+      }
+      if (toAddRoles.length) {
+        const { error: rolesErr } = await supabase
+          .from('employee_roles')
+          .insert(toAddRoles.map((role_id) => ({ profile_id: profileId!, role_id })))
+        if (rolesErr) throw rolesErr
+      }
     },
     onSuccess: () => {
       toast.success(t('team.saved'))
       queryClient.invalidateQueries({ queryKey: ['team-profiles'] })
       queryClient.invalidateQueries({ queryKey: ['employee-detail', profileId] })
       queryClient.invalidateQueries({ queryKey: ['profile_capability_overrides', profileId] })
+      queryClient.invalidateQueries({ queryKey: ['employee_roles', profileId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
@@ -237,6 +283,27 @@ export function EditEmployeeDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label>{t('team.secondaryRoles')}</Label>
+            <p className="text-xs text-muted-foreground">{t('team.secondaryRolesHint')}</p>
+            <div className="flex flex-wrap gap-3 rounded-lg border border-border p-3">
+              {roles
+                ?.filter((r) => r.id !== roleId)
+                .map((r) => (
+                  <div key={r.id} className="flex items-center gap-1.5">
+                    <Checkbox
+                      id={`secrole-${r.id}`}
+                      checked={secondaryRoleIds.has(r.id)}
+                      onCheckedChange={(checked) => toggleSecondaryRole(r.id, checked === true)}
+                    />
+                    <Label htmlFor={`secrole-${r.id}`} className="font-normal">
+                      {pickLabel(r, i18n.language)}
+                    </Label>
+                  </div>
+                ))}
             </div>
           </div>
 
