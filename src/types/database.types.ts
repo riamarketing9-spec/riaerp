@@ -182,6 +182,8 @@ type ContentPlanItemRow = {
   format_id: string
   script: string | null
   tor_text: string | null
+  rubric: string | null
+  video_goal: string | null
   deliverable_type_id: string | null
   shooter_profile_id: string | null
   editor_profile_id: string | null
@@ -366,7 +368,6 @@ type CeoDashboardViewRow = {
   mrr: number
   active_projects: number
   overdue_tasks: number
-  overloaded_employees: number
 }
 
 type ContentPlanPlatformRow = { content_plan_item_id: string; platform_id: string }

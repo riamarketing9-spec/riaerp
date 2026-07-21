@@ -25,6 +25,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { Combobox } from '@/components/ui/combobox'
 import { Plus } from 'lucide-react'
 import { pickLabel } from '@/lib/localizedLabel'
 import { FileUpload } from '@/components/FileUpload'
@@ -274,20 +275,11 @@ export function ProjectDialog({
 
           <div className="flex flex-col gap-1.5">
             <Label>{t('projects.client')}</Label>
-            <Select value={watch('client_id')} onValueChange={(v: string | null) => setValue('client_id', v ?? '')}>
-              <SelectTrigger>
-                <SelectValue placeholder="—">
-                  {() => clients?.find((c) => c.id === watch('client_id'))?.name}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {clients?.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={(clients ?? []).map((c) => ({ value: c.id, label: c.name }))}
+              value={watch('client_id') ?? ''}
+              onChange={(v) => setValue('client_id', v)}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -342,23 +334,11 @@ export function ProjectDialog({
 
           <div className="flex flex-col gap-1.5">
             <Label>{t('projects.pm')}</Label>
-            <Select
-              value={watch('pm_profile_id')}
-              onValueChange={(v: string | null) => setValue('pm_profile_id', v ?? '')}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="—">
-                  {() => managers?.find((m) => m.id === watch('pm_profile_id'))?.full_name}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {managers?.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={(managers ?? []).map((m) => ({ value: m.id, label: m.full_name }))}
+              value={watch('pm_profile_id') ?? ''}
+              onChange={(v) => setValue('pm_profile_id', v)}
+            />
             {errors.pm_profile_id && (
               <p className="text-xs text-destructive">{errors.pm_profile_id.message}</p>
             )}

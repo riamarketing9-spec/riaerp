@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
+import { useAuth } from '@/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -39,6 +40,8 @@ type FormValues = z.infer<typeof schema>
 
 export function InviteEmployeeDialog() {
   const { t, i18n } = useTranslation()
+  const { hasCapability } = useAuth()
+  const isTrueCeo = hasCapability('org.full_access')
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
 
@@ -154,11 +157,13 @@ export function InviteEmployeeDialog() {
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {roles?.map((r) => (
-                  <SelectItem key={r.id} value={r.slug}>
-                    {pickLabel(r, i18n.language)}
-                  </SelectItem>
-                ))}
+                {roles
+                  ?.filter((r) => isTrueCeo || r.slug !== 'ceo')
+                  .map((r) => (
+                    <SelectItem key={r.id} value={r.slug}>
+                      {pickLabel(r, i18n.language)}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
             {errors.role_slug && (

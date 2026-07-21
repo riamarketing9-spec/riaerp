@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Combobox } from '@/components/ui/combobox'
 import { Plus, X } from 'lucide-react'
 import { pickLabel, formatLocalDateTime } from '@/lib/localizedLabel'
 import { cn } from '@/lib/utils'
@@ -134,15 +135,6 @@ export function TaskSheet({
     },
   })
 
-  const { data: workload } = useQuery({
-    queryKey: ['workload'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('v_employee_workload').select('*')
-      if (error) throw error
-      return data
-    },
-  })
-
   const { data: existing } = useQuery({
     queryKey: ['task-detail', taskId],
     enabled: !!taskId && open,
@@ -242,10 +234,6 @@ export function TaskSheet({
       return next
     })
   }
-
-  const selectedAssigneeId = watch('assignee_profile_id')
-  const selectedWorkload = workload?.find((w) => w.profile_id === selectedAssigneeId)
-  const isOverWip = !!selectedWorkload && selectedWorkload.open_task_count >= selectedWorkload.max_open_tasks
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -393,29 +381,11 @@ export function TaskSheet({
 
           <div className="flex flex-col gap-1.5">
             <Label>{t('tasks.assignee')}</Label>
-            <Select
-              value={watch('assignee_profile_id')}
-              onValueChange={(v: string | null) => setValue('assignee_profile_id', v ?? '')}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="—">
-                  {() => assignees?.find((a) => a.id === watch('assignee_profile_id'))?.full_name}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {assignees?.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {isOverWip && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                ⚠ {selectedWorkload?.open_task_count}/{selectedWorkload?.max_open_tasks}{' '}
-                {t('workload.openTasks').toLowerCase()} — {t('workload.overloaded').toLowerCase()}
-              </p>
-            )}
+            <Combobox
+              options={(assignees ?? []).map((a) => ({ value: a.id, label: a.full_name }))}
+              value={watch('assignee_profile_id') ?? ''}
+              onChange={(v) => setValue('assignee_profile_id', v)}
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">

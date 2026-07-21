@@ -89,7 +89,7 @@ const router = createBrowserRouter(
         {
           path: 'team',
           element: (
-            <RequireCapability anyOf={['org.full_access']}>
+            <RequireCapability anyOf={['org.full_access', 'team.manage']}>
               <TeamPage />
             </RequireCapability>
           ),

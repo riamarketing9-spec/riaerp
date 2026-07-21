@@ -7,7 +7,8 @@ import { CreatePositionDialog } from './CreatePositionDialog'
 
 export function OrgStructurePage() {
   const { t } = useTranslation()
-  const { isCeo } = useAuth()
+  const { isCeo, hasCapability } = useAuth()
+  const canManage = isCeo || hasCapability('org.structure_manage')
 
   const { data: positions, isLoading } = useQuery({
     queryKey: ['org_positions'],
@@ -38,7 +39,7 @@ export function OrgStructurePage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">{t('org.title')}</h1>
-        {isCeo && <CreatePositionDialog />}
+        {canManage && <CreatePositionDialog />}
       </div>
 
       <div className="flex flex-col gap-2">

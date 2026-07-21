@@ -9,6 +9,8 @@ import { PeriodicChecklist } from './PeriodicChecklist'
 import { TaskSheet } from './TaskSheet'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
 import { formatLocalDate } from '@/lib/localizedLabel'
+import { Button } from '@/components/ui/button'
+import { telegramDeepLink } from '@/lib/telegram'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
@@ -239,6 +241,48 @@ function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
   )
 }
 
+function TelegramConnectCard() {
+  const { t } = useTranslation()
+  const { profile } = useAuth()
+
+  const { data: profileRow } = useQuery({
+    queryKey: ['my-telegram-status', profile?.id],
+    enabled: !!profile,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('telegram_chat_id')
+        .eq('id', profile!.id)
+        .single()
+      if (error) throw error
+      return data
+    },
+  })
+
+  const connected = !!profileRow?.telegram_chat_id
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base font-medium">{t('cabinet.telegramTitle')}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        <Badge variant={connected ? 'default' : 'secondary'} className="w-fit">
+          {connected ? t('team.telegramConnected') : t('team.telegramNotConnected')}
+        </Badge>
+        {!connected && profile && (
+          <>
+            <p className="text-xs text-muted-foreground">{t('cabinet.telegramInstructions')}</p>
+            <Button size="sm" className="w-fit" render={<a href={telegramDeepLink(profile.id)} target="_blank" rel="noreferrer" />}>
+              {t('cabinet.telegramConnectButton')}
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function CabinetPage() {
   const { t } = useTranslation()
   const { profile, role, hasCapability } = useAuth()
@@ -272,6 +316,8 @@ export function CabinetPage() {
         <h1 className="text-2xl font-semibold tracking-tight">{t('cabinet.title')}</h1>
         <p className="text-sm text-muted-foreground">{profile?.full_name}</p>
       </div>
+
+      <TelegramConnectCard />
 
       {canSeeTeamWidgets && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

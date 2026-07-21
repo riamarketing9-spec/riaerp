@@ -21,13 +21,21 @@ const CAPABILITIES = [
   { slug: 'org.full_access', labelKey: 'team.capOrgFullAccess' },
   { slug: 'finance.read', labelKey: 'team.capFinanceRead' },
   { slug: 'finance.write', labelKey: 'team.capFinanceWrite' },
+  { slug: 'team.manage', labelKey: 'team.capTeamManage' },
   { slug: 'cabinets.read_all', labelKey: 'team.capCabinetsReadAll' },
   { slug: 'projects.manage', labelKey: 'team.capProjectsManage' },
   { slug: 'projects.read_scoped', labelKey: 'team.capProjectsReadScoped' },
   { slug: 'sales.read', labelKey: 'team.capSalesRead' },
   { slug: 'sales.manage', labelKey: 'team.capSalesManage' },
+  { slug: 'org.structure_manage', labelKey: 'team.capOrgStructureManage' },
   { slug: 'docs.admin', labelKey: 'team.capDocsAdmin' },
 ] as const
+
+// Only a true CEO (org.full_access) can grant/revoke these — a PM with
+// only team.manage must never be able to hand out finance access, full
+// system access, or team-management itself, to anyone including themselves.
+// Mirrors the RLS carve-out in profile_capability_overrides_write (0020).
+const SENSITIVE_CAPABILITIES = new Set(['org.full_access', 'finance.read', 'finance.write', 'team.manage'])
 
 export function EditEmployeeDialog({
   profileId,
@@ -39,7 +47,8 @@ export function EditEmployeeDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const { t, i18n } = useTranslation()
-  const { profile: currentProfile } = useAuth()
+  const { profile: currentProfile, hasCapability } = useAuth()
+  const isTrueCeo = hasCapability('org.full_access')
   const queryClient = useQueryClient()
 
   const [roleId, setRoleId] = useState('')
@@ -290,11 +299,13 @@ export function EditEmployeeDialog({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {roles?.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {pickLabel(r, i18n.language)}
-                    </SelectItem>
-                  ))}
+                  {roles
+                    ?.filter((r) => isTrueCeo || r.slug !== 'ceo')
+                    .map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {pickLabel(r, i18n.language)}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -363,19 +374,26 @@ export function EditEmployeeDialog({
               {CAPABILITIES.map((cap) => {
                 const isEffective = effectiveCaps.has(cap.slug)
                 const isDefault = (roleDefaults ?? new Set()).has(cap.slug)
+                const isSensitive = SENSITIVE_CAPABILITIES.has(cap.slug)
                 return (
-                  <div key={cap.slug} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`cap-${cap.slug}`}
-                      checked={isEffective}
-                      onCheckedChange={(checked) => toggleCap(cap.slug, checked === true)}
-                    />
-                    <Label htmlFor={`cap-${cap.slug}`} className="flex-1 font-normal">
-                      {t(cap.labelKey)}
-                    </Label>
-                    <span className="text-[10px] text-muted-foreground">
-                      {isEffective === isDefault ? t('team.permissionFromRole') : t('team.permissionCustom')}
-                    </span>
+                  <div key={cap.slug} className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`cap-${cap.slug}`}
+                        checked={isEffective}
+                        disabled={isSensitive && !isTrueCeo}
+                        onCheckedChange={(checked) => toggleCap(cap.slug, checked === true)}
+                      />
+                      <Label htmlFor={`cap-${cap.slug}`} className="flex-1 font-normal">
+                        {t(cap.labelKey)}
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">
+                        {isEffective === isDefault ? t('team.permissionFromRole') : t('team.permissionCustom')}
+                      </span>
+                    </div>
+                    {cap.slug === 'projects.manage' && (
+                      <p className="pl-6 text-[10px] text-muted-foreground">{t('team.capProjectsManageHint')}</p>
+                    )}
                   </div>
                 )
               })}

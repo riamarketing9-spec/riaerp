@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Combobox } from '@/components/ui/combobox'
 import { pickLabel } from '@/lib/localizedLabel'
 
 const schema = z.object({
@@ -34,6 +35,8 @@ const schema = z.object({
   publish_date: z.string().optional(),
   script: z.string().optional(),
   tor_text: z.string().optional(),
+  rubric: z.string().optional(),
+  video_goal: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -165,6 +168,8 @@ export function ContentItemSheet({
         publish_date: existing.publish_date ?? '',
         script: existing.script ?? '',
         tor_text: existing.tor_text ?? '',
+        rubric: existing.rubric ?? '',
+        video_goal: existing.video_goal ?? '',
       })
     }
   }, [existing, reset])
@@ -198,6 +203,8 @@ export function ContentItemSheet({
         publish_date: values.publish_date || null,
         script: values.script || null,
         tor_text: values.tor_text || null,
+        rubric: values.rubric || null,
+        video_goal: values.video_goal || null,
       }
 
       let id = itemId
@@ -248,25 +255,24 @@ export function ContentItemSheet({
             {errors.topic && <p className="text-xs text-destructive">{errors.topic.message}</p>}
           </div>
 
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rubric">{t('contentPlan.rubric')}</Label>
+              <Input id="rubric" {...register('rubric')} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="video_goal">{t('contentPlan.videoGoal')}</Label>
+              <Input id="video_goal" {...register('video_goal')} />
+            </div>
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <Label>{t('contentPlan.project')}</Label>
-            <Select
-              value={watch('project_id')}
-              onValueChange={(v: string | null) => setValue('project_id', v ?? '')}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="—">
-                  {() => projects?.find((p) => p.id === watch('project_id'))?.name}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {projects?.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={(projects ?? []).map((p) => ({ value: p.id, label: p.name }))}
+              value={watch('project_id') ?? ''}
+              onChange={(v) => setValue('project_id', v)}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -333,43 +339,19 @@ export function ContentItemSheet({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>{t('contentPlan.shooter')}</Label>
-              <Select
-                value={watch('shooter_profile_id')}
-                onValueChange={(v: string | null) => setValue('shooter_profile_id', v ?? '')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="—">
-                    {() => profiles?.find((p) => p.id === watch('shooter_profile_id'))?.full_name}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles?.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
+                value={watch('shooter_profile_id') ?? ''}
+                onChange={(v) => setValue('shooter_profile_id', v)}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>{t('contentPlan.editor')}</Label>
-              <Select
-                value={watch('editor_profile_id')}
-                onValueChange={(v: string | null) => setValue('editor_profile_id', v ?? '')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="—">
-                    {() => profiles?.find((p) => p.id === watch('editor_profile_id'))?.full_name}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles?.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
+                value={watch('editor_profile_id') ?? ''}
+                onChange={(v) => setValue('editor_profile_id', v)}
+              />
             </div>
           </div>
 

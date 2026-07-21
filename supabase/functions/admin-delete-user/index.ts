@@ -1,6 +1,7 @@
-// CEO-only: permanently deletes an employee's auth account (profiles row
-// cascades via auth_user_id references auth.users(id) on delete cascade).
-// Must run server-side — deleting auth.users requires the service role key.
+// CEO or team.manage: permanently deletes an employee's auth account
+// (profiles row cascades via auth_user_id references auth.users(id) on
+// delete cascade). Must run server-side — deleting auth.users requires
+// the service role key.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -25,8 +26,12 @@ Deno.serve(async (req) => {
     })
     const { data: isCeo, error: ceoErr } = await callerClient.rpc('is_ceo')
     if (ceoErr) throw ceoErr
-    if (!isCeo) {
-      return new Response(JSON.stringify({ error: 'Forbidden: CEO only' }), {
+    const { data: canManageTeam, error: capErr } = await callerClient.rpc('has_capability', {
+      cap: 'team.manage',
+    })
+    if (capErr) throw capErr
+    if (!isCeo && !canManageTeam) {
+      return new Response(JSON.stringify({ error: 'Forbidden: requires team.manage or CEO' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -39,11 +44,22 @@ Deno.serve(async (req) => {
 
     const { data: profile, error: profileErr } = await admin
       .from('profiles')
-      .select('auth_user_id')
+      .select('auth_user_id, role_id, roles(slug)')
       .eq('id', profile_id)
       .single()
     if (profileErr) throw profileErr
     if (!profile.auth_user_id) throw new Error('Profile has no linked auth user')
+    // A team.manage holder who isn't a true CEO must never be able to
+    // delete a CEO-role profile — only a real CEO can. This is the only
+    // real enforcement point for delete, since auth.admin.deleteUser runs
+    // under the service-role key and bypasses RLS entirely.
+    const targetRoleSlug = (profile as { roles?: { slug: string } | null }).roles?.slug
+    if (!isCeo && targetRoleSlug === 'ceo') {
+      return new Response(JSON.stringify({ error: 'Only CEO can delete a CEO-role employee' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     // profiles.id -> auth.users(id) cascades, but several tables reference
     // profiles(id) with no ON DELETE behavior of their own (e.g. a profile's

@@ -13,8 +13,7 @@ import { InviteEmployeeDialog } from './InviteEmployeeDialog'
 import { EditEmployeeDialog } from './EditEmployeeDialog'
 import { Copy, Plus, Trash2 } from 'lucide-react'
 import { pickLabel } from '@/lib/localizedLabel'
-
-const BOT_USERNAME = 'riamarketingaibot'
+import { telegramDeepLink } from '@/lib/telegram'
 
 function DepartmentsPanel() {
   const { t, i18n } = useTranslation()
@@ -139,8 +138,7 @@ export function TeamPage() {
   const visibleProfiles = (profiles ?? []).filter((p) => showInactive || !isInactive(p.staff_status_id))
 
   function copyLink(profileId: string) {
-    const link = `https://t.me/${BOT_USERNAME}?start=${profileId}`
-    navigator.clipboard.writeText(link)
+    navigator.clipboard.writeText(telegramDeepLink(profileId))
     toast.success(t('team.linkCopied'))
   }
 

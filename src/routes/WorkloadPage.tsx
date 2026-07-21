@@ -6,12 +6,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
 import { pickLabel } from '@/lib/localizedLabel'
 import { TaskSheet } from './TaskSheet'
-import { cn } from '@/lib/utils'
 
 function EmployeeTasksDialog({
   profileId,
@@ -191,40 +189,20 @@ export function WorkloadPage() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
         {visibleWorkload.map((row) => {
-          const ratio = row.max_open_tasks > 0 ? row.open_task_count / row.max_open_tasks : 0
-          const overloaded = row.open_task_count > row.max_open_tasks
           const employeeKpi = kpiFor(row.profile_id)
           return (
             <Card
               key={row.profile_id}
-              className={cn(
-                'cursor-pointer border-2 transition-colors',
-                overloaded
-                  ? 'border-red-300 bg-red-50 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/40'
-                  : ratio > 0
-                    ? 'border-amber-300 bg-amber-50 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40'
-                    : 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40'
-              )}
+              className="cursor-pointer transition-colors hover:bg-accent"
               onClick={() => setOpenProfileId(row.profile_id)}
             >
               <CardContent className="flex flex-col gap-2 py-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">{row.full_name}</p>
-                  <Badge
-                    className={cn(
-                      overloaded
-                        ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
-                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                    )}
-                  >
-                    {overloaded ? t('workload.overloaded') : 'OK'}
-                  </Badge>
+                  <Badge variant="secondary">{row.open_task_count}</Badge>
                 </div>
-                <Progress value={Math.min(ratio * 100, 100)} />
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>
-                    {row.open_task_count} / {row.max_open_tasks} {t('workload.openTasks').toLowerCase()}
-                  </span>
+                  <span>{t('workload.openTasks')}</span>
                   {employeeKpi && (
                     <span>
                       {t('kpi.tasksCompleted')}: {employeeKpi.tasks_completed} ·{' '}
