@@ -286,6 +286,7 @@ export const uz = {
     status: 'Holati',
     showInactive: "Faol bo'lmaganlarni ko'rsatish",
     editEmployee: 'Xodim',
+    confirmDelete: "{{name}} xodimini butunlay o'chirmoqchimisiz? Bu amalni qaytarib bo'lmaydi.",
     saved: 'Saqlandi',
     departments: "Bo'limlar",
     newDepartment: "Bo'lim qo'shish",

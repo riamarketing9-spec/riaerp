@@ -242,6 +242,37 @@ export function EditEmployeeDialog({
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) throw new Error('Нет активной сессии')
+
+      const res = await fetch(
+        'https://emrnxnhyiqnjjptmgwvd.supabase.co/functions/v1/admin-delete-user',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ profile_id: profileId }),
+        }
+      )
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? 'Не удалось удалить сотрудника')
+    },
+    onSuccess: () => {
+      toast.success(t('common.delete') + ': ' + (profileRow?.full_name ?? ''))
+      queryClient.invalidateQueries({ queryKey: ['team-profiles'] })
+      onOpenChange(false)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleDelete() {
+    if (window.confirm(t('team.confirmDelete', { name: profileRow?.full_name ?? '' }))) {
+      deleteMutation.mutate()
+    }
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -351,7 +382,15 @@ export function EditEmployeeDialog({
             </div>
           </div>
         </div>
-        <SheetFooter className="px-0">
+        <SheetFooter className="flex-row justify-between px-0">
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={deleteMutation.isPending}
+          >
+            {t('common.delete')}
+          </Button>
           <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
             {t('common.save')}
           </Button>

@@ -286,6 +286,7 @@ export const ru = {
     status: 'Статус',
     showInactive: 'Показывать неактивных',
     editEmployee: 'Сотрудник',
+    confirmDelete: 'Удалить сотрудника {{name}} навсегда? Это действие необратимо.',
     saved: 'Сохранено',
     departments: 'Отделы',
     newDepartment: 'Добавить отдел',
