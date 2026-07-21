@@ -27,8 +27,13 @@ export function FileUpload({
       const path = `${folder}/${crypto.randomUUID()}-${file.name}`
       const { error } = await supabase.storage.from('attachments').upload(path, file)
       if (error) throw error
-      const { data } = supabase.storage.from('attachments').getPublicUrl(path)
-      onChange(data.publicUrl)
+      // Bucket is private — a long-lived signed URL (10 years) is what
+      // actually gets stored, since a plain public URL wouldn't resolve.
+      const { data, error: signError } = await supabase.storage
+        .from('attachments')
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 10)
+      if (signError) throw signError
+      onChange(data.signedUrl)
     } catch (err) {
       toast.error((err as Error).message)
     } finally {

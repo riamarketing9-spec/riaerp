@@ -29,13 +29,13 @@ import {
 import { Plus } from 'lucide-react'
 import { pickLabel } from '@/lib/localizedLabel'
 import { FileUpload } from '@/components/FileUpload'
+import { Checkbox } from '@/components/ui/checkbox'
 
 const schema = z.object({
   name: z.string().min(1, 'Обязательное поле'),
   project_type_id: z.string().min(1, 'Обязательное поле'),
   status_id: z.string().min(1, 'Обязательное поле'),
   pm_profile_id: z.string().min(1, 'Обязательное поле'),
-  assistant_pm_profile_id: z.string().optional(),
   client_id: z.string().optional(),
   goal: z.string().optional(),
   deliverables_text: z.string().optional(),
@@ -52,7 +52,17 @@ export function CreateProjectDialog() {
   const { t, i18n } = useTranslation()
   const { isCeo } = useAuth()
   const [open, setOpen] = useState(false)
+  const [assistantPmIds, setAssistantPmIds] = useState<Set<string>>(new Set())
   const queryClient = useQueryClient()
+
+  function toggleAssistantPm(id: string, checked: boolean) {
+    setAssistantPmIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
 
   const { data: projectTypes } = useQuery({
     queryKey: ['project_types'],
@@ -123,12 +133,14 @@ export function CreateProjectDialog() {
         .single()
       if (error) throw error
 
-      if (values.assistant_pm_profile_id) {
-        await supabase.from('project_members').insert({
-          project_id: project.id,
-          profile_id: values.assistant_pm_profile_id,
-          role_on_project: 'assistant_pm',
-        })
+      if (assistantPmIds.size > 0) {
+        await supabase.from('project_members').insert(
+          [...assistantPmIds].map((profile_id) => ({
+            project_id: project.id,
+            profile_id,
+            role_on_project: 'assistant_pm',
+          }))
+        )
       }
 
       if (isCeo && values.contract_url && values.client_id) {
@@ -150,6 +162,7 @@ export function CreateProjectDialog() {
       toast.success('Проект создан')
       queryClient.invalidateQueries({ queryKey: ['projects'] })
       reset()
+      setAssistantPmIds(new Set())
       setOpen(false)
     },
     onError: (err: Error) => toast.error(err.message),
@@ -247,50 +260,45 @@ export function CreateProjectDialog() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('projects.pm')}</Label>
-              <Select
-                value={watch('pm_profile_id')}
-                onValueChange={(v: string | null) => setValue('pm_profile_id', v ?? '')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="—">
-                    {() => managers?.find((m) => m.id === watch('pm_profile_id'))?.full_name}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {managers?.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.pm_profile_id && (
-                <p className="text-xs text-destructive">{errors.pm_profile_id.message}</p>
-              )}
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('projects.pm')}</Label>
+            <Select
+              value={watch('pm_profile_id')}
+              onValueChange={(v: string | null) => setValue('pm_profile_id', v ?? '')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="—">
+                  {() => managers?.find((m) => m.id === watch('pm_profile_id'))?.full_name}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {managers?.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.pm_profile_id && (
+              <p className="text-xs text-destructive">{errors.pm_profile_id.message}</p>
+            )}
+          </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('projects.assistantPm')}</Label>
-              <Select
-                value={watch('assistant_pm_profile_id')}
-                onValueChange={(v: string | null) => setValue('assistant_pm_profile_id', v ?? '')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="—">
-                    {() => managers?.find((m) => m.id === watch('assistant_pm_profile_id'))?.full_name}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {managers?.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('projects.assistantPm')}</Label>
+            <div className="flex flex-wrap gap-3 rounded-lg border border-border p-3">
+              {managers?.map((m) => (
+                <div key={m.id} className="flex items-center gap-1.5">
+                  <Checkbox
+                    id={`assistant-pm-${m.id}`}
+                    checked={assistantPmIds.has(m.id)}
+                    onCheckedChange={(checked) => toggleAssistantPm(m.id, checked === true)}
+                  />
+                  <Label htmlFor={`assistant-pm-${m.id}`} className="font-normal">
+                    {m.full_name}
+                  </Label>
+                </div>
+              ))}
             </div>
           </div>
 

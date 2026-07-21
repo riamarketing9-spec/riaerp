@@ -33,7 +33,6 @@ const schema = z.object({
   deadline: z.string().optional(),
   starts_at: z.string().optional(),
   deliverable_text: z.string().optional(),
-  deliverable_type_id: z.string().optional(),
   blocker_text: z.string().optional(),
   term_type_id: z.string().optional(),
   is_important: z.boolean(),
@@ -81,6 +80,7 @@ export function TaskSheet({
   const isEdit = !!taskId
   const [newSubtask, setNewSubtask] = useState('')
   const [newComment, setNewComment] = useState('')
+  const [selectedDeliverableTypes, setSelectedDeliverableTypes] = useState<Set<string>>(new Set())
 
   const { data: statuses } = useQuery({
     queryKey: ['task_statuses'],
@@ -177,6 +177,19 @@ export function TaskSheet({
     },
   })
 
+  const { data: existingDeliverableTypes } = useQuery({
+    queryKey: ['task_deliverable_types', taskId],
+    enabled: !!taskId && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_deliverable_types')
+        .select('deliverable_type_id')
+        .eq('task_id', taskId!)
+      if (error) throw error
+      return data.map((r) => r.deliverable_type_id)
+    },
+  })
+
   const {
     register,
     handleSubmit,
@@ -192,6 +205,7 @@ export function TaskSheet({
   useEffect(() => {
     if (open && !isEdit) {
       reset({ project_id: defaultProjectId ?? '', is_important: false })
+      setSelectedDeliverableTypes(new Set())
     }
   }, [open, isEdit, defaultProjectId, reset])
 
@@ -205,13 +219,27 @@ export function TaskSheet({
         deadline: existing.deadline ? existing.deadline.slice(0, 10) : '',
         starts_at: existing.starts_at ? existing.starts_at.slice(0, 10) : '',
         deliverable_text: existing.deliverable_text ?? '',
-        deliverable_type_id: existing.deliverable_type_id ?? '',
         blocker_text: existing.blocker_text ?? '',
         term_type_id: existing.term_type_id ?? '',
         is_important: existing.is_important,
       })
     }
   }, [existing, reset])
+
+  useEffect(() => {
+    if (existingDeliverableTypes) {
+      setSelectedDeliverableTypes(new Set(existingDeliverableTypes))
+    }
+  }, [existingDeliverableTypes])
+
+  function toggleDeliverableType(id: string, checked: boolean) {
+    setSelectedDeliverableTypes((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
 
   const selectedAssigneeId = watch('assignee_profile_id')
   const selectedWorkload = workload?.find((w) => w.profile_id === selectedAssigneeId)
@@ -229,18 +257,33 @@ export function TaskSheet({
         deadline: values.deadline ? new Date(values.deadline).toISOString() : null,
         starts_at: values.starts_at ? new Date(values.starts_at).toISOString() : null,
         deliverable_text: values.deliverable_text || null,
-        deliverable_type_id: values.deliverable_type_id || null,
         blocker_text: values.blocker_text || null,
         term_type_id: values.term_type_id || null,
         is_important: values.is_important,
       }
 
+      let currentTaskId = taskId
       if (isEdit) {
         const { error } = await supabase.from('tasks').update(payload).eq('id', taskId!)
         if (error) throw error
       } else {
-        const { error } = await supabase.from('tasks').insert({ ...payload, created_by: profile?.id ?? null })
+        const { data, error } = await supabase
+          .from('tasks')
+          .insert({ ...payload, created_by: profile?.id ?? null })
+          .select('id')
+          .single()
         if (error) throw error
+        currentTaskId = data.id
+      }
+
+      await supabase.from('task_deliverable_types').delete().eq('task_id', currentTaskId!)
+      if (selectedDeliverableTypes.size > 0) {
+        await supabase.from('task_deliverable_types').insert(
+          [...selectedDeliverableTypes].map((deliverable_type_id) => ({
+            task_id: currentTaskId!,
+            deliverable_type_id,
+          }))
+        )
       }
     },
     onSuccess: () => {
@@ -250,6 +293,7 @@ export function TaskSheet({
       queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
       queryClient.invalidateQueries({ queryKey: ['workload'] })
       queryClient.invalidateQueries({ queryKey: ['task-detail', taskId] })
+      queryClient.invalidateQueries({ queryKey: ['task_deliverable_types', taskId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
@@ -417,50 +461,45 @@ export function TaskSheet({
             <p className="text-xs text-muted-foreground">{t('tasks.eisenhowerHint')}</p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('tasks.status')}</Label>
-              <Select
-                value={watch('status_id')}
-                onValueChange={(v: string | null) => setValue('status_id', v ?? '')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="—">
-                    {() => pickLabel(statuses?.find((s) => s.id === watch('status_id')), i18n.language)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {statuses?.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {pickLabel(s, i18n.language)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.status_id && (
-                <p className="text-xs text-destructive">{errors.status_id.message}</p>
-              )}
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('tasks.status')}</Label>
+            <Select
+              value={watch('status_id')}
+              onValueChange={(v: string | null) => setValue('status_id', v ?? '')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="—">
+                  {() => pickLabel(statuses?.find((s) => s.id === watch('status_id')), i18n.language)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {statuses?.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {pickLabel(s, i18n.language)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.status_id && (
+              <p className="text-xs text-destructive">{errors.status_id.message}</p>
+            )}
+          </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('payroll.deliverableType')}</Label>
-              <Select
-                value={watch('deliverable_type_id')}
-                onValueChange={(v: string | null) => setValue('deliverable_type_id', v ?? '')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="—">
-                    {() => pickLabel(deliverableTypes?.find((d) => d.id === watch('deliverable_type_id')), i18n.language)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {deliverableTypes?.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {pickLabel(d, i18n.language)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('payroll.deliverableType')}</Label>
+            <div className="flex flex-wrap gap-3 rounded-lg border border-border p-3">
+              {deliverableTypes?.map((d) => (
+                <div key={d.id} className="flex items-center gap-1.5">
+                  <Checkbox
+                    id={`deliverable-${d.id}`}
+                    checked={selectedDeliverableTypes.has(d.id)}
+                    onCheckedChange={(checked) => toggleDeliverableType(d.id, checked === true)}
+                  />
+                  <Label htmlFor={`deliverable-${d.id}`} className="font-normal">
+                    {pickLabel(d, i18n.language)}
+                  </Label>
+                </div>
+              ))}
             </div>
           </div>
 
