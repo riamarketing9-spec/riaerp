@@ -23,8 +23,7 @@ type TaskCardData = {
   id: string
   title: string
   status_id: string
-  is_urgent: boolean
-  is_important: boolean
+  quadrant_id: string | null
   deadline: string | null
   percent_complete: number
   assignee_profile_id: string | null
@@ -35,6 +34,7 @@ function DraggableCard({
   onOpen,
   onDelete,
   statusLabel,
+  quadrantLabel,
   assigneeName,
   subtasks,
 }: {
@@ -42,6 +42,7 @@ function DraggableCard({
   onOpen: (id: string) => void
   onDelete: (id: string) => void
   statusLabel: string
+  quadrantLabel?: string
   assigneeName?: string
   subtasks?: TaskCardSubtask[]
 }) {
@@ -57,7 +58,7 @@ function DraggableCard({
       <TaskCard
         title={task.title}
         statusLabel={statusLabel}
-        isImportant={task.is_important}
+        quadrantLabel={quadrantLabel}
         deadline={task.deadline}
         percentComplete={task.percent_complete}
         assigneeName={assigneeName}
@@ -77,6 +78,7 @@ function DroppableColumn({
   onOpen,
   onDelete,
   statusLabel,
+  quadrantLabelFor,
   assigneeNameFor,
   subtasksFor,
 }: {
@@ -86,6 +88,7 @@ function DroppableColumn({
   onOpen: (id: string) => void
   onDelete: (id: string) => void
   statusLabel: string
+  quadrantLabelFor: (id: string | null) => string | undefined
   assigneeNameFor: (id: string | null) => string | undefined
   subtasksFor: (id: string) => TaskCardSubtask[] | undefined
 }) {
@@ -109,6 +112,7 @@ function DroppableColumn({
             onOpen={onOpen}
             onDelete={onDelete}
             statusLabel={statusLabel}
+            quadrantLabel={quadrantLabelFor(t.quadrant_id)}
             assigneeName={assigneeNameFor(t.assignee_profile_id)}
             subtasks={subtasksFor(t.id)}
           />
@@ -141,7 +145,7 @@ export function TasksKanban() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, title, status_id, is_urgent, is_important, deadline, percent_complete, assignee_profile_id')
+        .select('id, title, status_id, quadrant_id, deadline, percent_complete, assignee_profile_id')
       if (error) throw error
       return data as TaskCardData[]
     },
@@ -151,6 +155,15 @@ export function TasksKanban() {
     queryKey: ['profiles-lookup'],
     queryFn: async () => {
       const { data, error } = await supabase.from('profiles').select('id, full_name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: quadrants } = useQuery({
+    queryKey: ['task_priority_quadrants'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_priority_quadrants').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -208,6 +221,7 @@ export function TasksKanban() {
 
   const assigneeNameFor = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name
   const subtasksFor = (id: string) => subtasksByTask?.get(id)
+  const quadrantLabelFor = (id: string | null) => pickLabel(quadrants?.find((q) => q.id === id), i18n.language)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -250,6 +264,7 @@ export function TasksKanban() {
               onOpen={setOpenTaskId}
               onDelete={handleDelete}
               statusLabel={pickLabel(col, i18n.language) ?? ''}
+              quadrantLabelFor={quadrantLabelFor}
               assigneeNameFor={assigneeNameFor}
               subtasksFor={subtasksFor}
             />

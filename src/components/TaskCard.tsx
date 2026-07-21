@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Pencil, Trash2 } from 'lucide-react'
-import { formatLocalDate } from '@/lib/localizedLabel'
+import { formatLocalDateTime } from '@/lib/localizedLabel'
 import { cn } from '@/lib/utils'
 
 function InitialsChip({ name }: { name: string }) {
@@ -26,7 +26,7 @@ export function TaskCard({
   statusLabel,
   deliverableTypeLabels,
   termLabel,
-  isImportant,
+  quadrantLabel,
   deadline,
   percentComplete,
   assigneeName,
@@ -39,7 +39,7 @@ export function TaskCard({
   statusLabel?: string
   deliverableTypeLabels?: string[]
   termLabel?: string
-  isImportant?: boolean
+  quadrantLabel?: string
   deadline: string | null
   percentComplete: number
   assigneeName?: string
@@ -48,7 +48,7 @@ export function TaskCard({
   onDelete?: () => void
   className?: string
 }) {
-  const { t, i18n } = useTranslation()
+  const { i18n } = useTranslation()
 
   const overdue = !!deadline && new Date(deadline) < new Date()
   const dueSoon =
@@ -103,7 +103,7 @@ export function TaskCard({
           </div>
         </div>
 
-        {(statusLabel || termLabel || isImportant || (deliverableTypeLabels?.length ?? 0) > 0) && (
+        {(statusLabel || termLabel || quadrantLabel || (deliverableTypeLabels?.length ?? 0) > 0) && (
           <div className="flex flex-wrap gap-1">
             {statusLabel && (
               <Badge variant="secondary" className="text-[10px]">
@@ -115,9 +115,9 @@ export function TaskCard({
                 {termLabel}
               </Badge>
             )}
-            {isImportant && (
+            {quadrantLabel && (
               <Badge variant="default" className="text-[10px]">
-                {t('tasks.important')}
+                {quadrantLabel}
               </Badge>
             )}
             {deliverableTypeLabels?.map((label) => (
@@ -147,7 +147,7 @@ export function TaskCard({
         <div className="flex items-center justify-between gap-2 pt-1">
           {deadline ? (
             <Badge variant={overdue ? 'destructive' : dueSoon ? 'secondary' : 'outline'} className="text-[10px]">
-              {formatLocalDate(deadline, i18n.language)}
+              {formatLocalDateTime(deadline, i18n.language)}
             </Badge>
           ) : (
             <span />

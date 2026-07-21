@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -23,7 +23,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
@@ -48,10 +47,18 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-export function CreateProjectDialog() {
+export function ProjectDialog({
+  open,
+  onOpenChange,
+  projectId,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  projectId: string | null
+}) {
   const { t, i18n } = useTranslation()
   const { isCeo } = useAuth()
-  const [open, setOpen] = useState(false)
+  const isEdit = !!projectId
   const [assistantPmIds, setAssistantPmIds] = useState<Set<string>>(new Set())
   const queryClient = useQueryClient()
 
@@ -103,6 +110,30 @@ export function CreateProjectDialog() {
     },
   })
 
+  const { data: existing } = useQuery({
+    queryKey: ['project-detail', projectId],
+    enabled: isEdit && open,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('projects').select('*').eq('id', projectId!).single()
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: existingAssistants } = useQuery({
+    queryKey: ['project_members-assistants', projectId],
+    enabled: isEdit && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('project_members')
+        .select('profile_id')
+        .eq('project_id', projectId!)
+        .eq('role_on_project', 'assistant_pm')
+      if (error) throw error
+      return data.map((r) => r.profile_id)
+    },
+  })
+
   const {
     register,
     handleSubmit,
@@ -112,31 +143,86 @@ export function CreateProjectDialog() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
+  const watchedClientId = watch('client_id')
+
+  const { data: existingContract } = useQuery({
+    queryKey: ['contract-for-client', watchedClientId],
+    enabled: isCeo && !!watchedClientId && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('id, storage_path')
+        .eq('party_client_id', watchedClientId!)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (error) throw error
+      return data
+    },
+  })
+
+  useEffect(() => {
+    if (open && !isEdit) {
+      reset({})
+      setAssistantPmIds(new Set())
+    }
+  }, [open, isEdit, reset])
+
+  useEffect(() => {
+    if (existing) {
+      reset({
+        name: existing.name,
+        project_type_id: existing.project_type_id,
+        status_id: existing.status_id,
+        pm_profile_id: existing.pm_profile_id,
+        client_id: existing.client_id ?? '',
+        goal: existing.goal ?? '',
+        deliverables_text: existing.deliverables_text ?? '',
+        target_audience: existing.target_audience ?? '',
+        target_audience_voice_url: existing.target_audience_voice_url ?? '',
+        target_audience_file_url: existing.target_audience_file_url ?? '',
+        billing_day: existing.billing_day ? String(existing.billing_day) : '',
+      })
+    }
+  }, [existing, reset])
+
+  useEffect(() => {
+    if (existingAssistants) {
+      setAssistantPmIds(new Set(existingAssistants))
+    }
+  }, [existingAssistants])
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const { data: project, error } = await supabase
-        .from('projects')
-        .insert({
-          name: values.name,
-          project_type_id: values.project_type_id,
-          status_id: values.status_id,
-          pm_profile_id: values.pm_profile_id,
-          client_id: values.client_id || null,
-          goal: values.goal || null,
-          deliverables_text: values.deliverables_text || null,
-          target_audience: values.target_audience || null,
-          target_audience_voice_url: values.target_audience_voice_url || null,
-          target_audience_file_url: values.target_audience_file_url || null,
-          billing_day: values.billing_day ? Number(values.billing_day) : null,
-        })
-        .select('id')
-        .single()
-      if (error) throw error
+      const payload = {
+        name: values.name,
+        project_type_id: values.project_type_id,
+        status_id: values.status_id,
+        pm_profile_id: values.pm_profile_id,
+        client_id: values.client_id || null,
+        goal: values.goal || null,
+        deliverables_text: values.deliverables_text || null,
+        target_audience: values.target_audience || null,
+        target_audience_voice_url: values.target_audience_voice_url || null,
+        target_audience_file_url: values.target_audience_file_url || null,
+        billing_day: values.billing_day ? Number(values.billing_day) : null,
+      }
 
+      let currentProjectId = projectId
+      if (isEdit) {
+        const { error } = await supabase.from('projects').update(payload).eq('id', projectId!)
+        if (error) throw error
+      } else {
+        const { data: project, error } = await supabase.from('projects').insert(payload).select('id').single()
+        if (error) throw error
+        currentProjectId = project.id
+      }
+
+      await supabase.from('project_members').delete().eq('project_id', currentProjectId!).eq('role_on_project', 'assistant_pm')
       if (assistantPmIds.size > 0) {
         await supabase.from('project_members').insert(
           [...assistantPmIds].map((profile_id) => ({
-            project_id: project.id,
+            project_id: currentProjectId!,
             profile_id,
             role_on_project: 'assistant_pm',
           }))
@@ -159,28 +245,22 @@ export function CreateProjectDialog() {
       }
     },
     onSuccess: () => {
-      toast.success('Проект создан')
+      toast.success(isEdit ? t('team.saved') : t('projects.newProject'))
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project_members-assistants', projectId] })
       reset()
       setAssistantPmIds(new Set())
-      setOpen(false)
+      onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button>
-            <Plus />
-            {t('projects.newProject')}
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t('projects.newProject')}</DialogTitle>
+          <DialogTitle>{isEdit ? existing?.name ?? t('projects.title') : t('projects.newProject')}</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -343,6 +423,16 @@ export function CreateProjectDialog() {
           {isCeo && (
             <div className="flex flex-col gap-1.5 rounded-lg border border-border p-3">
               <Label>{t('projects.contract')}</Label>
+              {existingContract && (
+                <a
+                  href={existingContract.storage_path}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-brand-600 underline dark:text-brand-400"
+                >
+                  {t('projects.contractCurrent')}
+                </a>
+              )}
               <FileUpload
                 value={watch('contract_url') ?? ''}
                 onChange={(url) => setValue('contract_url', url)}
@@ -353,11 +443,25 @@ export function CreateProjectDialog() {
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {t('common.create')}
+              {isEdit ? t('tasks.save') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+export function CreateProjectDialog() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>
+        <Plus />
+        {t('projects.newProject')}
+      </Button>
+      <ProjectDialog open={open} onOpenChange={setOpen} projectId={null} />
+    </>
   )
 }

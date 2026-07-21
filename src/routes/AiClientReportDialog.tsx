@@ -17,7 +17,7 @@ import {
 import { Sparkles, Download } from 'lucide-react'
 
 export function AiClientReportDialog({ projectId }: { projectId: string }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const [periodStart, setPeriodStart] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
@@ -51,6 +51,7 @@ export function AiClientReportDialog({ projectId }: { projectId: string }) {
             project_id: projectId,
             period_start: periodStart,
             period_end: periodEnd,
+            language: i18n.language.startsWith('uz') ? 'uz' : 'ru',
           }),
         }
       )
@@ -79,6 +80,7 @@ export function AiClientReportDialog({ projectId }: { projectId: string }) {
           <DialogTitle>{t('aiReport.title')}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-4">
+          <p className="text-xs text-muted-foreground">{t('aiReport.description')}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="period_start">{t('aiReport.periodStart')}</Label>

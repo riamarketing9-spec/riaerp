@@ -14,10 +14,11 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) throw new Error('Missing Authorization header')
 
-    const { project_id, period_start, period_end } = await req.json()
+    const { project_id, period_start, period_end, language } = await req.json()
     if (!project_id || !period_start || !period_end) {
       throw new Error('project_id, period_start, period_end are required')
     }
+    const lang = language === 'uz' ? 'uz' : 'ru'
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -47,13 +48,30 @@ Deno.serve(async (req) => {
       .lte('completed_at', period_end)
 
     const groqKey = Deno.env.get('GROQ_API_KEY')!
-    const prompt = `Ты — ассистент маркетингового агентства RIA. Составь короткий, дружелюбный отчёт клиенту на русском языке по проекту "${project.name}" за период с ${period_start} по ${period_end}.
+
+    const contentLines = (content ?? []).map((c) => `- ${c.topic} (${c.publish_date})`).join('\n')
+    const taskLines = (tasks ?? [])
+      .map((t) => `- ${t.title}${t.deliverable_text ? ': ' + t.deliverable_text : ''}`)
+      .join('\n')
+
+    const prompt =
+      lang === 'uz'
+        ? `Sen — RIA marketing agentligining yordamchisisiz. "${project.name}" loyihasi bo'yicha ${period_start} dan ${period_end} gacha bo'lgan davr uchun mijozga qisqa, do'stona hisobot yoz. Hisobot O'ZBEK TILIDA bo'lishi SHART.
+
+Chop etilgan kontent:
+${contentLines || "ma'lumot yo'q"}
+
+Bajarilgan vazifalar:
+${taskLines || "ma'lumot yo'q"}
+
+Izchil hisobot yoz (3-6 gap), markdown belgilarisiz, ishbilarmonlik ohangida, lekin iliq.`
+        : `Ты — ассистент маркетингового агентства RIA. Составь короткий, дружелюбный отчёт клиенту на русском языке по проекту "${project.name}" за период с ${period_start} по ${period_end}.
 
 Опубликованный контент:
-${(content ?? []).map((c) => `- ${c.topic} (${c.publish_date})`).join('\n') || 'нет данных'}
+${contentLines || 'нет данных'}
 
 Выполненные задачи:
-${(tasks ?? []).map((t) => `- ${t.title}${t.deliverable_text ? ': ' + t.deliverable_text : ''}`).join('\n') || 'нет данных'}
+${taskLines || 'нет данных'}
 
 Напиши связный отчёт (3-6 предложений), без markdown-разметки, в деловом, но тёплом тоне.`
 

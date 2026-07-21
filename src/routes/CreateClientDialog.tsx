@@ -33,7 +33,7 @@ const schema = z.object({
   contact_name: z.string().optional(),
   contact_phone: z.string().optional(),
   contact_telegram: z.string().optional(),
-  industry_id: z.string().optional(),
+  industry_text: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -47,15 +47,6 @@ export function CreateClientDialog() {
     queryKey: ['client_statuses'],
     queryFn: async () => {
       const { data, error } = await supabase.from('client_statuses').select('id, label_ru, label_uz')
-      if (error) throw error
-      return data
-    },
-  })
-
-  const { data: industries } = useQuery({
-    queryKey: ['industries'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('industries').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -78,7 +69,7 @@ export function CreateClientDialog() {
         contact_name: values.contact_name || null,
         contact_phone: values.contact_phone || null,
         contact_telegram: values.contact_telegram || null,
-        industry_id: values.industry_id || null,
+        industry_text: values.industry_text || null,
       })
       if (error) throw error
     },
@@ -133,21 +124,8 @@ export function CreateClientDialog() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label>{t('clients.industry')}</Label>
-              <Select onValueChange={(v: string | null) => setValue('industry_id', v ?? '')}>
-                <SelectTrigger>
-                  <SelectValue placeholder="—">
-                    {() => pickLabel(industries?.find((i) => i.id === watch('industry_id')), i18n.language)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {industries?.map((i) => (
-                    <SelectItem key={i.id} value={i.id}>
-                      {pickLabel(i, i18n.language)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="industry_text">{t('clients.industry')}</Label>
+              <Input id="industry_text" {...register('industry_text')} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>{t('clients.status')}</Label>

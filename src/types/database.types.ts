@@ -101,6 +101,15 @@ type TaskItemRow = {
   created_at: string
 }
 
+type TaskPriorityQuadrantRow = {
+  id: string
+  slug: string
+  label_ru: string
+  label_uz: string
+  weight: number
+  sort_order: number
+}
+
 type TaskRow = {
   id: string
   title: string
@@ -108,9 +117,8 @@ type TaskRow = {
   assignee_profile_id: string | null
   status_id: string
   priority_id: string | null
-  is_urgent: boolean
-  is_important: boolean
   term_type_id: string | null
+  quadrant_id: string | null
   starts_at: string | null
   recurrence_id: string | null
   deadline: string | null
@@ -223,6 +231,7 @@ type ClientRow = {
   contact_phone: string | null
   contact_telegram: string | null
   industry_id: string | null
+  industry_text: string | null
   status_id: string
   created_at: string
   updated_at: string
@@ -425,6 +434,7 @@ export type Database = {
       priorities: ReturnType<typeof table<PriorityRow, 'slug' | 'label_ru' | 'label_uz'>>
       recurrence_types: ReturnType<typeof table<RecurrenceTypeRow, 'slug' | 'label_ru' | 'label_uz'>>
       task_term_types: ReturnType<typeof table<TaskTermTypeRow, 'slug' | 'label_ru' | 'label_uz' | 'day_min' | 'day_max' | 'weight'>>
+      task_priority_quadrants: ReturnType<typeof table<TaskPriorityQuadrantRow, 'slug' | 'label_ru' | 'label_uz' | 'weight'>>
       task_items: ReturnType<typeof table<TaskItemRow, 'task_id' | 'title'>>
       tasks: ReturnType<typeof table<TaskRow, 'title' | 'status_id'>>
       audit_log: ReturnType<typeof table<AuditLogRow, 'table_name' | 'action'>>

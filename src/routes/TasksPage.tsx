@@ -22,9 +22,18 @@ export function TasksPage() {
       // an outer query — order explicitly here so it's actually honored.
       const { data, error } = await supabase
         .from('v_task_queue')
-        .select('id, title, status_id, deadline, percent_complete, is_urgent, is_important, assignee_profile_id, sort_score')
+        .select('id, title, status_id, deadline, percent_complete, quadrant_id, assignee_profile_id, sort_score')
         .order('sort_score', { ascending: false })
         .order('deadline', { ascending: true, nullsFirst: false })
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: quadrants } = useQuery({
+    queryKey: ['task_priority_quadrants'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_priority_quadrants').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -84,6 +93,7 @@ export function TasksPage() {
 
   const statusLabel = (id: string) => pickLabel(statuses?.find((s) => s.id === id), i18n.language)
   const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name
+  const quadrantLabel = (id: string | null) => pickLabel(quadrants?.find((q) => q.id === id), i18n.language)
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,6 +119,7 @@ export function TasksPage() {
                 key={task.id}
                 title={task.title}
                 statusLabel={statusLabel(task.status_id)}
+                quadrantLabel={quadrantLabel(task.quadrant_id)}
                 deadline={task.deadline}
                 percentComplete={task.percent_complete}
                 assigneeName={assigneeName(task.assignee_profile_id)}

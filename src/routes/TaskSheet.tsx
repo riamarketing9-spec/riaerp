@@ -12,7 +12,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -22,7 +21,7 @@ import {
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Plus, X } from 'lucide-react'
-import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
+import { pickLabel, formatLocalDateTime } from '@/lib/localizedLabel'
 import { cn } from '@/lib/utils'
 
 const schema = z.object({
@@ -35,7 +34,7 @@ const schema = z.object({
   deliverable_text: z.string().optional(),
   blocker_text: z.string().optional(),
   term_type_id: z.string().optional(),
-  is_important: z.boolean(),
+  quadrant_id: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -48,24 +47,13 @@ function suggestTermSlug(dateStr: string): 'qisqa' | 'orta' | 'uzoq' | null {
   return 'uzoq'
 }
 
-const QUADRANTS = {
-  do_now: { key: 'quadrantDoNow', variant: 'destructive' as const },
-  schedule: { key: 'quadrantSchedule', variant: 'default' as const },
-  delegate: { key: 'quadrantDelegate', variant: 'secondary' as const },
-  eliminate: { key: 'quadrantEliminate', variant: 'outline' as const },
-}
-
-// "Urgent" for the Eisenhower quadrant is derived from the actual deadline
-// date (same 3-day threshold as deadline_boost in v_task_queue), NOT from
-// the qisqa/o'rta/uzoq "muddat" field — muddat is a separate, calendar-
-// adjacent classification of how long a task should take, not a proxy for
-// urgency. Conflating the two was the client's exact complaint.
-function computeQuadrant(deadline: string | undefined | null, isImportant: boolean) {
-  const urgent = !!deadline && new Date(deadline).getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000
-  if (urgent && isImportant) return QUADRANTS.do_now
-  if (!urgent && isImportant) return QUADRANTS.schedule
-  if (urgent && !isImportant) return QUADRANTS.delegate
-  return QUADRANTS.eliminate
+// datetime-local inputs need "YYYY-MM-DDTHH:mm" in the viewer's local time —
+// stored values are UTC ISO strings, so the offset has to be applied both
+// ways (display here, parsed back to UTC by `new Date(...)` on submit).
+function toDatetimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
 export function TaskSheet({
@@ -102,6 +90,18 @@ export function TaskSheet({
       const { data, error } = await supabase
         .from('task_term_types')
         .select('id, slug, label_ru, label_uz, day_min, day_max')
+        .order('sort_order')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: quadrants } = useQuery({
+    queryKey: ['task_priority_quadrants'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_priority_quadrants')
+        .select('id, slug, label_ru, label_uz')
         .order('sort_order')
       if (error) throw error
       return data
@@ -204,12 +204,11 @@ export function TaskSheet({
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { is_important: false },
   })
 
   useEffect(() => {
     if (open && !isEdit) {
-      reset({ project_id: defaultProjectId ?? '', is_important: false })
+      reset({ project_id: defaultProjectId ?? '' })
       setSelectedDeliverableTypes(new Set())
     }
   }, [open, isEdit, defaultProjectId, reset])
@@ -221,12 +220,12 @@ export function TaskSheet({
         project_id: existing.project_id ?? '',
         assignee_profile_id: existing.assignee_profile_id ?? '',
         status_id: existing.status_id,
-        deadline: existing.deadline ? existing.deadline.slice(0, 10) : '',
-        starts_at: existing.starts_at ? existing.starts_at.slice(0, 10) : '',
+        deadline: toDatetimeLocalValue(existing.deadline),
+        starts_at: toDatetimeLocalValue(existing.starts_at),
         deliverable_text: existing.deliverable_text ?? '',
         blocker_text: existing.blocker_text ?? '',
         term_type_id: existing.term_type_id ?? '',
-        is_important: existing.is_important,
+        quadrant_id: existing.quadrant_id ?? '',
       })
     }
   }, [existing, reset])
@@ -249,7 +248,6 @@ export function TaskSheet({
   const selectedAssigneeId = watch('assignee_profile_id')
   const selectedWorkload = workload?.find((w) => w.profile_id === selectedAssigneeId)
   const isOverWip = !!selectedWorkload && selectedWorkload.open_task_count >= selectedWorkload.max_open_tasks
-  const quadrant = computeQuadrant(watch('deadline'), watch('is_important'))
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -263,7 +261,7 @@ export function TaskSheet({
         deliverable_text: values.deliverable_text || null,
         blocker_text: values.blocker_text || null,
         term_type_id: values.term_type_id || null,
-        is_important: values.is_important,
+        quadrant_id: values.quadrant_id || null,
       }
 
       let currentTaskId = taskId
@@ -445,24 +443,25 @@ export function TaskSheet({
             <p className="text-xs text-muted-foreground">{t('tasks.termAutoHint')}</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="is_important"
-              checked={watch('is_important')}
-              onCheckedChange={(checked) => setValue('is_important', checked === true)}
-            />
-            <Label htmlFor="is_important" className="font-normal">
-              {t('tasks.important')}
-            </Label>
-          </div>
-          <p className="-mt-2 text-xs text-muted-foreground">{t('tasks.importantHint')}</p>
-
-          <div className="flex flex-col gap-1.5 rounded-lg border border-border p-3">
+          <div className="flex flex-col gap-1.5">
             <Label>{t('tasks.eisenhower')}</Label>
-            <Badge variant={quadrant.variant} className="w-fit">
-              {t(`tasks.${quadrant.key}`)}
-            </Badge>
-            <p className="text-xs text-muted-foreground">{t('tasks.eisenhowerHint')}</p>
+            <div className="grid grid-cols-2 gap-2">
+              {quadrants?.map((q) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => setValue('quadrant_id', q.id)}
+                  className={cn(
+                    'rounded-lg border px-2 py-2 text-xs font-medium transition-colors',
+                    watch('quadrant_id') === q.id
+                      ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
+                      : 'border-border text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {pickLabel(q, i18n.language)}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -510,13 +509,13 @@ export function TaskSheet({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="starts_at">{t('tasks.startsAt')}</Label>
-              <Input id="starts_at" type="date" {...register('starts_at')} />
+              <Input id="starts_at" type="datetime-local" {...register('starts_at')} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="deadline">{t('tasks.deadline')}</Label>
               <Input
                 id="deadline"
-                type="date"
+                type="datetime-local"
                 {...register('deadline', {
                   onChange: (e) => {
                     const slug = suggestTermSlug(e.target.value)
@@ -541,7 +540,6 @@ export function TaskSheet({
           {isEdit && (
             <div className="flex flex-col gap-2">
               <Label>{t('tasks.subtasks')}</Label>
-              <p className="text-xs text-muted-foreground">{t('tasks.subtasksHint')}</p>
               <div className="flex flex-col gap-1.5">
                 {subtasks?.map((st) => (
                   <div key={st.id} className="flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5">
@@ -588,7 +586,7 @@ export function TaskSheet({
                 {comments?.map((c) => (
                   <div key={c.id} className="rounded-md bg-muted/40 px-2.5 py-1.5 text-sm">
                     <p>{c.body}</p>
-                    <p className="text-[10px] text-muted-foreground">{formatLocalDate(c.created_at, i18n.language)}</p>
+                    <p className="text-[10px] text-muted-foreground">{formatLocalDateTime(c.created_at, i18n.language)}</p>
                   </div>
                 ))}
               </div>
