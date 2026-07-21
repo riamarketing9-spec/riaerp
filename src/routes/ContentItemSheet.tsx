@@ -47,11 +47,13 @@ export function ContentItemSheet({
   onOpenChange,
   itemId,
   defaultProjectId,
+  defaultPublishDate,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   itemId: string | null
   defaultProjectId?: string
+  defaultPublishDate?: string
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -157,10 +159,10 @@ export function ContentItemSheet({
 
   useEffect(() => {
     if (open && !isEdit) {
-      reset({ project_id: defaultProjectId ?? '' })
+      reset({ project_id: defaultProjectId ?? '', publish_date: defaultPublishDate ?? '' })
       setValue('_platforms' as never, [] as never)
     }
-  }, [open, isEdit, defaultProjectId, reset, setValue])
+  }, [open, isEdit, defaultProjectId, defaultPublishDate, reset, setValue])
 
   useEffect(() => {
     if (existing) {

@@ -32,6 +32,7 @@ export function ContentPlanPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [createDate, setCreateDate] = useState<string | null>(null)
   const [folderSearch, setFolderSearch] = useState('')
   const [platformFilter, setPlatformFilter] = useState<string>('')
   const [dateFrom, setDateFrom] = useState('')
@@ -124,11 +125,19 @@ export function ContentPlanPage() {
 
   function openCreate() {
     setEditingId(null)
+    setCreateDate(null)
+    setSheetOpen(true)
+  }
+
+  function openCreateWithDate(dateStr: string) {
+    setEditingId(null)
+    setCreateDate(dateStr)
     setSheetOpen(true)
   }
 
   function openEdit(id: string) {
     setEditingId(id)
+    setCreateDate(null)
     setSheetOpen(true)
   }
 
@@ -292,10 +301,12 @@ export function ContentPlanPage() {
         <TabsContent value="calendar">
           <ContentCalendarView
             items={items ?? []}
+            projects={projects}
             statuses={statuses}
             itemPlatforms={itemPlatforms}
             platforms={platforms}
             onOpen={openEdit}
+            onCreate={openCreateWithDate}
           />
         </TabsContent>
       </Tabs>
@@ -305,6 +316,7 @@ export function ContentPlanPage() {
         onOpenChange={setSheetOpen}
         itemId={editingId}
         defaultProjectId={selectedProjectId ?? undefined}
+        defaultPublishDate={createDate ?? undefined}
       />
     </div>
   )
