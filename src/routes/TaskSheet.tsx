@@ -55,8 +55,13 @@ const QUADRANTS = {
   eliminate: { key: 'quadrantEliminate', variant: 'outline' as const },
 }
 
-function computeQuadrant(termSlug: string | undefined, isImportant: boolean) {
-  const urgent = termSlug === 'qisqa'
+// "Urgent" for the Eisenhower quadrant is derived from the actual deadline
+// date (same 3-day threshold as deadline_boost in v_task_queue), NOT from
+// the qisqa/o'rta/uzoq "muddat" field — muddat is a separate, calendar-
+// adjacent classification of how long a task should take, not a proxy for
+// urgency. Conflating the two was the client's exact complaint.
+function computeQuadrant(deadline: string | undefined | null, isImportant: boolean) {
+  const urgent = !!deadline && new Date(deadline).getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000
   if (urgent && isImportant) return QUADRANTS.do_now
   if (!urgent && isImportant) return QUADRANTS.schedule
   if (urgent && !isImportant) return QUADRANTS.delegate
@@ -244,8 +249,7 @@ export function TaskSheet({
   const selectedAssigneeId = watch('assignee_profile_id')
   const selectedWorkload = workload?.find((w) => w.profile_id === selectedAssigneeId)
   const isOverWip = !!selectedWorkload && selectedWorkload.open_task_count >= selectedWorkload.max_open_tasks
-  const selectedTerm = termTypes?.find((tt) => tt.id === watch('term_type_id'))
-  const quadrant = computeQuadrant(selectedTerm?.slug, watch('is_important'))
+  const quadrant = computeQuadrant(watch('deadline'), watch('is_important'))
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {

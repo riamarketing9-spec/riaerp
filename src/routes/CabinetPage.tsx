@@ -1,15 +1,39 @@
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { PeriodicChecklist } from './PeriodicChecklist'
+import { TaskSheet } from './TaskSheet'
+import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
 import { formatLocalDate } from '@/lib/localizedLabel'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
+}
+
+function useSubtasksBatch(taskIds: string[]) {
+  return useQuery({
+    queryKey: ['task_items-batch', taskIds],
+    enabled: taskIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_items')
+        .select('id, task_id, title, is_done, sort_order')
+        .in('task_id', taskIds)
+        .order('sort_order')
+      if (error) throw error
+      const map = new Map<string, TaskCardSubtask[]>()
+      for (const item of data) {
+        const list = map.get(item.task_id) ?? []
+        list.push({ id: item.id, title: item.title, is_done: item.is_done })
+        map.set(item.task_id, list)
+      }
+      return map
+    },
+  })
 }
 
 function DeadlinesWidget() {
@@ -159,8 +183,8 @@ function TodayContentWidget() {
   )
 }
 
-function TeamTasksWidget() {
-  const { t, i18n } = useTranslation()
+function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
+  const { t } = useTranslation()
   const { profile } = useAuth()
   const { data: tasks } = useQuery({
     queryKey: ['dashboard-team-tasks', profile?.id],
@@ -170,7 +194,7 @@ function TeamTasksWidget() {
       // own projects — no client-side project filtering needed.
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, title, deadline, percent_complete, assignee_profile_id')
+        .select('id, title, status_id, deadline, percent_complete, assignee_profile_id')
         .neq('assignee_profile_id', profile!.id)
         .order('deadline', { ascending: true, nullsFirst: false })
       if (error) throw error
@@ -187,27 +211,28 @@ function TeamTasksWidget() {
     },
   })
 
-  const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name ?? '—'
+  const taskIds = useMemo(() => (tasks ?? []).map((t) => t.id), [tasks])
+  const { data: subtasksByTask } = useSubtasksBatch(taskIds)
+
+  const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base font-medium">{t('dashboard.teamTasks')}</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-2">
+      <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {(tasks?.length ?? 0) === 0 && <p className="text-sm text-muted-foreground">{t('dashboard.teamTasksEmpty')}</p>}
         {tasks?.map((task) => (
-          <div key={task.id} className="flex items-center gap-3 rounded-lg border border-border p-2.5">
-            <div className="flex-1">
-              <p className="text-sm font-medium">{task.title}</p>
-              <p className="text-xs text-muted-foreground">
-                {assigneeName(task.assignee_profile_id)} · {formatLocalDate(task.deadline, i18n.language)}
-              </p>
-            </div>
-            <div className="w-24">
-              <Progress value={task.percent_complete} />
-            </div>
-          </div>
+          <TaskCard
+            key={task.id}
+            title={task.title}
+            deadline={task.deadline}
+            percentComplete={task.percent_complete}
+            assigneeName={assigneeName(task.assignee_profile_id)}
+            subtasks={subtasksByTask?.get(task.id)}
+            onOpen={() => onOpen(task.id)}
+          />
         ))}
       </CardContent>
     </Card>
@@ -215,12 +240,13 @@ function TeamTasksWidget() {
 }
 
 export function CabinetPage() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { profile, role, hasCapability } = useAuth()
   const isCeo = role?.slug === 'ceo'
   const isPm = role?.slug === 'pm'
   const canSeeTeamWidgets = isCeo || isPm
   const canSeeFinance = hasCapability('finance.read') || hasCapability('finance.write')
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['cabinet-tasks', profile?.id],
@@ -236,6 +262,9 @@ export function CabinetPage() {
       return data
     },
   })
+
+  const taskIds = useMemo(() => (tasks ?? []).map((t) => t.id), [tasks])
+  const { data: subtasksByTask } = useSubtasksBatch(taskIds)
 
   return (
     <div className="flex flex-col gap-6">
@@ -263,40 +292,31 @@ export function CabinetPage() {
         <CardHeader>
           <CardTitle className="text-base font-medium">{t('cabinet.myTasks')}</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
           {!isLoading && (tasks?.length ?? 0) === 0 && (
             <p className="text-sm text-muted-foreground">{t('cabinet.empty')}</p>
           )}
           {tasks?.map((task) => (
-            <div
+            <TaskCard
               key={task.id}
-              className="flex items-center gap-4 rounded-lg border border-border p-3"
-            >
-              <div className="flex-1">
-                <p className="text-sm font-medium">{task.title}</p>
-                <div className="mt-1 flex items-center gap-2">
-                  {task.is_urgent && (
-                    <Badge variant="destructive" className="text-[10px]">
-                      {t('tasks.urgent')}
-                    </Badge>
-                  )}
-                  {task.deadline && (
-                    <span className="text-xs text-muted-foreground">
-                      {formatLocalDate(task.deadline, i18n.language)}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="w-28">
-                <Progress value={task.percent_complete} />
-              </div>
-            </div>
+              title={task.title}
+              deadline={task.deadline}
+              percentComplete={task.percent_complete}
+              subtasks={subtasksByTask?.get(task.id)}
+              onOpen={() => setOpenTaskId(task.id)}
+            />
           ))}
         </CardContent>
       </Card>
 
-      {isPm && <TeamTasksWidget />}
+      {isPm && <TeamTasksWidget onOpen={setOpenTaskId} />}
+
+      <TaskSheet
+        open={!!openTaskId}
+        onOpenChange={(open) => !open && setOpenTaskId(null)}
+        taskId={openTaskId}
+      />
     </div>
   )
 }

@@ -2,7 +2,12 @@
 // cascades via auth_user_id references auth.users(id) on delete cascade).
 // Must run server-side — deleting auth.users requires the service role key.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/cors.ts'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -40,6 +45,17 @@ Deno.serve(async (req) => {
     if (profileErr) throw profileErr
     if (!profile.auth_user_id) throw new Error('Profile has no linked auth user')
 
+    // profiles.id -> auth.users(id) cascades, but several tables reference
+    // profiles(id) with no ON DELETE behavior of their own (e.g. a profile's
+    // self-created checklist_instances from visiting /cabinet). Postgres
+    // then blocks the cascade with a foreign-key violation. Clean up the
+    // rows that are safe to drop entirely before deleting the auth user.
+    await admin.from('checklist_instances').delete().eq('profile_id', profile_id)
+    await admin.from('notification_log').delete().eq('profile_id', profile_id)
+    await admin.from('client_interactions').delete().eq('profile_id', profile_id)
+    await admin.from('task_comments').delete().eq('author_profile_id', profile_id)
+    await admin.from('document_visibility').delete().eq('profile_id', profile_id)
+
     const { error: deleteErr } = await admin.auth.admin.deleteUser(profile.auth_user_id)
     if (deleteErr) throw deleteErr
 
@@ -47,7 +63,9 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
+    const message =
+      err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err)
+    return new Response(JSON.stringify({ error: message || 'Unknown error' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
