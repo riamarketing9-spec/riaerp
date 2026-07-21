@@ -32,7 +32,6 @@ const schema = z.object({
   deadline: z.string().optional(),
   starts_at: z.string().optional(),
   deliverable_text: z.string().optional(),
-  blocker_text: z.string().optional(),
   term_type_id: z.string().optional(),
   quadrant_id: z.string().optional(),
 })
@@ -223,7 +222,6 @@ export function TaskSheet({
         deadline: toDatetimeLocalValue(existing.deadline),
         starts_at: toDatetimeLocalValue(existing.starts_at),
         deliverable_text: existing.deliverable_text ?? '',
-        blocker_text: existing.blocker_text ?? '',
         term_type_id: existing.term_type_id ?? '',
         quadrant_id: existing.quadrant_id ?? '',
       })
@@ -259,7 +257,6 @@ export function TaskSheet({
         deadline: values.deadline ? new Date(values.deadline).toISOString() : null,
         starts_at: values.starts_at ? new Date(values.starts_at).toISOString() : null,
         deliverable_text: values.deliverable_text || null,
-        blocker_text: values.blocker_text || null,
         term_type_id: values.term_type_id || null,
         quadrant_id: values.quadrant_id || null,
       }
@@ -530,11 +527,6 @@ export function TaskSheet({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="deliverable_text">{t('tasks.deliverable')}</Label>
             <Textarea id="deliverable_text" rows={2} {...register('deliverable_text')} />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="blocker_text">{t('tasks.blocker')}</Label>
-            <Textarea id="blocker_text" rows={2} {...register('blocker_text')} />
           </div>
 
           {isEdit && (

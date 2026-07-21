@@ -87,7 +87,6 @@ export const uz = {
     priority: 'Prioritet',
     status: 'Holati',
     percentComplete: 'Bajarilgan %',
-    blocker: "To'siq",
     deliverable: 'Natija',
     urgent: 'Shoshilinch',
     important: 'Muhim',

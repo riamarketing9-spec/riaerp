@@ -87,7 +87,6 @@ export const ru = {
     priority: 'Приоритет',
     status: 'Статус',
     percentComplete: 'Готовность %',
-    blocker: 'Блокер',
     deliverable: 'Результат',
     urgent: 'Срочно',
     important: 'Важно',
