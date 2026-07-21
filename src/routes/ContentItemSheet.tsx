@@ -35,8 +35,9 @@ const schema = z.object({
   publish_date: z.string().optional(),
   script: z.string().optional(),
   tor_text: z.string().optional(),
-  rubric: z.string().optional(),
+  rubric_id: z.string().optional(),
   video_goal: z.string().optional(),
+  reference_url: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -107,6 +108,14 @@ export function ContentItemSheet({
       return data
     },
   })
+  const { data: rubrics } = useQuery({
+    queryKey: ['content_rubrics'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('content_rubrics').select('id, label_ru, label_uz').order('sort_order')
+      if (error) throw error
+      return data
+    },
+  })
 
   const { data: existing } = useQuery({
     queryKey: ['content_plan_item', itemId],
@@ -168,8 +177,9 @@ export function ContentItemSheet({
         publish_date: existing.publish_date ?? '',
         script: existing.script ?? '',
         tor_text: existing.tor_text ?? '',
-        rubric: existing.rubric ?? '',
+        rubric_id: existing.rubric_id ?? '',
         video_goal: existing.video_goal ?? '',
+        reference_url: existing.reference_url ?? '',
       })
     }
   }, [existing, reset])
@@ -203,8 +213,9 @@ export function ContentItemSheet({
         publish_date: values.publish_date || null,
         script: values.script || null,
         tor_text: values.tor_text || null,
-        rubric: values.rubric || null,
+        rubric_id: values.rubric_id || null,
         video_goal: values.video_goal || null,
+        reference_url: values.reference_url || null,
       }
 
       let id = itemId
@@ -257,13 +268,22 @@ export function ContentItemSheet({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rubric">{t('contentPlan.rubric')}</Label>
-              <Input id="rubric" {...register('rubric')} />
+              <Label>{t('contentPlan.rubric')}</Label>
+              <Combobox
+                options={(rubrics ?? []).map((r) => ({ value: r.id, label: pickLabel(r, i18n.language) ?? '' }))}
+                value={watch('rubric_id') ?? ''}
+                onChange={(v) => setValue('rubric_id', v)}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="video_goal">{t('contentPlan.videoGoal')}</Label>
               <Input id="video_goal" {...register('video_goal')} />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="reference_url">{t('contentPlan.referenceUrl')}</Label>
+            <Input id="reference_url" placeholder="https://..." {...register('reference_url')} />
           </div>
 
           <div className="flex flex-col gap-1.5">

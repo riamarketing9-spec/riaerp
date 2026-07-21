@@ -175,6 +175,8 @@ type PlatformRow = { id: string; slug: string; label_ru: string; label_uz: strin
 
 type ContentStatusRow = { id: string; slug: string; label_ru: string; label_uz: string; sort_order: number }
 
+type ContentRubricRow = { id: string; slug: string; label_ru: string; label_uz: string; sort_order: number }
+
 type ContentPlanItemRow = {
   id: string
   project_id: string
@@ -182,8 +184,9 @@ type ContentPlanItemRow = {
   format_id: string
   script: string | null
   tor_text: string | null
-  rubric: string | null
+  rubric_id: string | null
   video_goal: string | null
+  reference_url: string | null
   deliverable_type_id: string | null
   shooter_profile_id: string | null
   editor_profile_id: string | null
@@ -445,6 +448,7 @@ export type Database = {
       task_comments: ReturnType<typeof table<TaskCommentRow, 'task_id' | 'author_profile_id' | 'body'>>
       task_deliverable_types: { Row: TaskDeliverableTypeRow; Insert: TaskDeliverableTypeRow; Update: Partial<TaskDeliverableTypeRow>; Relationships: [] }
       content_formats: ReturnType<typeof table<ContentFormatRow, 'slug' | 'label_ru' | 'label_uz'>>
+      content_rubrics: ReturnType<typeof table<ContentRubricRow, 'slug' | 'label_ru' | 'label_uz'>>
       platforms: ReturnType<typeof table<PlatformRow, 'slug' | 'label_ru' | 'label_uz'>>
       content_statuses: ReturnType<typeof table<ContentStatusRow, 'slug' | 'label_ru' | 'label_uz'>>
       content_plan_items: ReturnType<typeof table<ContentPlanItemRow, 'project_id' | 'topic' | 'format_id' | 'status_id'>>
