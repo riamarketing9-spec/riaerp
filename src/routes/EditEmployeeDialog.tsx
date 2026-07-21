@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { pickLabel } from '@/lib/localizedLabel'
 
 const CAPABILITIES = [
@@ -274,12 +274,12 @@ export function EditEmployeeDialog({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>{profileRow?.full_name ?? t('team.editEmployee')}</SheetTitle>
-        </SheetHeader>
-        <div className="flex flex-col gap-4 px-4 pb-4">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{profileRow?.full_name ?? t('team.editEmployee')}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>{t('team.role')}</Label>
@@ -382,7 +382,7 @@ export function EditEmployeeDialog({
             </div>
           </div>
         </div>
-        <SheetFooter className="flex-row justify-between px-0">
+        <DialogFooter className="sm:justify-between">
           <Button
             type="button"
             variant="destructive"
@@ -394,8 +394,8 @@ export function EditEmployeeDialog({
           <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
             {t('common.save')}
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

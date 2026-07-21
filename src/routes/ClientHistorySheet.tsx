@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 export function ClientHistorySheet({
   open,
@@ -65,14 +65,14 @@ export function ClientHistorySheet({
   })
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
             {t('clients.history')} — {clientName}
-          </SheetTitle>
-        </SheetHeader>
-        <div className="flex flex-col gap-4 px-4 pb-4">
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Textarea
               rows={2}
@@ -106,7 +106,7 @@ export function ClientHistorySheet({
             ))}
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }

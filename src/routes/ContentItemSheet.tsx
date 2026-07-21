@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { pickLabel } from '@/lib/localizedLabel'
 
 const schema = z.object({
@@ -233,14 +233,14 @@ export function ContentItemSheet({
   })
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>{isEdit ? t('contentPlan.details') : t('contentPlan.newItem')}</SheetTitle>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? t('contentPlan.details') : t('contentPlan.newItem')}</DialogTitle>
+        </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
-          className="flex flex-col gap-4 px-4 pb-4"
+          className="flex flex-col gap-4"
         >
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="topic">{t('contentPlan.topic')}</Label>
@@ -420,13 +420,13 @@ export function ContentItemSheet({
             <Textarea id="tor_text" rows={3} {...register('tor_text')} />
           </div>
 
-          <SheetFooter className="px-0">
+          <DialogFooter>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
               {isEdit ? t('contentPlan.save') : t('common.create')}
             </Button>
-          </SheetFooter>
+          </DialogFooter>
         </form>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }
