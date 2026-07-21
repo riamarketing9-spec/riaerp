@@ -18,6 +18,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
+import { TaskSheet } from './TaskSheet'
 
 type TaskCard = {
   id: string
@@ -28,7 +29,7 @@ type TaskCard = {
   percent_complete: number
 }
 
-function DraggableCard({ task }: { task: TaskCard }) {
+function DraggableCard({ task, onOpen }: { task: TaskCard; onOpen: (id: string) => void }) {
   const { t, i18n } = useTranslation()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
@@ -43,6 +44,7 @@ function DraggableCard({ task }: { task: TaskCard }) {
       style={style}
       {...listeners}
       {...attributes}
+      onClick={() => onOpen(task.id)}
       className={cn(
         'cursor-grab rounded-lg border border-border bg-card p-2.5 text-sm shadow-sm active:cursor-grabbing',
         isDragging && 'opacity-40'
@@ -69,10 +71,12 @@ function DroppableColumn({
   id,
   label,
   tasks,
+  onOpen,
 }: {
   id: string
   label: string
   tasks: TaskCard[]
+  onOpen: (id: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
@@ -88,7 +92,7 @@ function DroppableColumn({
       </p>
       <div className="flex flex-col gap-2">
         {tasks.map((t) => (
-          <DraggableCard key={t.id} task={t} />
+          <DraggableCard key={t.id} task={t} onOpen={onOpen} />
         ))}
       </div>
     </div>
@@ -99,6 +103,7 @@ export function TasksKanban() {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [activeTask, setActiveTask] = useState<TaskCard | null>(null)
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
 
   const { data: statuses } = useQuery({
     queryKey: ['task_statuses'],
@@ -168,7 +173,13 @@ export function TasksKanban() {
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-3 overflow-x-auto pb-2">
           {columns.map((col) => (
-            <DroppableColumn key={col.id} id={col.id} label={pickLabel(col, i18n.language) ?? ''} tasks={col.tasks} />
+            <DroppableColumn
+              key={col.id}
+              id={col.id}
+              label={pickLabel(col, i18n.language) ?? ''}
+              tasks={col.tasks}
+              onOpen={setOpenTaskId}
+            />
           ))}
         </div>
         <DragOverlay>
@@ -179,6 +190,11 @@ export function TasksKanban() {
           )}
         </DragOverlay>
       </DndContext>
+      <TaskSheet
+        open={!!openTaskId}
+        onOpenChange={(open) => !open && setOpenTaskId(null)}
+        taskId={openTaskId}
+      />
     </div>
   )
 }

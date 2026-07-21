@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
 import { pickLabel } from '@/lib/localizedLabel'
+import { FileUpload } from '@/components/FileUpload'
 
 const schema = z.object({
   title: z.string().min(1, 'Обязательное поле'),
@@ -108,7 +109,11 @@ export function CreateDocumentDialog() {
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="storage_path">{t('docs.storagePath')}</Label>
-            <Input id="storage_path" placeholder="https://..." {...register('storage_path')} />
+            <FileUpload
+              value={watch('storage_path') ?? ''}
+              onChange={(url) => setValue('storage_path', url)}
+              folder="documents"
+            />
             {errors.storage_path && (
               <p className="text-xs text-destructive">{errors.storage_path.message}</p>
             )}

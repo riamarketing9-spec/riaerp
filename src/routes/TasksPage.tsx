@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
@@ -11,12 +12,13 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { CreateTaskDialog } from './CreateTaskDialog'
+import { NewTaskButton, TaskSheet } from './TaskSheet'
 import { TasksKanban } from './TasksKanban'
 import { formatLocalDate } from '@/lib/localizedLabel'
 
 export function TasksPage() {
   const { t, i18n } = useTranslation()
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['tasks'],
@@ -38,7 +40,7 @@ export function TasksPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">{t('tasks.title')}</h1>
-        <CreateTaskDialog />
+        <NewTaskButton />
       </div>
 
       <Tabs defaultValue="list">
@@ -74,7 +76,11 @@ export function TasksPage() {
                   </TableRow>
                 )}
                 {tasks?.map((task) => (
-                  <TableRow key={task.id}>
+                  <TableRow
+                    key={task.id}
+                    className="cursor-pointer"
+                    onClick={() => setOpenTaskId(task.id)}
+                  >
                     <TableCell className="font-medium">{task.title}</TableCell>
                     <TableCell>{formatLocalDate(task.deadline, i18n.language)}</TableCell>
                     <TableCell>{task.percent_complete}%</TableCell>
@@ -92,6 +98,12 @@ export function TasksPage() {
           <TasksKanban />
         </TabsContent>
       </Tabs>
+
+      <TaskSheet
+        open={!!openTaskId}
+        onOpenChange={(open) => !open && setOpenTaskId(null)}
+        taskId={openTaskId}
+      />
     </div>
   )
 }

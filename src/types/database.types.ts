@@ -67,6 +67,8 @@ type ProjectRow = {
   billing_day: number | null
   deliverables_text: string | null
   brief_detail_text: string | null
+  target_audience_voice_url: string | null
+  target_audience_file_url: string | null
   created_at: string
   updated_at: string
 }
@@ -79,6 +81,26 @@ type PriorityRow = { id: string; slug: string; label_ru: string; label_uz: strin
 
 type RecurrenceTypeRow = { id: string; slug: string; label_ru: string; label_uz: string }
 
+type TaskTermTypeRow = {
+  id: string
+  slug: string
+  label_ru: string
+  label_uz: string
+  day_min: number
+  day_max: number
+  weight: number
+  sort_order: number
+}
+
+type TaskItemRow = {
+  id: string
+  task_id: string
+  title: string
+  is_done: boolean
+  sort_order: number
+  created_at: string
+}
+
 type TaskRow = {
   id: string
   title: string
@@ -88,6 +110,8 @@ type TaskRow = {
   priority_id: string | null
   is_urgent: boolean
   is_important: boolean
+  term_type_id: string | null
+  starts_at: string | null
   recurrence_id: string | null
   deadline: string | null
   percent_complete: number
@@ -99,6 +123,40 @@ type TaskRow = {
   completed_at: string | null
   created_at: string
   updated_at: string
+}
+
+type AuditLogRow = {
+  id: string
+  table_name: string
+  record_id: string | null
+  action: string
+  actor_profile_id: string | null
+  changed_at: string
+  diff: unknown
+}
+
+type KbReadRow = { profile_id: string; article_id: string; read_at: string }
+
+type ContractTypeRow = { id: string; slug: string }
+
+type ContractRow = {
+  id: string
+  contract_type_id: string
+  party_client_id: string | null
+  party_profile_id: string | null
+  storage_path: string
+  start_date: string | null
+  end_date: string | null
+  status: string | null
+  created_at: string
+}
+
+type TaskCommentRow = {
+  id: string
+  task_id: string
+  author_profile_id: string
+  body: string
+  created_at: string
 }
 
 type ContentFormatRow = { id: string; slug: string; label_ru: string; label_uz: string }
@@ -122,6 +180,7 @@ type ContentPlanItemRow = {
   edit_done_date: string | null
   cover_done_date: string | null
   publish_date: string | null
+  attachment_url: string | null
   status_id: string
   created_at: string
   updated_at: string
@@ -363,7 +422,14 @@ export type Database = {
       task_statuses: ReturnType<typeof table<TaskStatusRow, 'slug' | 'label_ru' | 'label_uz'>>
       priorities: ReturnType<typeof table<PriorityRow, 'slug' | 'label_ru' | 'label_uz'>>
       recurrence_types: ReturnType<typeof table<RecurrenceTypeRow, 'slug' | 'label_ru' | 'label_uz'>>
+      task_term_types: ReturnType<typeof table<TaskTermTypeRow, 'slug' | 'label_ru' | 'label_uz' | 'day_min' | 'day_max' | 'weight'>>
+      task_items: ReturnType<typeof table<TaskItemRow, 'task_id' | 'title'>>
       tasks: ReturnType<typeof table<TaskRow, 'title' | 'status_id'>>
+      audit_log: ReturnType<typeof table<AuditLogRow, 'table_name' | 'action'>>
+      kb_reads: { Row: KbReadRow; Insert: Pick<KbReadRow, 'profile_id' | 'article_id'> & Partial<KbReadRow>; Update: Partial<KbReadRow>; Relationships: [] }
+      contract_types: ReturnType<typeof table<ContractTypeRow, 'slug'>>
+      contracts: ReturnType<typeof table<ContractRow, 'contract_type_id' | 'storage_path'>>
+      task_comments: ReturnType<typeof table<TaskCommentRow, 'task_id' | 'author_profile_id' | 'body'>>
       content_formats: ReturnType<typeof table<ContentFormatRow, 'slug' | 'label_ru' | 'label_uz'>>
       platforms: ReturnType<typeof table<PlatformRow, 'slug' | 'label_ru' | 'label_uz'>>
       content_statuses: ReturnType<typeof table<ContentStatusRow, 'slug' | 'label_ru' | 'label_uz'>>

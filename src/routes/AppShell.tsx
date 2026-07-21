@@ -17,6 +17,7 @@ import {
   UserPlus,
   Menu,
   X,
+  ScrollText,
 } from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
@@ -112,6 +113,9 @@ export function AppShell() {
       )}
       {isCeo && (
         <NavItem to="/team" icon={UserPlus} label={t('team.title')} onNavigate={closeMobileNav} />
+      )}
+      {isCeo && (
+        <NavItem to="/audit" icon={ScrollText} label={t('nav.audit')} onNavigate={closeMobileNav} />
       )}
     </nav>
   )
