@@ -51,8 +51,8 @@ export function ContentCalendarView({
   const locale = i18n.language.startsWith('uz') ? uz : ru
 
   const days = useMemo(() => {
-    const start = startOfWeek(startOfMonth(month), { weekStartsOn: 0 })
-    const end = endOfWeek(endOfMonth(month), { weekStartsOn: 0 })
+    const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 })
+    const end = endOfWeek(endOfMonth(month), { weekStartsOn: 1 })
     return eachDayOfInterval({ start, end })
   }, [month])
 
@@ -76,8 +76,8 @@ export function ContentCalendarView({
       .filter(Boolean)
 
   const weekDayLabels = useMemo(() => {
-    const start = startOfWeek(new Date(), { weekStartsOn: 0 })
-    return eachDayOfInterval({ start, end: endOfWeek(start, { weekStartsOn: 0 }) }).map((d) =>
+    const start = startOfWeek(new Date(), { weekStartsOn: 1 })
+    return eachDayOfInterval({ start, end: endOfWeek(start, { weekStartsOn: 1 }) }).map((d) =>
       format(d, 'EEEEEE', { locale })
     )
   }, [locale])
