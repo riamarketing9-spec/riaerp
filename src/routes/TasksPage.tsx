@@ -33,7 +33,7 @@ export function TasksPage() {
   const { data: quadrants } = useQuery({
     queryKey: ['task_priority_quadrants'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('task_priority_quadrants').select('id, label_ru, label_uz')
+      const { data, error } = await supabase.from('task_priority_quadrants').select('id, slug, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -44,7 +44,7 @@ export function TasksPage() {
   const { data: statuses } = useQuery({
     queryKey: ['task_statuses'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('task_statuses').select('id, label_ru, label_uz')
+      const { data, error } = await supabase.from('task_statuses').select('id, slug, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -92,6 +92,7 @@ export function TasksPage() {
   })
 
   const statusLabel = (id: string) => pickLabel(statuses?.find((s) => s.id === id), i18n.language)
+  const statusSlug = (id: string) => statuses?.find((s) => s.id === id)?.slug
   const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name
   const quadrantLabel = (id: string | null) => pickLabel(quadrants?.find((q) => q.id === id), i18n.language)
 
@@ -119,6 +120,7 @@ export function TasksPage() {
                 key={task.id}
                 title={task.title}
                 statusLabel={statusLabel(task.status_id)}
+                statusSlug={statusSlug(task.status_id)}
                 quadrantLabel={quadrantLabel(task.quadrant_id)}
                 deadline={task.deadline}
                 percentComplete={task.percent_complete}

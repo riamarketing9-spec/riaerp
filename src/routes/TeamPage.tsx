@@ -116,7 +116,7 @@ export function TeamPage() {
   const { data: roles } = useQuery({
     queryKey: ['roles-lookup'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('roles').select('id, label_ru, label_uz')
+      const { data, error } = await supabase.from('roles').select('id, slug, label_ru, label_uz')
       if (error) throw error
       return data
     },

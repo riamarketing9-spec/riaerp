@@ -40,7 +40,7 @@ function EmployeeTasksDialog({
   const { data: statuses } = useQuery({
     queryKey: ['task_statuses'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('task_statuses').select('id, label_ru, label_uz')
+      const { data, error } = await supabase.from('task_statuses').select('id, slug, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -49,7 +49,7 @@ function EmployeeTasksDialog({
   const { data: quadrants } = useQuery({
     queryKey: ['task_priority_quadrants'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('task_priority_quadrants').select('id, label_ru, label_uz')
+      const { data, error } = await supabase.from('task_priority_quadrants').select('id, slug, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -87,6 +87,7 @@ function EmployeeTasksDialog({
   })
 
   const statusLabel = (id: string) => pickLabel(statuses?.find((s) => s.id === id), i18n.language)
+  const statusSlug = (id: string) => statuses?.find((s) => s.id === id)?.slug
   const quadrantLabel = (id: string | null) => pickLabel(quadrants?.find((q) => q.id === id), i18n.language)
   const projectName = (id: string | null) => projects?.find((p) => p.id === id)?.name
 
@@ -106,6 +107,7 @@ function EmployeeTasksDialog({
                 key={task.id}
                 title={`${projectName(task.project_id) ? projectName(task.project_id) + ' — ' : ''}${task.title}`}
                 statusLabel={statusLabel(task.status_id)}
+                statusSlug={statusSlug(task.status_id)}
                 quadrantLabel={quadrantLabel(task.quadrant_id)}
                 deadline={task.deadline}
                 percentComplete={task.percent_complete}

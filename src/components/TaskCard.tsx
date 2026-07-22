@@ -24,6 +24,7 @@ export type TaskCardSubtask = { id: string; title: string; is_done: boolean }
 export function TaskCard({
   title,
   statusLabel,
+  statusSlug,
   deliverableTypeLabels,
   termLabel,
   quadrantLabel,
@@ -37,6 +38,7 @@ export function TaskCard({
 }: {
   title: string
   statusLabel?: string
+  statusSlug?: string
   deliverableTypeLabels?: string[]
   termLabel?: string
   quadrantLabel?: string
@@ -50,12 +52,17 @@ export function TaskCard({
 }) {
   const { i18n } = useTranslation()
 
-  const overdue = !!deadline && new Date(deadline) < new Date()
+  const isDone = statusSlug === 'done'
+  const overdue = !!deadline && new Date(deadline) < new Date() && !isDone
   const dueSoon =
-    !!deadline && !overdue && new Date(deadline).getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000
+    !!deadline && !overdue && !isDone && new Date(deadline).getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000
 
-  const barColor =
-    percentComplete >= 100
+  // Color follows the task's actual status, not just subtask %: a task
+  // manually moved to "Готово/Tayyor" must read as done immediately, even
+  // if nobody bothered to check off its subtasks.
+  const barColor = isDone
+    ? 'bg-emerald-500'
+    : percentComplete >= 100
       ? 'bg-emerald-500'
       : percentComplete > 0
         ? 'bg-brand-500'
@@ -72,7 +79,7 @@ export function TaskCard({
       )}
     >
       <div className="h-1.5 w-full bg-muted">
-        <div className={cn('h-full transition-all', barColor)} style={{ width: `${percentComplete}%` }} />
+        <div className={cn('h-full transition-all', barColor)} style={{ width: `${isDone ? 100 : percentComplete}%` }} />
       </div>
 
       <div className="flex flex-col gap-2 p-3">
@@ -106,7 +113,13 @@ export function TaskCard({
         {(statusLabel || termLabel || quadrantLabel || (deliverableTypeLabels?.length ?? 0) > 0) && (
           <div className="flex flex-wrap gap-1">
             {statusLabel && (
-              <Badge variant="secondary" className="text-[10px]">
+              <Badge
+                variant="secondary"
+                className={cn(
+                  'text-[10px]',
+                  isDone && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                )}
+              >
                 {statusLabel}
               </Badge>
             )}

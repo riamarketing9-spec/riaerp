@@ -78,7 +78,7 @@ export function TaskSheet({
   const { data: statuses } = useQuery({
     queryKey: ['task_statuses'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('task_statuses').select('id, label_ru, label_uz').order('sort_order')
+      const { data, error } = await supabase.from('task_statuses').select('id, slug, label_ru, label_uz').order('sort_order')
       if (error) throw error
       return data
     },

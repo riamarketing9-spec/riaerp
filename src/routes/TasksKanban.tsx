@@ -34,6 +34,7 @@ function DraggableCard({
   onOpen,
   onDelete,
   statusLabel,
+  statusSlug,
   quadrantLabel,
   assigneeName,
   subtasks,
@@ -42,6 +43,7 @@ function DraggableCard({
   onOpen: (id: string) => void
   onDelete: (id: string) => void
   statusLabel: string
+  statusSlug?: string
   quadrantLabel?: string
   assigneeName?: string
   subtasks?: TaskCardSubtask[]
@@ -58,6 +60,7 @@ function DraggableCard({
       <TaskCard
         title={task.title}
         statusLabel={statusLabel}
+        statusSlug={statusSlug}
         quadrantLabel={quadrantLabel}
         deadline={task.deadline}
         percentComplete={task.percent_complete}
@@ -78,6 +81,7 @@ function DroppableColumn({
   onOpen,
   onDelete,
   statusLabel,
+  statusSlug,
   quadrantLabelFor,
   assigneeNameFor,
   subtasksFor,
@@ -88,6 +92,7 @@ function DroppableColumn({
   onOpen: (id: string) => void
   onDelete: (id: string) => void
   statusLabel: string
+  statusSlug?: string
   quadrantLabelFor: (id: string | null) => string | undefined
   assigneeNameFor: (id: string | null) => string | undefined
   subtasksFor: (id: string) => TaskCardSubtask[] | undefined
@@ -112,6 +117,7 @@ function DroppableColumn({
             onOpen={onOpen}
             onDelete={onDelete}
             statusLabel={statusLabel}
+            statusSlug={statusSlug}
             quadrantLabel={quadrantLabelFor(t.quadrant_id)}
             assigneeName={assigneeNameFor(t.assignee_profile_id)}
             subtasks={subtasksFor(t.id)}
@@ -133,7 +139,7 @@ export function TasksKanban() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_statuses')
-        .select('id, label_ru, label_uz')
+        .select('id, slug, label_ru, label_uz')
         .order('sort_order')
       if (error) throw error
       return data
@@ -163,7 +169,7 @@ export function TasksKanban() {
   const { data: quadrants } = useQuery({
     queryKey: ['task_priority_quadrants'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('task_priority_quadrants').select('id, label_ru, label_uz')
+      const { data, error } = await supabase.from('task_priority_quadrants').select('id, slug, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -264,6 +270,7 @@ export function TasksKanban() {
               onOpen={setOpenTaskId}
               onDelete={handleDelete}
               statusLabel={pickLabel(col, i18n.language) ?? ''}
+              statusSlug={col.slug}
               quadrantLabelFor={quadrantLabelFor}
               assigneeNameFor={assigneeNameFor}
               subtasksFor={subtasksFor}

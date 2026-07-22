@@ -62,7 +62,7 @@ export function ContentItemSheet({
   const { data: projects } = useQuery({
     queryKey: ['projects-lookup'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('projects').select('id, name')
+      const { data, error } = await supabase.from('projects').select('id, name, logo_url')
       if (error) throw error
       return data
     },
@@ -80,7 +80,7 @@ export function ContentItemSheet({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('content_statuses')
-        .select('id, label_ru, label_uz')
+        .select('id, slug, label_ru, label_uz')
         .order('sort_order')
       if (error) throw error
       return data
