@@ -23,14 +23,42 @@
 // All bot-facing text is Uzbek only, per the client's requirement.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
+// Asia/Tashkent = UTC+5 year-round (no DST) -- all "today"/"deadline day"
+// calculations must be anchored to this, not the edge function container's
+// UTC wall-clock, or every date silently shifts by ~5 hours for staff who
+// actually live in Tashkent.
+const TASHKENT_OFFSET_HOURS = 5
+
+function tashkentNow(): Date {
+  return new Date(Date.now() + TASHKENT_OFFSET_HOURS * 60 * 60 * 1000)
+}
+
+// 23:59 Tashkent time, `daysFromNow` days from today, expressed as a correct UTC instant.
+function tashkentDeadline(daysFromNow: number): Date {
+  const t = tashkentNow()
+  return new Date(
+    Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate() + daysFromNow, 23 - TASHKENT_OFFSET_HOURS, 59, 0)
+  )
+}
+
+// 23:59 Tashkent time on an explicit Y-M-D (from manual date entry).
+function tashkentDeadlineFromYMD(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month, day, 23 - TASHKENT_OFFSET_HOURS, 59, 0))
+}
+
+// 00:00 Tashkent time "today", expressed as a correct UTC instant.
+function tashkentMidnightUtc(): Date {
+  const t = tashkentNow()
+  return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), -TASHKENT_OFFSET_HOURS, 0, 0))
+}
+
 // deno-lint-ignore no-explicit-any
 async function buildReport(admin: any, profileId?: string): Promise<string> {
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { data: doneStatus } = await admin.from('task_statuses').select('id').eq('slug', 'done').maybeSingle()
 
   async function workedMsToday(pid: string): Promise<number> {
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    const todayStart = tashkentMidnightUtc()
     const { data: entries } = await admin
       .from('time_entries')
       .select('started_at, ended_at')
@@ -167,13 +195,23 @@ Deno.serve(async (req) => {
       await admin.from('bot_conversation_state').delete().eq('chat_id', chatId)
     }
 
+    const STATE_TTL_MS = 30 * 60 * 1000
+
     async function getState(chatId: number) {
       const { data } = await admin
         .from('bot_conversation_state')
-        .select('state, payload')
+        .select('state, payload, updated_at')
         .eq('chat_id', chatId)
         .maybeSingle()
-      return data as { state: string; payload: Record<string, string> } | null
+      if (!data) return null
+      // An abandoned flow (CEO picked an employee, then never sent the task
+      // text, or walked away) must not sit around forever waiting to
+      // reinterpret some later, unrelated message as its answer.
+      if (Date.now() - new Date(data.updated_at).getTime() > STATE_TTL_MS) {
+        await clearState(chatId)
+        return null
+      }
+      return data as { state: string; payload: Record<string, string> }
     }
 
     async function linkChatAndWelcome(chatId: number, profileId: string, fullName: string) {
@@ -235,9 +273,12 @@ Deno.serve(async (req) => {
 
       await send(chatId, "Vazifani kimga berasiz?", {
         reply_markup: {
-          inline_keyboard: active.map((p: { id: string; full_name: string }) => [
-            { text: p.full_name, callback_data: `assign_emp:${p.id}` },
-          ]),
+          inline_keyboard: [
+            ...active.map((p: { id: string; full_name: string }) => [
+              { text: p.full_name, callback_data: `assign_emp:${p.id}` },
+            ]),
+            [{ text: '❌ Bekor qilish', callback_data: 'cancel_assign' }],
+          ],
         },
       })
     }
@@ -254,6 +295,7 @@ Deno.serve(async (req) => {
             { text: '1 haftadan keyin', callback_data: 'deadline:7' },
           ],
           [{ text: "📅 Boshqa sana", callback_data: 'deadline_manual' }],
+          [{ text: '❌ Bekor qilish', callback_data: 'cancel_assign' }],
         ],
       }
     }
@@ -276,11 +318,9 @@ Deno.serve(async (req) => {
         return
       }
 
-      await send(chatId, "✅ Vazifa yaratildi va tizimda ko'rinadi.", { reply_markup: await keyboardFor(chatId) })
-
       const { data: assignee } = await admin
         .from('profiles')
-        .select('telegram_chat_id')
+        .select('telegram_chat_id, full_name')
         .eq('id', assigneeProfileId)
         .maybeSingle()
 
@@ -291,6 +331,15 @@ Deno.serve(async (req) => {
         await send(
           Number(assignee.telegram_chat_id),
           `📌 CEO sizga yangi vazifa berdi:\n\n«${title}»\nMuddat: ${deadlineText}\n\nTizimga kirib tekshiring.`
+        )
+        await send(chatId, "✅ Vazifa yaratildi va tizimda ko'rinadi. Xodimga Telegram orqali xabar yuborildi.", {
+          reply_markup: await keyboardFor(chatId),
+        })
+      } else {
+        await send(
+          chatId,
+          `✅ Vazifa yaratildi va tizimda ko'rinadi.\n\n⚠️ Diqqat: ${assignee?.full_name ?? 'bu xodim'} hali Telegram botga ulanmagan, shuning uchun unga bildirishnoma YUBORILMADI. Vazifani faqat tizimga kirganda ko'radi.`,
+          { reply_markup: await keyboardFor(chatId) }
         )
       }
     }
@@ -350,9 +399,7 @@ Deno.serve(async (req) => {
         const state = await getState(chatId)
         if (!state || state.state !== 'awaiting_deadline') return new Response('ok')
         const days = Number(data.slice('deadline:'.length))
-        const deadline = new Date()
-        deadline.setHours(23, 59, 0, 0)
-        deadline.setDate(deadline.getDate() + days)
+        const deadline = tashkentDeadline(days)
         await clearState(chatId)
         await createTaskFromBot(chatId, state.payload.assignee_profile_id, state.payload.title, deadline)
       } else if (data === 'deadline_manual') {
@@ -361,6 +408,10 @@ Deno.serve(async (req) => {
         if (!state || state.state !== 'awaiting_deadline') return new Response('ok')
         await setState(chatId, 'awaiting_deadline_manual', state.payload)
         await send(chatId, "Muddatni KK.OO.YYYY formatida yuboring (masalan: 25.12.2026):")
+      } else if (data === 'cancel_assign') {
+        await answerCallback(callbackQuery.id)
+        await clearState(chatId)
+        await send(chatId, "Bekor qilindi.", { reply_markup: await keyboardFor(chatId) })
       } else if (data === 'report_all') {
         await answerCallback(callbackQuery.id)
         const profile = await getLinkedProfile(chatId)
@@ -389,8 +440,24 @@ Deno.serve(async (req) => {
     const chatId: number | undefined = message?.chat?.id
     if (!text || !chatId) return new Response('ok')
 
-    // --- Multi-step conversation state takes priority over everything else ---
-    const state = await getState(chatId)
+    // --- Multi-step conversation state takes priority over everything else,
+    // UNLESS the message is clearly the user trying to do something else
+    // entirely (tap a menu button, re-link via email, /start over) — in
+    // that case an abandoned flow must not silently swallow it as the
+    // answer to a stale prompt.
+    const escapesState =
+      text === '📋 Vazifalarim' ||
+      text === '➕ Vazifa berish' ||
+      text === '📊 Hisobot' ||
+      text === '/start' ||
+      text === '/tasks' ||
+      text === "Bekor qilish" ||
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim())
+    let state = await getState(chatId)
+    if (state && escapesState) {
+      await clearState(chatId)
+      state = null
+    }
     if (state?.state === 'awaiting_task_text') {
       await setState(chatId, 'awaiting_deadline', { ...state.payload, title: text.trim() })
       await send(chatId, "Muddatni tanlang:", { reply_markup: deadlineKeyboard() })
@@ -403,7 +470,7 @@ Deno.serve(async (req) => {
         return new Response('ok')
       }
       const [, day, month, year] = match
-      const deadline = new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 0)
+      const deadline = tashkentDeadlineFromYMD(Number(year), Number(month) - 1, Number(day))
       await clearState(chatId)
       await createTaskFromBot(chatId, state.payload.assignee_profile_id, state.payload.title, deadline)
       return new Response('ok')

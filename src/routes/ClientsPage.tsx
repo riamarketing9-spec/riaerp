@@ -5,7 +5,9 @@ import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CreateClientDialog } from './CreateClientDialog'
+import { Button } from '@/components/ui/button'
+import { History } from 'lucide-react'
+import { CreateClientDialog, ClientDialog } from './CreateClientDialog'
 import { ClientHistorySheet } from './ClientHistorySheet'
 
 export function ClientsPage() {
@@ -13,6 +15,7 @@ export function ClientsPage() {
   const { hasCapability } = useAuth()
   const canManage = hasCapability('sales.manage')
   const [openClientId, setOpenClientId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const { data: clients, isLoading } = useQuery({
     queryKey: ['clients'],
@@ -43,7 +46,7 @@ export function ClientsPage() {
           <Card
             key={c.id}
             className="cursor-pointer"
-            onClick={() => setOpenClientId(c.id)}
+            onClick={() => (canManage ? setEditingId(c.id) : setOpenClientId(c.id))}
           >
             <CardContent className="flex items-center justify-between py-3">
               <div>
@@ -52,14 +55,33 @@ export function ClientsPage() {
                   <p className="text-xs text-muted-foreground">{c.contact_name}</p>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 {c.contact_phone && <Badge variant="secondary">{c.contact_phone}</Badge>}
                 {c.contact_telegram && <Badge variant="secondary">{c.contact_telegram}</Badge>}
+                {canManage && (
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setOpenClientId(c.id)
+                    }}
+                    title={t('clients.history')}
+                  >
+                    <History className="size-3.5" />
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <ClientDialog
+        open={!!editingId}
+        onOpenChange={(open) => !open && setEditingId(null)}
+        clientId={editingId}
+      />
 
       <ClientHistorySheet
         open={!!openClientId}

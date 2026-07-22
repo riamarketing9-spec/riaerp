@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -21,7 +21,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
@@ -36,9 +35,17 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-export function CreateRateDialog() {
+export function RateDialog({
+  open,
+  onOpenChange,
+  rateId,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  rateId: string | null
+}) {
   const { t, i18n } = useTranslation()
-  const [open, setOpen] = useState(false)
+  const isEdit = !!rateId
   const queryClient = useQueryClient()
 
   const { data: profiles } = useQuery({
@@ -59,6 +66,20 @@ export function CreateRateDialog() {
     },
   })
 
+  const { data: existing } = useQuery({
+    queryKey: ['payroll-rate-detail', rateId],
+    enabled: isEdit && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('payroll_rate_table')
+        .select('id, profile_id, deliverable_type_id, rate, effective_from')
+        .eq('id', rateId!)
+        .single()
+      if (error) throw error
+      return data
+    },
+  })
+
   const {
     register,
     handleSubmit,
@@ -68,38 +89,71 @@ export function CreateRateDialog() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
+  useEffect(() => {
+    if (open && !isEdit) {
+      reset({})
+    }
+  }, [open, isEdit, reset])
+
+  useEffect(() => {
+    if (existing) {
+      reset({
+        profile_id: existing.profile_id,
+        deliverable_type_id: existing.deliverable_type_id,
+        rate: String(existing.rate),
+        effective_from: existing.effective_from,
+      })
+    }
+  }, [existing, reset])
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const { error } = await supabase.from('payroll_rate_table').insert({
+      const payload = {
         profile_id: values.profile_id,
         deliverable_type_id: values.deliverable_type_id,
         rate: Number(values.rate),
         effective_from: values.effective_from,
-      })
-      if (error) throw error
+      }
+      if (isEdit) {
+        const { error } = await supabase.from('payroll_rate_table').update(payload).eq('id', rateId!)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('payroll_rate_table').insert(payload)
+        if (error) throw error
+      }
     },
     onSuccess: () => {
-      toast.success('Ставка добавлена')
+      toast.success(isEdit ? t('common.save') : 'Ставка добавлена')
       queryClient.invalidateQueries({ queryKey: ['payroll_rate_table'] })
+      queryClient.invalidateQueries({ queryKey: ['payroll-rate-detail', rateId] })
       reset()
-      setOpen(false)
+      onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('payroll_rate_table').delete().eq('id', rateId!)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success(t('common.delete'))
+      queryClient.invalidateQueries({ queryKey: ['payroll_rate_table'] })
+      onOpenChange(false)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleDelete() {
+    if (window.confirm(t('common.delete') + '?')) deleteMutation.mutate()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button size="sm">
-            <Plus />
-            {t('payroll.newRate')}
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>{t('payroll.newRate')}</DialogTitle>
+          <DialogTitle>{isEdit ? t('common.edit') : t('payroll.newRate')}</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -107,7 +161,10 @@ export function CreateRateDialog() {
         >
           <div className="flex flex-col gap-1.5">
             <Label>{t('payroll.employee')}</Label>
-            <Select onValueChange={(v: string | null) => setValue('profile_id', v ?? '')}>
+            <Select
+              value={watch('profile_id')}
+              onValueChange={(v: string | null) => setValue('profile_id', v ?? '')}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="—">
                   {() => profiles?.find((p) => p.id === watch('profile_id'))?.full_name}
@@ -128,7 +185,10 @@ export function CreateRateDialog() {
 
           <div className="flex flex-col gap-1.5">
             <Label>{t('payroll.deliverableType')}</Label>
-            <Select onValueChange={(v: string | null) => setValue('deliverable_type_id', v ?? '')}>
+            <Select
+              value={watch('deliverable_type_id')}
+              onValueChange={(v: string | null) => setValue('deliverable_type_id', v ?? '')}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="—">
                   {() => pickLabel(deliverableTypes?.find((d) => d.id === watch('deliverable_type_id')), i18n.language)}
@@ -162,13 +222,37 @@ export function CreateRateDialog() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className={isEdit ? 'sm:justify-between' : undefined}>
+            {isEdit && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {t('common.create')}
+              {isEdit ? t('common.save') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+export function CreateRateDialog() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)}>
+        <Plus />
+        {t('payroll.newRate')}
+      </Button>
+      <RateDialog open={open} onOpenChange={setOpen} rateId={null} />
+    </>
   )
 }

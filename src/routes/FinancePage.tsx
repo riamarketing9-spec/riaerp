@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
@@ -11,8 +12,8 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
-import { CreateRevenueDialog } from './CreateRevenueDialog'
-import { CreateExpenseDialog } from './CreateExpenseDialog'
+import { CreateRevenueDialog, RevenueDialog } from './CreateRevenueDialog'
+import { CreateExpenseDialog, ExpenseDialog } from './CreateExpenseDialog'
 import { PayrollSection } from './PayrollSection'
 import { formatLocalDate } from '@/lib/localizedLabel'
 
@@ -22,6 +23,8 @@ function formatMoney(n: number) {
 
 export function FinancePage() {
   const { t, i18n } = useTranslation()
+  const [editingRevenueId, setEditingRevenueId] = useState<string | null>(null)
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
 
   const { data: revenue, isLoading: loadingRevenue } = useQuery({
     queryKey: ['finance_project_revenue'],
@@ -126,7 +129,11 @@ export function FinancePage() {
                   </TableRow>
                 )}
                 {revenue?.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow
+                    key={r.id}
+                    className="cursor-pointer"
+                    onClick={() => setEditingRevenueId(r.id)}
+                  >
                     <TableCell className="font-medium">{projectName(r.project_id)}</TableCell>
                     <TableCell>
                       {new Date(r.month).toLocaleDateString(
@@ -171,7 +178,11 @@ export function FinancePage() {
                   </TableRow>
                 )}
                 {expenses?.map((e) => (
-                  <TableRow key={e.id}>
+                  <TableRow
+                    key={e.id}
+                    className="cursor-pointer"
+                    onClick={() => setEditingExpenseId(e.id)}
+                  >
                     <TableCell>{formatLocalDate(e.expense_date, i18n.language)}</TableCell>
                     <TableCell className="font-medium">{formatMoney(e.amount)}</TableCell>
                     <TableCell className="text-muted-foreground">{e.note ?? '—'}</TableCell>
@@ -186,6 +197,17 @@ export function FinancePage() {
           <PayrollSection />
         </TabsContent>
       </Tabs>
+
+      <RevenueDialog
+        open={!!editingRevenueId}
+        onOpenChange={(open) => !open && setEditingRevenueId(null)}
+        revenueId={editingRevenueId}
+      />
+      <ExpenseDialog
+        open={!!editingExpenseId}
+        onOpenChange={(open) => !open && setEditingExpenseId(null)}
+        expenseId={editingExpenseId}
+      />
     </div>
   )
 }

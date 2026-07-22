@@ -19,6 +19,8 @@ import {
   X,
   ScrollText,
   Clock,
+  ListChecks,
+  ListTree,
 } from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
@@ -72,16 +74,26 @@ function InitialsTile({ name }: { name: string }) {
 
 export function AppShell() {
   const { t, i18n } = useTranslation()
-  const { profile, role, hasCapability, isCeo, signOut } = useAuth()
+  const { profile, role, hasCapability, signOut } = useAuth()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const canSeeAll = hasCapability('cabinets.read_all')
+  // Capability-based, matching each route's actual RequireCapability
+  // anyOf -- not the role-slug-based isCeo boolean, which hid these nav
+  // items from e.g. a team.manage-holding PM even though /team itself was
+  // already reachable to them.
+  const canSeeTeam = hasCapability('org.full_access') || hasCapability('team.manage')
+  const canSeeAudit = hasCapability('org.full_access')
   // Specialists (montajchi/designer/syomkachi/...) get only their own cabinet
   // and tasks — no project briefs, per TZ: "мутаxассис: faqat o'z shkafi,
   // brief ko'rmaydi".
   const canSeeProjects = hasCapability('projects.manage') || hasCapability('projects.read_scoped')
   const canSeeSales = hasCapability('sales.read') || hasCapability('sales.manage')
   const canSeeFinance = hasCapability('finance.read') || hasCapability('finance.write')
-  const canSeeAttendance = hasCapability('org.full_access')
+  // PMs can see their own team's attendance (time_entries_select_pm_team
+  // RLS), not just the CEO -- match the nav gate to that.
+  const canSeeAttendance = hasCapability('org.full_access') || hasCapability('projects.manage')
+  const canSeeChecklistAdmin = hasCapability('org.full_access')
+  const canSeeLookupAdmin = hasCapability('org.full_access')
 
   const closeMobileNav = () => setMobileNavOpen(false)
 
@@ -111,14 +123,25 @@ export function AppShell() {
       {canSeeFinance && (
         <NavItem to="/kpi" icon={BarChart3} label={t('kpi.title')} onNavigate={closeMobileNav} />
       )}
-      {isCeo && (
+      {canSeeTeam && (
         <NavItem to="/team" icon={UserPlus} label={t('team.title')} onNavigate={closeMobileNav} />
       )}
-      {isCeo && (
+      {canSeeAudit && (
         <NavItem to="/audit" icon={ScrollText} label={t('nav.audit')} onNavigate={closeMobileNav} />
       )}
       {canSeeAttendance && (
         <NavItem to="/attendance" icon={Clock} label={t('nav.attendance')} onNavigate={closeMobileNav} />
+      )}
+      {canSeeChecklistAdmin && (
+        <NavItem
+          to="/checklist-templates"
+          icon={ListChecks}
+          label={t('nav.checklistAdmin')}
+          onNavigate={closeMobileNav}
+        />
+      )}
+      {canSeeLookupAdmin && (
+        <NavItem to="/lookups" icon={ListTree} label={t('nav.lookupAdmin')} onNavigate={closeMobileNav} />
       )}
     </nav>
   )

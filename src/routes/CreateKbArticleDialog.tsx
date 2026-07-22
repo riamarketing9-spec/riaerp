@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
@@ -15,7 +15,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
@@ -28,10 +27,28 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-export function CreateKbArticleDialog() {
+export function KbArticleDialog({
+  open,
+  onOpenChange,
+  articleId,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  articleId: string | null
+}) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
+  const isEdit = !!articleId
   const queryClient = useQueryClient()
+
+  const { data: existing } = useQuery({
+    queryKey: ['kb-article-detail', articleId],
+    enabled: isEdit && open,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('kb_articles').select('*').eq('id', articleId!).single()
+      if (error) throw error
+      return data
+    },
+  })
 
   const {
     register,
@@ -40,37 +57,69 @@ export function CreateKbArticleDialog() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
+  useEffect(() => {
+    if (open && !isEdit) {
+      reset({})
+    }
+  }, [open, isEdit, reset])
+
+  useEffect(() => {
+    if (existing) {
+      reset({
+        title: existing.title,
+        body_markdown: existing.body_markdown ?? '',
+        video_url: existing.video_url ?? '',
+      })
+    }
+  }, [existing, reset])
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const { error } = await supabase.from('kb_articles').insert({
+      const payload = {
         title: values.title,
         body_markdown: values.body_markdown || null,
         video_url: values.video_url || null,
-      })
-      if (error) throw error
+      }
+      if (isEdit) {
+        const { error } = await supabase.from('kb_articles').update(payload).eq('id', articleId!)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('kb_articles').insert(payload)
+        if (error) throw error
+      }
     },
     onSuccess: () => {
-      toast.success('Статья добавлена')
+      toast.success(isEdit ? t('common.save') : 'Статья добавлена')
       queryClient.invalidateQueries({ queryKey: ['kb_articles'] })
+      queryClient.invalidateQueries({ queryKey: ['kb-article-detail', articleId] })
       reset()
-      setOpen(false)
+      onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('kb_articles').delete().eq('id', articleId!)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success(t('common.delete'))
+      queryClient.invalidateQueries({ queryKey: ['kb_articles'] })
+      onOpenChange(false)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleDelete() {
+    if (window.confirm(t('common.delete') + '?')) deleteMutation.mutate()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button>
-            <Plus />
-            {t('kb.newArticle')}
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('kb.newArticle')}</DialogTitle>
+          <DialogTitle>{isEdit ? t('common.edit') : t('kb.newArticle')}</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -92,13 +141,37 @@ export function CreateKbArticleDialog() {
             <Textarea id="body_markdown" rows={4} {...register('body_markdown')} />
           </div>
 
-          <DialogFooter>
+          <DialogFooter className={isEdit ? 'sm:justify-between' : undefined}>
+            {isEdit && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {t('common.create')}
+              {isEdit ? t('common.save') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+export function CreateKbArticleDialog() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>
+        <Plus />
+        {t('kb.newArticle')}
+      </Button>
+      <KbArticleDialog open={open} onOpenChange={setOpen} articleId={null} />
+    </>
   )
 }

@@ -59,7 +59,11 @@ export function ProjectDialog({
   projectId: string | null
 }) {
   const { t, i18n } = useTranslation()
-  const { isCeo } = useAuth()
+  const { hasCapability } = useAuth()
+  // contracts_write RLS is is_ceo()-only (= org.full_access) -- capability-
+  // based, not the role-slug-based isCeo boolean, so this stays consistent
+  // with what the write will actually be allowed to do.
+  const isCeo = hasCapability('org.full_access')
   const isEdit = !!projectId
   const [assistantPmIds, setAssistantPmIds] = useState<Set<string>>(new Set())
   const queryClient = useQueryClient()
@@ -234,17 +238,26 @@ export function ProjectDialog({
       }
 
       if (isCeo && values.contract_url && values.client_id) {
-        const { data: contractType } = await supabase
-          .from('contract_types')
-          .select('id')
-          .limit(1)
-          .maybeSingle()
-        if (contractType) {
-          await supabase.from('contracts').insert({
-            contract_type_id: contractType.id,
-            party_client_id: values.client_id,
-            storage_path: values.contract_url,
-          })
+        if (existingContract) {
+          const { error: contractError } = await supabase
+            .from('contracts')
+            .update({ storage_path: values.contract_url })
+            .eq('id', existingContract.id)
+          if (contractError) throw contractError
+        } else {
+          const { data: contractType } = await supabase
+            .from('contract_types')
+            .select('id')
+            .limit(1)
+            .maybeSingle()
+          if (contractType) {
+            const { error: contractError } = await supabase.from('contracts').insert({
+              contract_type_id: contractType.id,
+              party_client_id: values.client_id,
+              storage_path: values.contract_url,
+            })
+            if (contractError) throw contractError
+          }
         }
       }
     },
@@ -253,12 +266,33 @@ export function ProjectDialog({
       queryClient.invalidateQueries({ queryKey: ['projects'] })
       queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] })
       queryClient.invalidateQueries({ queryKey: ['project_members-assistants', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId] })
+      queryClient.invalidateQueries({ queryKey: ['contracts-client-ids'] })
       reset()
       setAssistantPmIds(new Set())
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const deleteContractMutation = useMutation({
+    mutationFn: async () => {
+      if (!existingContract) return
+      const { error } = await supabase.from('contracts').delete().eq('id', existingContract.id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success(t('common.delete'))
+      setValue('contract_url', '')
+      queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId] })
+      queryClient.invalidateQueries({ queryKey: ['contracts-client-ids'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleDeleteContract() {
+    if (window.confirm(t('common.delete') + '?')) deleteContractMutation.mutate()
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -422,14 +456,26 @@ export function ProjectDialog({
             <div className="flex flex-col gap-1.5 rounded-lg border border-border p-3">
               <Label>{t('projects.contract')}</Label>
               {existingContract && (
-                <a
-                  href={existingContract.storage_path}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-brand-600 underline dark:text-brand-400"
-                >
-                  {t('projects.contractCurrent')}
-                </a>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={existingContract.storage_path}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-brand-600 underline dark:text-brand-400"
+                  >
+                    {t('projects.contractCurrent')}
+                  </a>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-1.5 text-xs text-destructive hover:text-destructive"
+                    disabled={deleteContractMutation.isPending}
+                    onClick={handleDeleteContract}
+                  >
+                    {t('projects.contractRemove')}
+                  </Button>
+                </div>
               )}
               <FileUpload
                 value={watch('contract_url') ?? ''}

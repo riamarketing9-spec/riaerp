@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
@@ -9,8 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { CreateFixedSalaryDialog } from './CreateFixedSalaryDialog'
-import { CreateRateDialog } from './CreateRateDialog'
+import { CreateFixedSalaryDialog, FixedSalaryDialog } from './CreateFixedSalaryDialog'
+import { CreateRateDialog, RateDialog } from './CreateRateDialog'
 import { PayrollRuns } from './PayrollRuns'
 import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
 
@@ -20,6 +21,8 @@ function formatMoney(n: number) {
 
 export function PayrollSection() {
   const { t, i18n } = useTranslation()
+  const [editingFixedId, setEditingFixedId] = useState<string | null>(null)
+  const [editingRateId, setEditingRateId] = useState<string | null>(null)
 
   const { data: fixedSalaries, isLoading: loadingFixed } = useQuery({
     queryKey: ['payroll_fixed_salary'],
@@ -97,7 +100,11 @@ export function PayrollSection() {
                 </TableRow>
               )}
               {fixedSalaries?.map((f) => (
-                <TableRow key={f.id}>
+                <TableRow
+                  key={f.id}
+                  className="cursor-pointer"
+                  onClick={() => setEditingFixedId(f.id)}
+                >
                   <TableCell className="font-medium">{personName(f.profile_id)}</TableCell>
                   <TableCell>{formatMoney(f.monthly_amount)}</TableCell>
                   <TableCell>{formatLocalDate(f.effective_from, i18n.language)}</TableCell>
@@ -138,7 +145,11 @@ export function PayrollSection() {
                 </TableRow>
               )}
               {rates?.map((r) => (
-                <TableRow key={r.id}>
+                <TableRow
+                  key={r.id}
+                  className="cursor-pointer"
+                  onClick={() => setEditingRateId(r.id)}
+                >
                   <TableCell className="font-medium">{personName(r.profile_id)}</TableCell>
                   <TableCell>{deliverableLabel(r.deliverable_type_id)}</TableCell>
                   <TableCell>{formatMoney(r.rate)}</TableCell>
@@ -150,6 +161,17 @@ export function PayrollSection() {
       </div>
 
       <PayrollRuns />
+
+      <FixedSalaryDialog
+        open={!!editingFixedId}
+        onOpenChange={(open) => !open && setEditingFixedId(null)}
+        salaryId={editingFixedId}
+      />
+      <RateDialog
+        open={!!editingRateId}
+        onOpenChange={(open) => !open && setEditingRateId(null)}
+        rateId={editingRateId}
+      />
     </div>
   )
 }

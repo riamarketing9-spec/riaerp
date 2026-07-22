@@ -20,7 +20,7 @@ import {
   DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Lock } from 'lucide-react'
+import { Lock, Trash2 } from 'lucide-react'
 
 export function GrantDocumentAccessDialog({ documentId }: { documentId: string }) {
   const { t } = useTranslation()
@@ -68,6 +68,26 @@ export function GrantDocumentAccessDialog({ documentId }: { documentId: string }
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const revokeMutation = useMutation({
+    mutationFn: async (profileId: string) => {
+      const { error } = await supabase
+        .from('document_visibility')
+        .delete()
+        .eq('document_id', documentId)
+        .eq('profile_id', profileId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success(t('docs.accessRevoked'))
+      queryClient.invalidateQueries({ queryKey: ['document_visibility', documentId] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleRevoke(profileId: string) {
+    if (window.confirm(t('common.delete') + '?')) revokeMutation.mutate(profileId)
+  }
+
   const grantedIds = new Set(grants?.map((g) => g.profile_id))
 
   return (
@@ -105,9 +125,20 @@ export function GrantDocumentAccessDialog({ documentId }: { documentId: string }
           {(grants?.length ?? 0) > 0 && (
             <div className="flex flex-col gap-1">
               {grants?.map((g) => (
-                <p key={g.profile_id} className="text-xs text-muted-foreground">
-                  {profiles?.find((p) => p.id === g.profile_id)?.full_name}
-                </p>
+                <div key={g.profile_id} className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    {profiles?.find((p) => p.id === g.profile_id)?.full_name}
+                  </p>
+                  <button
+                    type="button"
+                    title={t('docs.revokeAccess')}
+                    onClick={() => handleRevoke(g.profile_id)}
+                    disabled={revokeMutation.isPending}
+                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
               ))}
             </div>
           )}

@@ -18,6 +18,8 @@ import { KnowledgeBasePage } from '@/routes/KnowledgeBasePage'
 import { TeamPage } from '@/routes/TeamPage'
 import { AuditLogPage } from '@/routes/AuditLogPage'
 import { AttendancePage } from '@/routes/AttendancePage'
+import { ChecklistTemplatesPage } from '@/routes/ChecklistTemplatesPage'
+import { LookupManagerPage } from '@/routes/LookupManagerPage'
 import { RequireCapability } from '@/routes/RequireCapability'
 
 const router = createBrowserRouter(
@@ -99,8 +101,24 @@ const router = createBrowserRouter(
         {
           path: 'attendance',
           element: (
-            <RequireCapability anyOf={['org.full_access']}>
+            <RequireCapability anyOf={['org.full_access', 'projects.manage']}>
               <AttendancePage />
+            </RequireCapability>
+          ),
+        },
+        {
+          path: 'checklist-templates',
+          element: (
+            <RequireCapability anyOf={['org.full_access']}>
+              <ChecklistTemplatesPage />
+            </RequireCapability>
+          ),
+        },
+        {
+          path: 'lookups',
+          element: (
+            <RequireCapability anyOf={['org.full_access']}>
+              <LookupManagerPage />
             </RequireCapability>
           ),
         },

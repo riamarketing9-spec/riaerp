@@ -5,14 +5,23 @@
 // (this call originates from Postgres itself, not a logged-in user).
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
+// Asia/Tashkent = UTC+5 year-round (no DST) -- "today" must be anchored to
+// this, not the edge function container's UTC wall-clock, or hours worked
+// between Tashkent midnight and 5am get silently dropped from the report.
+const TASHKENT_OFFSET_HOURS = 5
+
+function tashkentMidnightUtc(): Date {
+  const t = new Date(Date.now() + TASHKENT_OFFSET_HOURS * 60 * 60 * 1000)
+  return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), -TASHKENT_OFFSET_HOURS, 0, 0))
+}
+
 // deno-lint-ignore no-explicit-any
 async function buildReport(admin: any, profileId?: string): Promise<string> {
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { data: doneStatus } = await admin.from('task_statuses').select('id').eq('slug', 'done').maybeSingle()
 
   async function workedMsToday(pid: string): Promise<number> {
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    const todayStart = tashkentMidnightUtc()
     const { data: entries } = await admin
       .from('time_entries')
       .select('started_at, ended_at')

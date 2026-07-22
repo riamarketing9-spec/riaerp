@@ -1,14 +1,16 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent } from '@/components/ui/card'
-import { CreatePositionDialog } from './CreatePositionDialog'
+import { CreatePositionDialog, PositionDialog } from './CreatePositionDialog'
 
 export function OrgStructurePage() {
   const { t } = useTranslation()
-  const { isCeo, hasCapability } = useAuth()
-  const canManage = isCeo || hasCapability('org.structure_manage')
+  const { hasCapability } = useAuth()
+  const canManage = hasCapability('org.full_access') || hasCapability('org.structure_manage')
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const { data: positions, isLoading } = useQuery({
     queryKey: ['org_positions'],
@@ -48,7 +50,11 @@ export function OrgStructurePage() {
           <p className="text-sm text-muted-foreground">{t('org.empty')}</p>
         )}
         {positions?.map((p) => (
-          <Card key={p.id}>
+          <Card
+            key={p.id}
+            className={canManage ? 'cursor-pointer transition-colors hover:bg-muted/40' : undefined}
+            onClick={() => canManage && setEditingId(p.id)}
+          >
             <CardContent className="flex items-center justify-between py-3">
               <div>
                 <p className="text-sm font-medium">{p.title}</p>
@@ -61,6 +67,14 @@ export function OrgStructurePage() {
           </Card>
         ))}
       </div>
+
+      {canManage && (
+        <PositionDialog
+          open={!!editingId}
+          onOpenChange={(open) => !open && setEditingId(null)}
+          positionId={editingId}
+        />
+      )}
     </div>
   )
 }

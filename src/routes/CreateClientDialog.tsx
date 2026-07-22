@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -21,7 +21,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
@@ -38,15 +37,33 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-export function CreateClientDialog() {
+export function ClientDialog({
+  open,
+  onOpenChange,
+  clientId,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  clientId: string | null
+}) {
   const { t, i18n } = useTranslation()
-  const [open, setOpen] = useState(false)
+  const isEdit = !!clientId
   const queryClient = useQueryClient()
 
   const { data: statuses } = useQuery({
     queryKey: ['client_statuses'],
     queryFn: async () => {
       const { data, error } = await supabase.from('client_statuses').select('id, label_ru, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: existing } = useQuery({
+    queryKey: ['client-detail', clientId],
+    enabled: isEdit && open,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('clients').select('*').eq('id', clientId!).single()
       if (error) throw error
       return data
     },
@@ -61,40 +78,75 @@ export function CreateClientDialog() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
+  useEffect(() => {
+    if (open && !isEdit) {
+      reset({})
+    }
+  }, [open, isEdit, reset])
+
+  useEffect(() => {
+    if (existing) {
+      reset({
+        name: existing.name,
+        status_id: existing.status_id,
+        contact_name: existing.contact_name ?? '',
+        contact_phone: existing.contact_phone ?? '',
+        contact_telegram: existing.contact_telegram ?? '',
+        industry_text: existing.industry_text ?? '',
+      })
+    }
+  }, [existing, reset])
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const { error } = await supabase.from('clients').insert({
+      const payload = {
         name: values.name,
         status_id: values.status_id,
         contact_name: values.contact_name || null,
         contact_phone: values.contact_phone || null,
         contact_telegram: values.contact_telegram || null,
         industry_text: values.industry_text || null,
-      })
-      if (error) throw error
+      }
+      if (isEdit) {
+        const { error } = await supabase.from('clients').update(payload).eq('id', clientId!)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('clients').insert(payload)
+        if (error) throw error
+      }
     },
     onSuccess: () => {
-      toast.success('Клиент добавлен')
+      toast.success(isEdit ? t('common.save') : 'Клиент добавлен')
       queryClient.invalidateQueries({ queryKey: ['clients'] })
+      queryClient.invalidateQueries({ queryKey: ['client-detail', clientId] })
       reset()
-      setOpen(false)
+      onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('clients').delete().eq('id', clientId!)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success(t('common.delete'))
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      onOpenChange(false)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleDelete() {
+    if (window.confirm(t('common.delete') + '?')) deleteMutation.mutate()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button>
-            <Plus />
-            {t('clients.newClient')}
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('clients.newClient')}</DialogTitle>
+          <DialogTitle>{isEdit ? t('common.edit') : t('clients.newClient')}</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -129,7 +181,10 @@ export function CreateClientDialog() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>{t('clients.status')}</Label>
-              <Select onValueChange={(v: string | null) => setValue('status_id', v ?? '')}>
+              <Select
+                value={watch('status_id')}
+                onValueChange={(v: string | null) => setValue('status_id', v ?? '')}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="—">
                     {() => pickLabel(statuses?.find((s) => s.id === watch('status_id')), i18n.language)}
@@ -149,13 +204,37 @@ export function CreateClientDialog() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className={isEdit ? 'sm:justify-between' : undefined}>
+            {isEdit && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {t('common.create')}
+              {isEdit ? t('common.save') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+export function CreateClientDialog() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>
+        <Plus />
+        {t('clients.newClient')}
+      </Button>
+      <ClientDialog open={open} onOpenChange={setOpen} clientId={null} />
+    </>
   )
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -21,7 +21,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
@@ -34,15 +33,37 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-export function CreateFixedSalaryDialog() {
+export function FixedSalaryDialog({
+  open,
+  onOpenChange,
+  salaryId,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  salaryId: string | null
+}) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
+  const isEdit = !!salaryId
   const queryClient = useQueryClient()
 
   const { data: profiles } = useQuery({
     queryKey: ['profiles-lookup'],
     queryFn: async () => {
       const { data, error } = await supabase.from('profiles').select('id, full_name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: existing } = useQuery({
+    queryKey: ['payroll-fixed-salary-detail', salaryId],
+    enabled: isEdit && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('payroll_fixed_salary')
+        .select('id, profile_id, monthly_amount, effective_from')
+        .eq('id', salaryId!)
+        .single()
       if (error) throw error
       return data
     },
@@ -57,37 +78,72 @@ export function CreateFixedSalaryDialog() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
+  useEffect(() => {
+    if (open && !isEdit) {
+      reset({})
+    }
+  }, [open, isEdit, reset])
+
+  useEffect(() => {
+    if (existing) {
+      reset({
+        profile_id: existing.profile_id,
+        monthly_amount: String(existing.monthly_amount),
+        effective_from: existing.effective_from,
+      })
+    }
+  }, [existing, reset])
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const { error } = await supabase.from('payroll_fixed_salary').insert({
+      const payload = {
         profile_id: values.profile_id,
         monthly_amount: Number(values.monthly_amount),
         effective_from: values.effective_from,
-      })
-      if (error) throw error
+      }
+      if (isEdit) {
+        const { error } = await supabase
+          .from('payroll_fixed_salary')
+          .update(payload)
+          .eq('id', salaryId!)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('payroll_fixed_salary').insert(payload)
+        if (error) throw error
+      }
     },
     onSuccess: () => {
-      toast.success('Оклад добавлен')
+      toast.success(isEdit ? t('common.save') : 'Оклад добавлен')
       queryClient.invalidateQueries({ queryKey: ['payroll_fixed_salary'] })
+      queryClient.invalidateQueries({ queryKey: ['payroll-fixed-salary-detail', salaryId] })
       reset()
-      setOpen(false)
+      onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('payroll_fixed_salary').delete().eq('id', salaryId!)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success(t('common.delete'))
+      queryClient.invalidateQueries({ queryKey: ['payroll_fixed_salary'] })
+      onOpenChange(false)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleDelete() {
+    if (window.confirm(t('common.delete') + '?')) deleteMutation.mutate()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button size="sm">
-            <Plus />
-            {t('payroll.newFixedSalary')}
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>{t('payroll.newFixedSalary')}</DialogTitle>
+          <DialogTitle>{isEdit ? t('common.edit') : t('payroll.newFixedSalary')}</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -95,7 +151,10 @@ export function CreateFixedSalaryDialog() {
         >
           <div className="flex flex-col gap-1.5">
             <Label>{t('payroll.employee')}</Label>
-            <Select onValueChange={(v: string | null) => setValue('profile_id', v ?? '')}>
+            <Select
+              value={watch('profile_id')}
+              onValueChange={(v: string | null) => setValue('profile_id', v ?? '')}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="—">
                   {() => profiles?.find((p) => p.id === watch('profile_id'))?.full_name}
@@ -130,13 +189,37 @@ export function CreateFixedSalaryDialog() {
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className={isEdit ? 'sm:justify-between' : undefined}>
+            {isEdit && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {t('common.create')}
+              {isEdit ? t('common.save') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+export function CreateFixedSalaryDialog() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)}>
+        <Plus />
+        {t('payroll.newFixedSalary')}
+      </Button>
+      <FixedSalaryDialog open={open} onOpenChange={setOpen} salaryId={null} />
+    </>
   )
 }

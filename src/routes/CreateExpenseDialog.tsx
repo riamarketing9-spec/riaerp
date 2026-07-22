@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -21,7 +21,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
@@ -38,9 +37,17 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-export function CreateExpenseDialog() {
+export function ExpenseDialog({
+  open,
+  onOpenChange,
+  expenseId,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  expenseId: string | null
+}) {
   const { t, i18n } = useTranslation()
-  const [open, setOpen] = useState(false)
+  const isEdit = !!expenseId
   const queryClient = useQueryClient()
 
   const { data: categories } = useQuery({
@@ -70,6 +77,20 @@ export function CreateExpenseDialog() {
     },
   })
 
+  const { data: existing } = useQuery({
+    queryKey: ['finance-expense-detail', expenseId],
+    enabled: isEdit && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('finance_expenses')
+        .select('id, expense_date, amount, category_id, scope_id, project_id, note')
+        .eq('id', expenseId!)
+        .single()
+      if (error) throw error
+      return data
+    },
+  })
+
   const {
     register,
     handleSubmit,
@@ -79,41 +100,77 @@ export function CreateExpenseDialog() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
+  useEffect(() => {
+    if (open && !isEdit) {
+      reset({})
+    }
+  }, [open, isEdit, reset])
+
+  useEffect(() => {
+    if (existing) {
+      reset({
+        expense_date: existing.expense_date,
+        amount: String(existing.amount),
+        category_id: existing.category_id ?? '',
+        scope_id: existing.scope_id,
+        project_id: existing.project_id ?? '',
+        note: existing.note ?? '',
+      })
+    }
+  }, [existing, reset])
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const { error } = await supabase.from('finance_expenses').insert({
+      const payload = {
         expense_date: values.expense_date,
         amount: Number(values.amount),
         category_id: values.category_id || null,
         scope_id: values.scope_id,
         project_id: values.project_id || null,
         note: values.note || null,
-      })
-      if (error) throw error
+      }
+      if (isEdit) {
+        const { error } = await supabase.from('finance_expenses').update(payload).eq('id', expenseId!)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('finance_expenses').insert(payload)
+        if (error) throw error
+      }
     },
     onSuccess: () => {
-      toast.success('Расход добавлен')
+      toast.success(isEdit ? t('common.save') : 'Расход добавлен')
       queryClient.invalidateQueries({ queryKey: ['finance_expenses'] })
+      queryClient.invalidateQueries({ queryKey: ['finance-expense-detail', expenseId] })
       queryClient.invalidateQueries({ queryKey: ['v_project_profit'] })
       reset()
-      setOpen(false)
+      onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('finance_expenses').delete().eq('id', expenseId!)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success(t('common.delete'))
+      queryClient.invalidateQueries({ queryKey: ['finance_expenses'] })
+      queryClient.invalidateQueries({ queryKey: ['v_project_profit'] })
+      onOpenChange(false)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleDelete() {
+    if (window.confirm(t('common.delete') + '?')) deleteMutation.mutate()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button>
-            <Plus />
-            {t('finance.newExpense')}
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('finance.newExpense')}</DialogTitle>
+          <DialogTitle>{isEdit ? t('common.edit') : t('finance.newExpense')}</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -139,7 +196,10 @@ export function CreateExpenseDialog() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>{t('finance.category')}</Label>
-              <Select onValueChange={(v: string | null) => setValue('category_id', v ?? '')}>
+              <Select
+                value={watch('category_id')}
+                onValueChange={(v: string | null) => setValue('category_id', v ?? '')}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="—">
                     {() => pickLabel(categories?.find((c) => c.id === watch('category_id')), i18n.language)}
@@ -156,7 +216,10 @@ export function CreateExpenseDialog() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>{t('finance.scope')}</Label>
-              <Select onValueChange={(v: string | null) => setValue('scope_id', v ?? '')}>
+              <Select
+                value={watch('scope_id')}
+                onValueChange={(v: string | null) => setValue('scope_id', v ?? '')}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="—">
                     {() => {
@@ -181,7 +244,10 @@ export function CreateExpenseDialog() {
 
           <div className="flex flex-col gap-1.5">
             <Label>{t('finance.project')}</Label>
-            <Select onValueChange={(v: string | null) => setValue('project_id', v ?? '')}>
+            <Select
+              value={watch('project_id')}
+              onValueChange={(v: string | null) => setValue('project_id', v ?? '')}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="—">
                   {() => projects?.find((p) => p.id === watch('project_id'))?.name}
@@ -202,13 +268,37 @@ export function CreateExpenseDialog() {
             <Input id="note" {...register('note')} />
           </div>
 
-          <DialogFooter>
+          <DialogFooter className={isEdit ? 'sm:justify-between' : undefined}>
+            {isEdit && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {t('common.create')}
+              {isEdit ? t('common.save') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+export function CreateExpenseDialog() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>
+        <Plus />
+        {t('finance.newExpense')}
+      </Button>
+      <ExpenseDialog open={open} onOpenChange={setOpen} expenseId={null} />
+    </>
   )
 }

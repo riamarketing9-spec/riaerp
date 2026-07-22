@@ -29,6 +29,10 @@ export function TimeTrackerWidget() {
   const { profile } = useAuth()
   const queryClient = useQueryClient()
   const [now, setNow] = useState(() => Date.now())
+  // mutation.isPending only flips true after the next render, leaving a
+  // window for a fast double-click to fire two inserts before the button
+  // visually disables -- this local flag disables it synchronously.
+  const [justClicked, setJustClicked] = useState(false)
 
   const { data: openEntry, isLoading } = useQuery({
     queryKey: ['my-open-time-entry', profile?.id],
@@ -51,6 +55,19 @@ export function TimeTrackerWidget() {
     return () => clearInterval(interval)
   }, [openEntry])
 
+  function reportError(err: Error) {
+    // A double-click race can still slip two inserts past the disabled
+    // button; the DB's one-open-entry-per-profile unique index rejects the
+    // second one -- translate that into something an employee understands
+    // instead of showing raw Postgres constraint text.
+    if (err.message.includes('time_entries_one_open_per_profile')) {
+      toast.error(t('attendance.alreadyStarted'))
+      queryClient.invalidateQueries({ queryKey: ['my-open-time-entry', profile?.id] })
+      return
+    }
+    toast.error(err.message)
+  }
+
   const startMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
@@ -59,7 +76,8 @@ export function TimeTrackerWidget() {
       if (error) throw error
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-open-time-entry', profile?.id] }),
-    onError: (err: Error) => toast.error(err.message),
+    onError: reportError,
+    onSettled: () => setJustClicked(false),
   })
 
   const stopMutation = useMutation({
@@ -71,7 +89,8 @@ export function TimeTrackerWidget() {
       if (error) throw error
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-open-time-entry', profile?.id] }),
-    onError: (err: Error) => toast.error(err.message),
+    onError: reportError,
+    onSettled: () => setJustClicked(false),
   })
 
   const elapsedMs = openEntry ? now - new Date(openEntry.started_at).getTime() : 0
@@ -90,8 +109,11 @@ export function TimeTrackerWidget() {
             </div>
             <Button
               variant="destructive"
-              disabled={stopMutation.isPending}
-              onClick={() => stopMutation.mutate()}
+              disabled={justClicked || stopMutation.isPending}
+              onClick={() => {
+                setJustClicked(true)
+                stopMutation.mutate()
+              }}
             >
               <Square className="size-4" />
               {t('attendance.stop')}
@@ -100,7 +122,13 @@ export function TimeTrackerWidget() {
         ) : (
           <>
             <span className="text-sm text-muted-foreground">{t('attendance.notWorking')}</span>
-            <Button disabled={isLoading || startMutation.isPending} onClick={() => startMutation.mutate()}>
+            <Button
+              disabled={isLoading || justClicked || startMutation.isPending}
+              onClick={() => {
+                setJustClicked(true)
+                startMutation.mutate()
+              }}
+            >
               <Play className="size-4" />
               {t('attendance.start')}
             </Button>

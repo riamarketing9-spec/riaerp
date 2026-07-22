@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -23,7 +23,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
@@ -39,10 +38,18 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-export function CreateLeadDialog() {
+export function LeadDialog({
+  open,
+  onOpenChange,
+  leadId,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  leadId: string | null
+}) {
   const { t, i18n } = useTranslation()
   const { profile } = useAuth()
-  const [open, setOpen] = useState(false)
+  const isEdit = !!leadId
   const queryClient = useQueryClient()
 
   const { data: clients } = useQuery({
@@ -66,6 +73,16 @@ export function CreateLeadDialog() {
     },
   })
 
+  const { data: existing } = useQuery({
+    queryKey: ['lead-detail', leadId],
+    enabled: isEdit && open,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('leads').select('*').eq('id', leadId!).single()
+      if (error) throw error
+      return data
+    },
+  })
+
   const {
     register,
     handleSubmit,
@@ -75,40 +92,76 @@ export function CreateLeadDialog() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
+  useEffect(() => {
+    if (open && !isEdit) {
+      reset({})
+    }
+  }, [open, isEdit, reset])
+
+  useEffect(() => {
+    if (existing) {
+      reset({
+        client_id: existing.client_id ?? '',
+        stage_id: existing.stage_id,
+        expected_value: existing.expected_value != null ? String(existing.expected_value) : '',
+        next_action_date: existing.next_action_date ?? '',
+        notes: existing.notes ?? '',
+      })
+    }
+  }, [existing, reset])
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const { error } = await supabase.from('leads').insert({
+      const payload = {
         client_id: values.client_id,
         stage_id: values.stage_id,
-        owner_profile_id: profile?.id ?? null,
         expected_value: values.expected_value ? Number(values.expected_value) : null,
         next_action_date: values.next_action_date || null,
         notes: values.notes || null,
-      })
-      if (error) throw error
+      }
+      if (isEdit) {
+        const { error } = await supabase.from('leads').update(payload).eq('id', leadId!)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('leads').insert({
+          ...payload,
+          owner_profile_id: profile?.id ?? null,
+        })
+        if (error) throw error
+      }
     },
     onSuccess: () => {
-      toast.success('Лид создан')
+      toast.success(isEdit ? t('common.save') : 'Лид создан')
       queryClient.invalidateQueries({ queryKey: ['leads'] })
+      queryClient.invalidateQueries({ queryKey: ['lead-detail', leadId] })
       reset()
-      setOpen(false)
+      onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('leads').delete().eq('id', leadId!)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success(t('common.delete'))
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+      onOpenChange(false)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleDelete() {
+    if (window.confirm(t('common.delete') + '?')) deleteMutation.mutate()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button>
-            <Plus />
-            {t('leads.newLead')}
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('leads.newLead')}</DialogTitle>
+          <DialogTitle>{isEdit ? t('common.edit') : t('leads.newLead')}</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -116,7 +169,10 @@ export function CreateLeadDialog() {
         >
           <div className="flex flex-col gap-1.5">
             <Label>{t('leads.client')}</Label>
-            <Select onValueChange={(v: string | null) => setValue('client_id', v ?? '')}>
+            <Select
+              value={watch('client_id')}
+              onValueChange={(v: string | null) => setValue('client_id', v ?? '')}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="—">
                   {() => clients?.find((c) => c.id === watch('client_id'))?.name}
@@ -137,7 +193,10 @@ export function CreateLeadDialog() {
 
           <div className="flex flex-col gap-1.5">
             <Label>{t('leads.stage')}</Label>
-            <Select onValueChange={(v: string | null) => setValue('stage_id', v ?? '')}>
+            <Select
+              value={watch('stage_id')}
+              onValueChange={(v: string | null) => setValue('stage_id', v ?? '')}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="—">
                   {() => pickLabel(stages?.find((s) => s.id === watch('stage_id')), i18n.language)}
@@ -172,13 +231,37 @@ export function CreateLeadDialog() {
             <Textarea id="notes" rows={2} {...register('notes')} />
           </div>
 
-          <DialogFooter>
+          <DialogFooter className={isEdit ? 'sm:justify-between' : undefined}>
+            {isEdit && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {t('common.create')}
+              {isEdit ? t('common.save') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+export function CreateLeadDialog() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>
+        <Plus />
+        {t('leads.newLead')}
+      </Button>
+      <LeadDialog open={open} onOpenChange={setOpen} leadId={null} />
+    </>
   )
 }

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
+import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Combobox } from '@/components/ui/combobox'
 import { formatLocalDateTime } from '@/lib/localizedLabel'
+import { Square } from 'lucide-react'
 
 type DateMode = 'today' | 'yesterday' | 'range'
 
@@ -29,6 +32,9 @@ function formatDuration(ms: number) {
 
 export function AttendancePage() {
   const { t, i18n } = useTranslation()
+  const { hasCapability } = useAuth()
+  const canForceStop = hasCapability('org.full_access')
+  const queryClient = useQueryClient()
   const [dateMode, setDateMode] = useState<DateMode>('today')
   const [rangeFrom, setRangeFrom] = useState('')
   const [rangeTo, setRangeTo] = useState('')
@@ -70,19 +76,42 @@ export function AttendancePage() {
   })
 
   const { data: entries, isLoading } = useQuery({
-    queryKey: ['attendance-entries', start.toISOString(), end.toISOString(), employeeFilter],
+    queryKey: ['attendance-entries', start.toISOString(), end.toISOString(), employeeFilter, dateMode],
     queryFn: async () => {
       let query = supabase
         .from('time_entries')
         .select('id, profile_id, started_at, ended_at, started_device, ended_device')
-        .gte('started_at', start.toISOString())
-        .lt('started_at', end.toISOString())
         .order('started_at', { ascending: false })
+      // "Today" should also surface a session that started before midnight
+      // and is still running -- otherwise someone working through the
+      // night silently disappears from the "today" history the moment
+      // their shift crosses midnight, even though the live panel above
+      // still shows them as working.
+      if (dateMode === 'today') {
+        query = query.or(`and(started_at.gte.${start.toISOString()},started_at.lt.${end.toISOString()}),ended_at.is.null`)
+      } else {
+        query = query.gte('started_at', start.toISOString()).lt('started_at', end.toISOString())
+      }
       if (employeeFilter) query = query.eq('profile_id', employeeFilter)
       const { data, error } = await query
       if (error) throw error
       return data
     },
+  })
+
+  const forceStopMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('time_entries')
+        .update({ ended_at: new Date().toISOString(), ended_device: 'CEO (majburiy to\'xtatish)' })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance-open'] })
+      queryClient.invalidateQueries({ queryKey: ['attendance-entries'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const nameFor = (id: string) => profiles?.find((p) => p.id === id)?.full_name ?? '—'
@@ -108,6 +137,17 @@ export function AttendancePage() {
                   {e.started_device ? ` · ${e.started_device}` : ''}
                 </span>
                 <Badge className="bg-emerald-500 text-white">{t('attendance.working')}</Badge>
+                {canForceStop && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={forceStopMutation.isPending}
+                    onClick={() => forceStopMutation.mutate(e.id)}
+                  >
+                    <Square className="size-3.5" />
+                    {t('attendance.forceStop')}
+                  </Button>
+                )}
               </div>
             </div>
           ))}

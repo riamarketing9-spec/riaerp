@@ -12,7 +12,12 @@ import { pickLabel } from '@/lib/localizedLabel'
 
 export function ProjectsPage() {
   const { t, i18n } = useTranslation()
-  const { isCeo } = useAuth()
+  const { hasCapability, profile } = useAuth()
+  // contracts_select_pm RLS lets a project's own PM read its client's
+  // contract too, not just is_ceo() -- match that here instead of gating
+  // on the role-slug-based isCeo boolean, which only ever covered CEO.
+  const isCeoCap = hasCapability('org.full_access')
+  const canSeeAnyContract = isCeoCap || hasCapability('projects.manage')
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
 
   const { data: projects, isLoading } = useQuery({
@@ -93,7 +98,7 @@ export function ProjectsPage() {
 
   const { data: contractClientIds } = useQuery({
     queryKey: ['contracts-client-ids', clientIds],
-    enabled: isCeo && clientIds.length > 0,
+    enabled: canSeeAnyContract && clientIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase.from('contracts').select('party_client_id').in('party_client_id', clientIds)
       if (error) throw error
@@ -145,7 +150,7 @@ export function ProjectsPage() {
                     {clientName(project.client_id)}
                   </Badge>
                 )}
-                {isCeo && contractClientIds?.has(project.client_id) && (
+                {(isCeoCap || project.pm_profile_id === profile?.id) && contractClientIds?.has(project.client_id) && (
                   <Badge variant="secondary" className="text-[10px]">
                     {t('projects.contract')}
                   </Badge>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -23,7 +23,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Plus } from 'lucide-react'
@@ -39,16 +38,34 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-export function CreateDocumentDialog() {
+export function DocumentDialog({
+  open,
+  onOpenChange,
+  documentId,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  documentId: string | null
+}) {
   const { t, i18n } = useTranslation()
   const { profile } = useAuth()
-  const [open, setOpen] = useState(false)
+  const isEdit = !!documentId
   const queryClient = useQueryClient()
 
   const { data: categories } = useQuery({
     queryKey: ['document_categories'],
     queryFn: async () => {
       const { data, error } = await supabase.from('document_categories').select('id, label_ru, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: existing } = useQuery({
+    queryKey: ['document-detail', documentId],
+    enabled: isEdit && open,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('documents').select('*').eq('id', documentId!).single()
       if (error) throw error
       return data
     },
@@ -63,39 +80,74 @@ export function CreateDocumentDialog() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { is_org_wide: true } })
 
+  useEffect(() => {
+    if (open && !isEdit) {
+      reset({ is_org_wide: true })
+    }
+  }, [open, isEdit, reset])
+
+  useEffect(() => {
+    if (existing) {
+      reset({
+        title: existing.title,
+        storage_path: existing.storage_path,
+        category_id: existing.category_id ?? '',
+        is_org_wide: existing.is_org_wide,
+      })
+    }
+  }, [existing, reset])
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const { error } = await supabase.from('documents').insert({
+      const payload = {
         title: values.title,
         storage_path: values.storage_path,
         category_id: values.category_id || null,
         is_org_wide: values.is_org_wide,
-        uploaded_by: profile?.id ?? null,
-      })
-      if (error) throw error
+      }
+      if (isEdit) {
+        const { error } = await supabase.from('documents').update(payload).eq('id', documentId!)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('documents').insert({
+          ...payload,
+          uploaded_by: profile?.id ?? null,
+        })
+        if (error) throw error
+      }
     },
     onSuccess: () => {
-      toast.success('Документ добавлен')
+      toast.success(isEdit ? t('common.save') : 'Документ добавлен')
       queryClient.invalidateQueries({ queryKey: ['documents'] })
+      queryClient.invalidateQueries({ queryKey: ['document-detail', documentId] })
       reset()
-      setOpen(false)
+      onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('documents').delete().eq('id', documentId!)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success(t('common.delete'))
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      onOpenChange(false)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleDelete() {
+    if (window.confirm(t('common.delete') + '?')) deleteMutation.mutate()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button>
-            <Plus />
-            {t('docs.newDocument')}
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('docs.newDocument')}</DialogTitle>
+          <DialogTitle>{isEdit ? t('common.edit') : t('docs.newDocument')}</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -121,7 +173,10 @@ export function CreateDocumentDialog() {
 
           <div className="flex flex-col gap-1.5">
             <Label>{t('docs.category')}</Label>
-            <Select onValueChange={(v: string | null) => setValue('category_id', v ?? '')}>
+            <Select
+              value={watch('category_id')}
+              onValueChange={(v: string | null) => setValue('category_id', v ?? '')}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="—">
                   {() => pickLabel(categories?.find((c) => c.id === watch('category_id')), i18n.language)}
@@ -148,13 +203,37 @@ export function CreateDocumentDialog() {
             </Label>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className={isEdit ? 'sm:justify-between' : undefined}>
+            {isEdit && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {t('common.create')}
+              {isEdit ? t('common.save') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+export function CreateDocumentDialog() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>
+        <Plus />
+        {t('docs.newDocument')}
+      </Button>
+      <DocumentDialog open={open} onOpenChange={setOpen} documentId={null} />
+    </>
   )
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
@@ -11,13 +12,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { CreateLeadDialog } from './CreateLeadDialog'
+import { CreateLeadDialog, LeadDialog } from './CreateLeadDialog'
 import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
 
 export function LeadsPage() {
   const { t, i18n } = useTranslation()
   const { hasCapability } = useAuth()
   const canManage = hasCapability('sales.manage')
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const { data: leads, isLoading } = useQuery({
     queryKey: ['leads'],
@@ -87,7 +89,11 @@ export function LeadsPage() {
               </TableRow>
             )}
             {leads?.map((lead) => (
-              <TableRow key={lead.id}>
+              <TableRow
+                key={lead.id}
+                className={canManage ? 'cursor-pointer' : undefined}
+                onClick={() => canManage && setEditingId(lead.id)}
+              >
                 <TableCell className="font-medium">{clientName(lead.client_id)}</TableCell>
                 <TableCell>
                   <Badge variant="secondary">{stageName(lead.stage_id)}</Badge>
@@ -99,6 +105,12 @@ export function LeadsPage() {
           </TableBody>
         </Table>
       </div>
+
+      <LeadDialog
+        open={!!editingId}
+        onOpenChange={(open) => !open && setEditingId(null)}
+        leadId={editingId}
+      />
     </div>
   )
 }

@@ -286,10 +286,15 @@ function TelegramConnectCard() {
 
 export function CabinetPage() {
   const { t } = useTranslation()
-  const { profile, role, hasCapability } = useAuth()
-  const isCeo = role?.slug === 'ceo'
-  const isPm = role?.slug === 'pm'
-  const canSeeTeamWidgets = isCeo || isPm
+  const { profile, hasCapability } = useAuth()
+  // Capability-based, not role-slug-based: matches the actual data scoping
+  // (cabinets.read_all) rather than assuming only literally-named
+  // 'ceo'/'pm' roles can ever hold team-management responsibilities.
+  const canSeeTeamWidgets = hasCapability('cabinets.read_all')
+  // "Team tasks" widget below relies on tasks_select_pm_scoped RLS (PM of at
+  // least one project) -- projects.manage is the matching capability, not
+  // the 'pm' role slug.
+  const isPm = hasCapability('projects.manage')
   const canSeeFinance = hasCapability('finance.read') || hasCapability('finance.write')
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
 
@@ -327,7 +332,7 @@ export function CabinetPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <DeadlinesWidget />
           <IdleTeamWidget />
-          {isCeo && canSeeFinance && <FinanceWidget />}
+          {canSeeFinance && <FinanceWidget />}
           <TodayContentWidget />
         </div>
       )}

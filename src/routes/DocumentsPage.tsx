@@ -1,16 +1,18 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CreateDocumentDialog } from './CreateDocumentDialog'
+import { CreateDocumentDialog, DocumentDialog } from './CreateDocumentDialog'
 import { GrantDocumentAccessDialog } from './GrantDocumentAccessDialog'
 
 export function DocumentsPage() {
   const { t } = useTranslation()
   const { hasCapability } = useAuth()
   const canAdmin = hasCapability('docs.admin')
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const { data: documents, isLoading } = useQuery({
     queryKey: ['documents'],
@@ -36,13 +38,18 @@ export function DocumentsPage() {
           <p className="text-sm text-muted-foreground">{t('docs.empty')}</p>
         )}
         {documents?.map((doc) => (
-          <Card key={doc.id}>
+          <Card
+            key={doc.id}
+            className={canAdmin ? 'cursor-pointer' : undefined}
+            onClick={() => canAdmin && setEditingId(doc.id)}
+          >
             <CardContent className="flex items-center justify-between py-3">
               <div>
                 <a
                   href={doc.storage_path}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                   className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300"
                 >
                   {doc.title}
@@ -53,11 +60,21 @@ export function DocumentsPage() {
                   </Badge>
                 )}
               </div>
-              {canAdmin && !doc.is_org_wide && <GrantDocumentAccessDialog documentId={doc.id} />}
+              {canAdmin && !doc.is_org_wide && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <GrantDocumentAccessDialog documentId={doc.id} />
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <DocumentDialog
+        open={!!editingId}
+        onOpenChange={(open) => !open && setEditingId(null)}
+        documentId={editingId}
+      />
     </div>
   )
 }

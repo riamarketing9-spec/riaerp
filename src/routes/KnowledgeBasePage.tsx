@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -6,15 +7,19 @@ import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CreateKbArticleDialog } from './CreateKbArticleDialog'
+import { CreateKbArticleDialog, KbArticleDialog } from './CreateKbArticleDialog'
 import { formatLocalDate } from '@/lib/localizedLabel'
-import { Check } from 'lucide-react'
+import { Check, Pencil } from 'lucide-react'
 
 export function KnowledgeBasePage() {
   const { t, i18n } = useTranslation()
-  const { hasCapability, profile, isCeo } = useAuth()
+  const { hasCapability, profile } = useAuth()
   const canAdmin = hasCapability('docs.admin')
+  // Capability-based, matching kb_reads_select RLS (profile_id = self OR
+  // is_ceo()), not the role-slug-based isCeo boolean.
+  const isCeo = hasCapability('org.full_access')
   const queryClient = useQueryClient()
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const { data: articles, isLoading } = useQuery({
     queryKey: ['kb_articles'],
@@ -82,11 +87,23 @@ export function KnowledgeBasePage() {
             <Card key={a.id}>
               <CardHeader className="flex flex-row items-start justify-between gap-2">
                 <CardTitle className="text-base font-medium">{a.title}</CardTitle>
-                {isCeo && (
-                  <Badge variant="outline" className="shrink-0">
-                    {t('kb.readCount')}: {readCount(a.id)}
-                  </Badge>
-                )}
+                <div className="flex shrink-0 items-center gap-2">
+                  {isCeo && (
+                    <Badge variant="outline" className="shrink-0">
+                      {t('kb.readCount')}: {readCount(a.id)}
+                    </Badge>
+                  )}
+                  {canAdmin && (
+                    <button
+                      type="button"
+                      title={t('common.edit')}
+                      onClick={() => setEditingId(a.id)}
+                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
                 {a.video_url && (
@@ -116,6 +133,12 @@ export function KnowledgeBasePage() {
           )
         })}
       </div>
+
+      <KbArticleDialog
+        open={!!editingId}
+        onOpenChange={(open) => !open && setEditingId(null)}
+        articleId={editingId}
+      />
     </div>
   )
 }
