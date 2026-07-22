@@ -68,7 +68,7 @@ function DraggableCard({
         subtasks={subtasks}
         onOpen={() => onOpen(task.id)}
         onDelete={() => onDelete(task.id)}
-        className="w-64 cursor-grab active:cursor-grabbing"
+        className="w-full cursor-grab active:cursor-grabbing"
       />
     </div>
   )
