@@ -90,9 +90,7 @@ export function AppShell() {
       {canSeeProjects && (
         <NavItem to="/projects" icon={Users} label={t('nav.projects')} onNavigate={closeMobileNav} />
       )}
-      {canSeeProjects && (
-        <NavItem to="/content-plan" icon={CalendarDays} label={t('nav.contentPlan')} onNavigate={closeMobileNav} />
-      )}
+      <NavItem to="/content-plan" icon={CalendarDays} label={t('nav.contentPlan')} onNavigate={closeMobileNav} />
       {canSeeAll && (
         <NavItem to="/workload" icon={Gauge} label={t('nav.workload')} onNavigate={closeMobileNav} />
       )}
