@@ -55,12 +55,26 @@ const STATUS_COLORS: Record<string, string> = {
 }
 const DEFAULT_STATUS_COLOR = 'bg-muted/60 border-transparent'
 
+// Deterministic color per project so cards are visually distinguishable by
+// project even before anyone bothers uploading a real logo.
+const PROJECT_DOT_COLORS = [
+  'bg-rose-500', 'bg-orange-500', 'bg-amber-500', 'bg-lime-500',
+  'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-blue-500',
+  'bg-violet-500', 'bg-fuchsia-500',
+]
+function projectColorFor(projectId: string) {
+  let hash = 0
+  for (let i = 0; i < projectId.length; i++) hash = (hash * 31 + projectId.charCodeAt(i)) >>> 0
+  return PROJECT_DOT_COLORS[hash % PROJECT_DOT_COLORS.length]
+}
+
 function CalendarItemCard({
   item,
   statusSlug,
   statusLabel,
   platformLabels,
   logoUrl,
+  projectName,
   onOpen,
   dragging,
 }: {
@@ -69,6 +83,7 @@ function CalendarItemCard({
   statusLabel?: string
   platformLabels: string[]
   logoUrl?: string | null
+  projectName?: string
   onOpen: () => void
   dragging?: boolean
 }) {
@@ -86,7 +101,19 @@ function CalendarItemCard({
       )}
     >
       <div className="flex items-center gap-1">
-        {logoUrl && <img src={logoUrl} alt="" className="size-3.5 shrink-0 rounded-full object-cover" />}
+        {logoUrl ? (
+          <img src={logoUrl} alt="" className="size-3.5 shrink-0 rounded-full object-cover" />
+        ) : (
+          <span
+            title={projectName}
+            className={cn(
+              'flex size-3.5 shrink-0 items-center justify-center rounded-full text-[7px] font-bold text-white',
+              projectColorFor(item.project_id)
+            )}
+          >
+            {projectName?.[0]?.toUpperCase()}
+          </span>
+        )}
         <span className="truncate text-[11px] font-medium">{item.topic}</span>
       </div>
       <div className="flex flex-wrap gap-0.5">
@@ -187,6 +214,7 @@ export function ContentCalendarView({
       .map((ip) => pickLabel(platforms?.find((p) => p.id === ip.platform_id), i18n.language))
       .filter((l): l is string => !!l)
   const logoFor = (projectId: string) => projects?.find((p) => p.id === projectId)?.logo_url
+  const projectNameFor = (projectId: string) => projects?.find((p) => p.id === projectId)?.name
 
   const weekDayLabels = useMemo(() => {
     const start = startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -274,6 +302,7 @@ export function ContentCalendarView({
                       statusLabel={statusLabel(item.status_id)}
                       platformLabels={platformsFor(item.id)}
                       logoUrl={logoFor(item.project_id)}
+                      projectName={projectNameFor(item.project_id)}
                       onOpen={() => onOpen(item.id)}
                     />
                   ))}
@@ -290,6 +319,7 @@ export function ContentCalendarView({
               statusLabel={statusLabel(activeItem.status_id)}
               platformLabels={platformsFor(activeItem.id)}
               logoUrl={logoFor(activeItem.project_id)}
+              projectName={projectNameFor(activeItem.project_id)}
               onOpen={() => {}}
             />
           )}
