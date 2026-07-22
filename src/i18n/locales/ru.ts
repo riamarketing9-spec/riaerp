@@ -65,6 +65,7 @@ export const ru = {
     title: 'Проекты',
     newProject: 'Новый проект',
     name: 'Название',
+    logo: 'Логотип',
     status: 'Статус',
     type: 'Тип',
     pm: 'PM',

@@ -69,6 +69,7 @@ type ProjectRow = {
   brief_detail_text: string | null
   target_audience_voice_url: string | null
   target_audience_file_url: string | null
+  logo_url: string | null
   created_at: string
   updated_at: string
 }

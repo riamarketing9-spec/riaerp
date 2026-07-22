@@ -21,7 +21,7 @@ export function ProjectsPage() {
       const { data, error } = await supabase
         .from('projects')
         .select(
-          'id, name, goal, deliverables_text, target_audience, target_audience_voice_url, target_audience_file_url, billing_day, project_type_id, status_id, pm_profile_id, client_id'
+          'id, name, logo_url, goal, deliverables_text, target_audience, target_audience_voice_url, target_audience_file_url, billing_day, project_type_id, status_id, pm_profile_id, client_id'
         )
       if (error) throw error
       return data
@@ -123,7 +123,12 @@ export function ProjectsPage() {
           >
             <CardHeader>
               <CardTitle className="flex items-center justify-between gap-2 text-base font-medium">
-                <span>{project.name}</span>
+                <span className="flex items-center gap-2">
+                  {project.logo_url && (
+                    <img src={project.logo_url} alt="" className="size-6 shrink-0 rounded-full object-cover" />
+                  )}
+                  {project.name}
+                </span>
                 {pmName(project.pm_profile_id) && (
                   <span className="text-xs font-normal text-muted-foreground">{pmName(project.pm_profile_id)}</span>
                 )}

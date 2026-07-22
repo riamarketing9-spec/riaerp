@@ -42,6 +42,7 @@ const schema = z.object({
   target_audience: z.string().optional(),
   target_audience_voice_url: z.string().optional(),
   target_audience_file_url: z.string().optional(),
+  logo_url: z.string().optional(),
   billing_day: z.string().optional(),
   contract_url: z.string().optional(),
 })
@@ -182,6 +183,7 @@ export function ProjectDialog({
         target_audience: existing.target_audience ?? '',
         target_audience_voice_url: existing.target_audience_voice_url ?? '',
         target_audience_file_url: existing.target_audience_file_url ?? '',
+        logo_url: existing.logo_url ?? '',
         billing_day: existing.billing_day ? String(existing.billing_day) : '',
       })
     }
@@ -206,6 +208,7 @@ export function ProjectDialog({
         target_audience: values.target_audience || null,
         target_audience_voice_url: values.target_audience_voice_url || null,
         target_audience_file_url: values.target_audience_file_url || null,
+        logo_url: values.logo_url || null,
         billing_day: values.billing_day ? Number(values.billing_day) : null,
       }
 
@@ -271,6 +274,21 @@ export function ProjectDialog({
             <Label htmlFor="name">{t('projects.name')}</Label>
             <Input id="name" {...register('name')} />
             {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('projects.logo')}</Label>
+            <div className="flex items-center gap-3">
+              {watch('logo_url') && (
+                <img src={watch('logo_url')} alt="" className="size-10 shrink-0 rounded-full object-cover" />
+              )}
+              <FileUpload
+                value={watch('logo_url') ?? ''}
+                onChange={(url) => setValue('logo_url', url)}
+                accept="image/*"
+                folder="project-logos"
+              />
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">

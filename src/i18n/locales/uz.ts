@@ -65,6 +65,7 @@ export const uz = {
     title: 'Loyihalar',
     newProject: 'Yangi loyiha',
     name: 'Nomi',
+    logo: 'Logotip',
     status: 'Holati',
     type: 'Turi',
     pm: 'PM',

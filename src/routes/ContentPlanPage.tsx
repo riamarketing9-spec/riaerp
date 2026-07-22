@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
 import {
   Table,
@@ -64,7 +65,7 @@ export function ContentPlanPage() {
   const { data: projects } = useQuery({
     queryKey: ['projects-lookup'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('projects').select('id, name')
+      const { data, error } = await supabase.from('projects').select('id, name, logo_url')
       if (error) throw error
       return data
     },
@@ -73,11 +74,28 @@ export function ContentPlanPage() {
   const { data: statuses } = useQuery({
     queryKey: ['content_statuses'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('content_statuses').select('id, label_ru, label_uz')
+      const { data, error } = await supabase.from('content_statuses').select('id, slug, label_ru, label_uz')
       if (error) throw error
       return data
     },
   })
+
+  const queryClient = useQueryClient()
+
+  const moveMutation = useMutation({
+    mutationFn: async ({ id, publish_date }: { id: string; publish_date: string }) => {
+      const { error } = await supabase.from('content_plan_items').update({ publish_date }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleMove(itemId: string, newDate: string) {
+    moveMutation.mutate({ id: itemId, publish_date: newDate })
+  }
 
   const { data: platforms } = useQuery({
     queryKey: ['platforms'],
@@ -184,7 +202,11 @@ export function ContentPlanPage() {
                     onClick={() => setSelectedProjectId(p.id)}
                   >
                     <CardContent className="flex flex-col items-center gap-2 py-6">
-                      <Folder className="size-10 text-muted-foreground" />
+                      {p.logo_url ? (
+                        <img src={p.logo_url} alt="" className="size-10 rounded-full object-cover" />
+                      ) : (
+                        <Folder className="size-10 text-muted-foreground" />
+                      )}
                       <p className="text-center text-sm font-medium">{p.name}</p>
                       <Badge variant="secondary">{itemCountFor(p.id)}</Badge>
                     </CardContent>
@@ -307,6 +329,7 @@ export function ContentPlanPage() {
             platforms={platforms}
             onOpen={openEdit}
             onCreate={openCreateWithDate}
+            onMove={handleMove}
           />
         </TabsContent>
       </Tabs>

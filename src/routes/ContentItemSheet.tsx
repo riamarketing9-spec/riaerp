@@ -252,6 +252,23 @@ export function ContentItemSheet({
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('content_plan_items').delete().eq('id', itemId!)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success(t('common.delete'))
+      queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
+      onOpenChange(false)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  function handleDelete() {
+    if (window.confirm(t('common.delete') + '?')) deleteMutation.mutate()
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
@@ -424,7 +441,17 @@ export function ContentItemSheet({
             <Textarea id="tor_text" rows={3} {...register('tor_text')} />
           </div>
 
-          <DialogFooter>
+          <DialogFooter className={isEdit ? 'sm:justify-between' : undefined}>
+            {isEdit && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {t('common.delete')}
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
               {isEdit ? t('contentPlan.save') : t('common.create')}
             </Button>

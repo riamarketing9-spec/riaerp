@@ -62,14 +62,7 @@ const router = createBrowserRouter(
         { path: 'org', element: <OrgStructurePage /> },
         { path: 'docs', element: <DocumentsPage /> },
         { path: 'kb', element: <KnowledgeBasePage /> },
-        {
-          path: 'content-plan',
-          element: (
-            <RequireCapability anyOf={['projects.manage', 'projects.read_scoped']}>
-              <ContentPlanPage />
-            </RequireCapability>
-          ),
-        },
+        { path: 'content-plan', element: <ContentPlanPage /> },
         {
           path: 'finance',
           element: (
