@@ -22,7 +22,7 @@ export function TasksPage() {
       // an outer query — order explicitly here so it's actually honored.
       const { data, error } = await supabase
         .from('v_task_queue')
-        .select('id, title, status_id, deadline, percent_complete, quadrant_id, assignee_profile_id, sort_score')
+        .select('id, title, status_id, deadline, percent_complete, quadrant_id, assignee_profile_id, sort_score, created_via_telegram')
         .order('sort_score', { ascending: false })
         .order('deadline', { ascending: true, nullsFirst: false })
       if (error) throw error
@@ -126,6 +126,7 @@ export function TasksPage() {
                 percentComplete={task.percent_complete}
                 assigneeName={assigneeName(task.assignee_profile_id)}
                 subtasks={subtasksByTask?.get(task.id)}
+                createdViaBot={task.created_via_telegram}
                 onOpen={() => setOpenTaskId(task.id)}
                 onDelete={() => {
                   if (window.confirm(t('common.delete') + '?')) deleteMutation.mutate(task.id)

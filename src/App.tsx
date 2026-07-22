@@ -17,6 +17,7 @@ import { ContentPlanPage } from '@/routes/ContentPlanPage'
 import { KnowledgeBasePage } from '@/routes/KnowledgeBasePage'
 import { TeamPage } from '@/routes/TeamPage'
 import { AuditLogPage } from '@/routes/AuditLogPage'
+import { AttendancePage } from '@/routes/AttendancePage'
 import { RequireCapability } from '@/routes/RequireCapability'
 
 const router = createBrowserRouter(
@@ -92,6 +93,14 @@ const router = createBrowserRouter(
           element: (
             <RequireCapability anyOf={['org.full_access']}>
               <AuditLogPage />
+            </RequireCapability>
+          ),
+        },
+        {
+          path: 'attendance',
+          element: (
+            <RequireCapability anyOf={['org.full_access']}>
+              <AttendancePage />
             </RequireCapability>
           ),
         },

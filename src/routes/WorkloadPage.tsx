@@ -29,7 +29,7 @@ function EmployeeTasksDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('v_task_queue')
-        .select('id, title, status_id, deadline, percent_complete, quadrant_id, project_id')
+        .select('id, title, status_id, deadline, percent_complete, quadrant_id, project_id, created_via_telegram')
         .eq('assignee_profile_id', profileId!)
         .order('sort_score', { ascending: false })
       if (error) throw error
@@ -112,6 +112,7 @@ function EmployeeTasksDialog({
                 deadline={task.deadline}
                 percentComplete={task.percent_complete}
                 subtasks={subtasksByTask?.get(task.id)}
+                createdViaBot={task.created_via_telegram}
                 onOpen={() => setOpenTaskId(task.id)}
               />
             ))}

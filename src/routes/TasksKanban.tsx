@@ -27,6 +27,7 @@ type TaskCardData = {
   deadline: string | null
   percent_complete: number
   assignee_profile_id: string | null
+  created_via_telegram: boolean
 }
 
 function DraggableCard({
@@ -66,6 +67,7 @@ function DraggableCard({
         percentComplete={task.percent_complete}
         assigneeName={assigneeName}
         subtasks={subtasks}
+        createdViaBot={task.created_via_telegram}
         onOpen={() => onOpen(task.id)}
         onDelete={() => onDelete(task.id)}
         className="w-full cursor-grab active:cursor-grabbing"
@@ -151,7 +153,7 @@ export function TasksKanban() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, title, status_id, quadrant_id, deadline, percent_complete, assignee_profile_id')
+        .select('id, title, status_id, quadrant_id, deadline, percent_complete, assignee_profile_id, created_via_telegram')
       if (error) throw error
       return data as TaskCardData[]
     },

@@ -1,0 +1,183 @@
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
+import { supabase } from '@/lib/supabaseClient'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Combobox } from '@/components/ui/combobox'
+import { formatLocalDateTime } from '@/lib/localizedLabel'
+
+type DateMode = 'today' | 'yesterday' | 'range'
+
+function dayBounds(date: Date) {
+  const start = new Date(date)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return { start, end }
+}
+
+function formatDuration(ms: number) {
+  const totalMinutes = Math.floor(ms / 60000)
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return `${h}h ${m}m`
+}
+
+export function AttendancePage() {
+  const { t, i18n } = useTranslation()
+  const [dateMode, setDateMode] = useState<DateMode>('today')
+  const [rangeFrom, setRangeFrom] = useState('')
+  const [rangeTo, setRangeTo] = useState('')
+  const [employeeFilter, setEmployeeFilter] = useState('')
+
+  const { data: profiles } = useQuery({
+    queryKey: ['profiles-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('id, full_name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { start, end } = useMemo(() => {
+    if (dateMode === 'today') return dayBounds(new Date())
+    if (dateMode === 'yesterday') {
+      const y = new Date()
+      y.setDate(y.getDate() - 1)
+      return dayBounds(y)
+    }
+    return {
+      start: rangeFrom ? new Date(rangeFrom) : dayBounds(new Date()).start,
+      end: rangeTo ? new Date(new Date(rangeTo).getTime() + 24 * 60 * 60 * 1000) : dayBounds(new Date()).end,
+    }
+  }, [dateMode, rangeFrom, rangeTo])
+
+  const { data: currentlyWorking } = useQuery({
+    queryKey: ['attendance-open'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('time_entries')
+        .select('id, profile_id, started_at, started_device')
+        .is('ended_at', null)
+      if (error) throw error
+      return data
+    },
+    refetchInterval: 30_000,
+  })
+
+  const { data: entries, isLoading } = useQuery({
+    queryKey: ['attendance-entries', start.toISOString(), end.toISOString(), employeeFilter],
+    queryFn: async () => {
+      let query = supabase
+        .from('time_entries')
+        .select('id, profile_id, started_at, ended_at, started_device, ended_device')
+        .gte('started_at', start.toISOString())
+        .lt('started_at', end.toISOString())
+        .order('started_at', { ascending: false })
+      if (employeeFilter) query = query.eq('profile_id', employeeFilter)
+      const { data, error } = await query
+      if (error) throw error
+      return data
+    },
+  })
+
+  const nameFor = (id: string) => profiles?.find((p) => p.id === id)?.full_name ?? '—'
+
+  return (
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-semibold tracking-tight">{t('attendance.title')}</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-medium">{t('attendance.currentlyWorking')}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {(currentlyWorking?.length ?? 0) === 0 && (
+            <p className="text-sm text-muted-foreground">{t('attendance.noneWorking')}</p>
+          )}
+          {currentlyWorking?.map((e) => (
+            <div key={e.id} className="flex items-center justify-between rounded-lg border border-emerald-300/50 bg-emerald-50 p-2.5 text-sm dark:bg-emerald-900/20">
+              <span className="font-medium">{nameFor(e.profile_id)}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {t('attendance.since')} {formatLocalDateTime(e.started_at, i18n.language)}
+                  {e.started_device ? ` · ${e.started_device}` : ''}
+                </span>
+                <Badge className="bg-emerald-500 text-white">{t('attendance.working')}</Badge>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3">
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">{t('attendance.period')}</Label>
+          <div className="flex gap-1">
+            <Button size="sm" variant={dateMode === 'today' ? 'default' : 'outline'} onClick={() => setDateMode('today')}>
+              {t('attendance.today')}
+            </Button>
+            <Button size="sm" variant={dateMode === 'yesterday' ? 'default' : 'outline'} onClick={() => setDateMode('yesterday')}>
+              {t('attendance.yesterday')}
+            </Button>
+            <Button size="sm" variant={dateMode === 'range' ? 'default' : 'outline'} onClick={() => setDateMode('range')}>
+              {t('attendance.range')}
+            </Button>
+          </div>
+        </div>
+        {dateMode === 'range' && (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">{t('attendance.from')}</Label>
+              <Input type="date" className="w-40" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">{t('attendance.to')}</Label>
+              <Input type="date" className="w-40" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
+            </div>
+          </>
+        )}
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">{t('attendance.employee')}</Label>
+          <Combobox
+            className="w-48"
+            options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
+            value={employeeFilter}
+            onChange={setEmployeeFilter}
+            placeholder={t('attendance.allEmployees')}
+          />
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-medium">{t('attendance.history')}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
+          {!isLoading && (entries?.length ?? 0) === 0 && (
+            <p className="text-sm text-muted-foreground">{t('attendance.empty')}</p>
+          )}
+          {entries?.map((e) => {
+            const durationMs = (e.ended_at ? new Date(e.ended_at).getTime() : Date.now()) - new Date(e.started_at).getTime()
+            return (
+              <div key={e.id} className="flex items-center justify-between rounded-lg border border-border p-2.5 text-sm">
+                <span className="font-medium">{nameFor(e.profile_id)}</span>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{formatLocalDateTime(e.started_at, i18n.language)}</span>
+                  <span>→</span>
+                  <span>{e.ended_at ? formatLocalDateTime(e.ended_at, i18n.language) : t('attendance.working')}</span>
+                  <Badge variant="secondary">{formatDuration(durationMs)}</Badge>
+                </div>
+              </div>
+            )
+          })}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

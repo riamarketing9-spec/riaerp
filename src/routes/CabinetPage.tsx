@@ -11,6 +11,7 @@ import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
 import { formatLocalDate } from '@/lib/localizedLabel'
 import { Button } from '@/components/ui/button'
 import { telegramDeepLink } from '@/lib/telegram'
+import { TimeTrackerWidget } from '@/components/TimeTrackerWidget'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
@@ -317,7 +318,10 @@ export function CabinetPage() {
         <p className="text-sm text-muted-foreground">{profile?.full_name}</p>
       </div>
 
-      <TelegramConnectCard />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <TimeTrackerWidget />
+        <TelegramConnectCard />
+      </div>
 
       {canSeeTeamWidgets && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

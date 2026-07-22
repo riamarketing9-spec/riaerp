@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   ScrollText,
+  Clock,
 } from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
@@ -80,6 +81,7 @@ export function AppShell() {
   const canSeeProjects = hasCapability('projects.manage') || hasCapability('projects.read_scoped')
   const canSeeSales = hasCapability('sales.read') || hasCapability('sales.manage')
   const canSeeFinance = hasCapability('finance.read') || hasCapability('finance.write')
+  const canSeeAttendance = hasCapability('org.full_access')
 
   const closeMobileNav = () => setMobileNavOpen(false)
 
@@ -114,6 +116,9 @@ export function AppShell() {
       )}
       {isCeo && (
         <NavItem to="/audit" icon={ScrollText} label={t('nav.audit')} onNavigate={closeMobileNav} />
+      )}
+      {canSeeAttendance && (
+        <NavItem to="/attendance" icon={Clock} label={t('nav.attendance')} onNavigate={closeMobileNav} />
       )}
     </nav>
   )

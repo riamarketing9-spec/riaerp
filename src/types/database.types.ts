@@ -129,6 +129,7 @@ type TaskRow = {
   content_plan_item_id: string | null
   deliverable_type_id: string | null
   created_by: string | null
+  created_via_telegram: boolean
   completed_at: string | null
   created_at: string
   updated_at: string
@@ -411,6 +412,16 @@ type EmployeeWorkloadViewRow = {
   workload_level_id: string | null
 }
 
+type TimeEntryRow = {
+  id: string
+  profile_id: string
+  started_at: string
+  ended_at: string | null
+  started_device: string | null
+  ended_device: string | null
+  created_at: string
+}
+
 function table<Row, RequiredKeys extends keyof Row>(): {
   Row: Row
   Insert: Partial<Row> & Pick<Row, RequiredKeys>
@@ -480,6 +491,7 @@ export type Database = {
       payroll_run_lines: ReturnType<typeof table<PayrollRunLineRow, 'payroll_run_id' | 'profile_id'>>
       content_plan_platforms: { Row: ContentPlanPlatformRow; Insert: ContentPlanPlatformRow; Update: Partial<ContentPlanPlatformRow>; Relationships: [] }
       kb_articles: ReturnType<typeof table<KbArticleRow, 'title'>>
+      time_entries: ReturnType<typeof table<TimeEntryRow, 'profile_id'>>
     }
     Views: {
       v_task_queue: { Row: TaskQueueViewRow; Relationships: [] }

@@ -32,6 +32,7 @@ export function TaskCard({
   percentComplete,
   assigneeName,
   subtasks,
+  createdViaBot,
   onOpen,
   onDelete,
   className,
@@ -46,6 +47,7 @@ export function TaskCard({
   percentComplete: number
   assigneeName?: string
   subtasks?: TaskCardSubtask[]
+  createdViaBot?: boolean
   onOpen: () => void
   onDelete?: () => void
   className?: string
@@ -85,6 +87,7 @@ export function TaskCard({
       <div className="flex flex-col gap-2 p-3">
         <div className="flex items-start justify-between gap-2">
           <button type="button" onClick={onOpen} className="flex-1 text-left text-sm font-medium hover:underline">
+            {createdViaBot && <span title="Telegram bot orqali yaratilgan">🤖 </span>}
             {title}
           </button>
           <div className="flex shrink-0 items-center gap-1">
