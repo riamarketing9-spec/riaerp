@@ -1,25 +1,21 @@
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Avatar } from '@/components/Avatar'
 import { Pencil, Trash2 } from 'lucide-react'
 import { formatLocalDateTime } from '@/lib/localizedLabel'
 import { cn } from '@/lib/utils'
 
-function InitialsChip({ name }: { name: string }) {
-  const initials = name
-    .split(' ')
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
-  return (
-    <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-[10px] font-semibold text-white">
-      {initials}
-    </div>
-  )
-}
-
 export type TaskCardSubtask = { id: string; title: string; is_done: boolean }
+
+// One color per task status, applied only to the status pill — the card
+// itself always stays neutral/white regardless of status.
+const STATUS_BADGE_COLORS: Record<string, string> = {
+  backlog: 'bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300',
+  in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  review: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  done: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+}
 
 export function TaskCard({
   title,
@@ -31,6 +27,7 @@ export function TaskCard({
   deadline,
   percentComplete,
   assigneeName,
+  assigneeAvatarUrl,
   subtasks,
   createdViaBot,
   onOpen,
@@ -46,6 +43,7 @@ export function TaskCard({
   deadline: string | null
   percentComplete: number
   assigneeName?: string
+  assigneeAvatarUrl?: string | null
   subtasks?: TaskCardSubtask[]
   createdViaBot?: boolean
   onOpen: () => void
@@ -118,10 +116,7 @@ export function TaskCard({
             {statusLabel && (
               <Badge
                 variant="secondary"
-                className={cn(
-                  'text-[10px]',
-                  isDone && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                )}
+                className={cn('text-[10px]', statusSlug && STATUS_BADGE_COLORS[statusSlug])}
               >
                 {statusLabel}
               </Badge>
@@ -170,7 +165,7 @@ export function TaskCard({
           )}
           {assigneeName && (
             <div className="flex items-center gap-1.5">
-              <InitialsChip name={assigneeName} />
+              <Avatar name={assigneeName} avatarUrl={assigneeAvatarUrl} className="size-6 rounded-full" />
               <span className="truncate text-xs text-muted-foreground">{assigneeName}</span>
             </div>
           )}

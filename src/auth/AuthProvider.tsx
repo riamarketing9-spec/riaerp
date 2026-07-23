@@ -27,6 +27,7 @@ type AuthState = {
   hasCapability: (cap: string) => boolean
   isCeo: boolean
   signOut: () => Promise<void>
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState | null>(null)
@@ -141,9 +142,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut()
   }
 
+  // Lets an upload flow (e.g. changing one's own avatar) refresh the cached
+  // profile without a full page reload or re-running the whole capability
+  // fetch chain above.
+  const refreshProfile = async () => {
+    if (!session?.user) return
+    const { data: profileRow } = await supabase
+      .from('profiles')
+      .select('id, full_name, role_id, avatar_url')
+      .eq('auth_user_id', session.user.id)
+      .single()
+    if (profileRow) setProfile(profileRow)
+  }
+
   return (
     <AuthContext.Provider
-      value={{ session, profile, role, capabilities, isLoading, hasCapability, isCeo, signOut }}
+      value={{ session, profile, role, capabilities, isLoading, hasCapability, isCeo, signOut, refreshProfile }}
     >
       {children}
     </AuthContext.Provider>

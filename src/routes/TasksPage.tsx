@@ -3,15 +3,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
+import { useAuth } from '@/auth/AuthProvider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
+import { Combobox } from '@/components/ui/combobox'
 import { NewTaskButton, TaskSheet } from './TaskSheet'
 import { TasksKanban } from './TasksKanban'
 import { TaskCard } from '@/components/TaskCard'
 import { pickLabel } from '@/lib/localizedLabel'
+import { cn } from '@/lib/utils'
 
 export function TasksPage() {
   const { t, i18n } = useTranslation()
+  const { profile } = useAuth()
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const [scopeFilter, setScopeFilter] = useState<'mine' | 'team'>('mine')
+  const [employeeFilter, setEmployeeFilter] = useState<string>('')
   const queryClient = useQueryClient()
 
   const { data: tasks, isLoading } = useQuery({
@@ -22,7 +29,9 @@ export function TasksPage() {
       // an outer query — order explicitly here so it's actually honored.
       const { data, error } = await supabase
         .from('v_task_queue')
-        .select('id, title, status_id, deadline, percent_complete, quadrant_id, assignee_profile_id, sort_score, created_via_telegram')
+        .select(
+          'id, title, status_id, deadline, percent_complete, quadrant_id, assignee_profile_id, sort_score, created_via_telegram, completed_at'
+        )
         .order('sort_score', { ascending: false })
         .order('deadline', { ascending: true, nullsFirst: false })
       if (error) throw error
@@ -53,7 +62,7 @@ export function TasksPage() {
   const { data: profiles } = useQuery({
     queryKey: ['profiles-lookup'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('id, full_name')
+      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url')
       if (error) throw error
       return data
     },
@@ -94,7 +103,48 @@ export function TasksPage() {
   const statusLabel = (id: string) => pickLabel(statuses?.find((s) => s.id === id), i18n.language)
   const statusSlug = (id: string) => statuses?.find((s) => s.id === id)?.slug
   const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name
+  const assigneeAvatarUrl = (id: string | null) => profiles?.find((p) => p.id === id)?.avatar_url
   const quadrantLabel = (id: string | null) => pickLabel(quadrants?.find((q) => q.id === id), i18n.language)
+
+  const doneStatusId = statuses?.find((s) => s.slug === 'done')?.id
+
+  // RLS only ever hands a plain employee their own tasks, so if this list
+  // contains anyone else's, the viewer must be a PM/CEO seeing the wider
+  // project queue -- that's the only case the "mine/team" toggle matters.
+  const seesOthersTasks = useMemo(
+    () => (tasks ?? []).some((t) => t.assignee_profile_id && t.assignee_profile_id !== profile?.id),
+    [tasks, profile?.id]
+  )
+
+  const teamAssigneeOptions = useMemo(() => {
+    const ids = new Set((tasks ?? []).map((t) => t.assignee_profile_id).filter((id): id is string => !!id))
+    return (profiles ?? [])
+      .filter((p) => ids.has(p.id))
+      .map((p) => ({ value: p.id, label: p.full_name }))
+  }, [tasks, profiles])
+
+  // Open tasks keep the view's own sort_score/deadline order; completed
+  // tasks sink to the bottom, most-recently-completed first.
+  const sortedTasks = useMemo(() => {
+    if (!tasks) return tasks
+    const open = tasks.filter((t) => t.status_id !== doneStatusId)
+    const done = tasks
+      .filter((t) => t.status_id === doneStatusId)
+      .slice()
+      .sort((a, b) => new Date(b.completed_at ?? b.deadline ?? 0).getTime() - new Date(a.completed_at ?? a.deadline ?? 0).getTime())
+    return [...open, ...done]
+  }, [tasks, doneStatusId])
+
+  const filteredTasks = useMemo(() => {
+    let list = sortedTasks ?? []
+    if (seesOthersTasks && scopeFilter === 'mine') {
+      list = list.filter((t) => t.assignee_profile_id === profile?.id)
+    }
+    if (seesOthersTasks && scopeFilter === 'team' && employeeFilter) {
+      list = list.filter((t) => t.assignee_profile_id === employeeFilter)
+    }
+    return list
+  }, [sortedTasks, seesOthersTasks, scopeFilter, employeeFilter, profile?.id])
 
   return (
     <div className="flex flex-col gap-6">
@@ -102,6 +152,35 @@ export function TasksPage() {
         <h1 className="text-2xl font-semibold tracking-tight">{t('tasks.title')}</h1>
         <NewTaskButton />
       </div>
+
+      {seesOthersTasks && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant={scopeFilter === 'mine' ? 'default' : 'outline'}
+            onClick={() => setScopeFilter('mine')}
+          >
+            {t('tasks.filterMine')}
+          </Button>
+          <Button
+            size="sm"
+            variant={scopeFilter === 'team' ? 'default' : 'outline'}
+            onClick={() => setScopeFilter('team')}
+          >
+            {t('tasks.filterTeam')}
+          </Button>
+          {scopeFilter === 'team' && (
+            <div className="w-56">
+              <Combobox
+                options={teamAssigneeOptions}
+                value={employeeFilter}
+                onChange={setEmployeeFilter}
+                placeholder={t('tasks.filterByEmployee')}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       <Tabs defaultValue="list">
         <TabsList>
@@ -111,11 +190,11 @@ export function TasksPage() {
 
         <TabsContent value="list">
           {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
-          {!isLoading && (tasks?.length ?? 0) === 0 && (
+          {!isLoading && filteredTasks.length === 0 && (
             <p className="text-sm text-muted-foreground">{t('tasks.empty')}</p>
           )}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {tasks?.map((task) => (
+          <div className={cn('grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3')}>
+            {filteredTasks.map((task) => (
               <TaskCard
                 key={task.id}
                 title={task.title}
@@ -125,6 +204,7 @@ export function TasksPage() {
                 deadline={task.deadline}
                 percentComplete={task.percent_complete}
                 assigneeName={assigneeName(task.assignee_profile_id)}
+                assigneeAvatarUrl={assigneeAvatarUrl(task.assignee_profile_id)}
                 subtasks={subtasksByTask?.get(task.id)}
                 createdViaBot={task.created_via_telegram}
                 onOpen={() => setOpenTaskId(task.id)}
@@ -137,7 +217,10 @@ export function TasksPage() {
         </TabsContent>
 
         <TabsContent value="kanban">
-          <TasksKanban />
+          <TasksKanban
+            scopeAssigneeId={seesOthersTasks && scopeFilter === 'mine' ? profile?.id ?? null : null}
+            employeeFilterId={seesOthersTasks && scopeFilter === 'team' ? employeeFilter || null : null}
+          />
         </TabsContent>
       </Tabs>
 

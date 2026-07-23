@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import {
   LayoutGrid,
   ListTodo,
@@ -21,10 +22,13 @@ import {
   Clock,
   ListChecks,
   ListTree,
+  Pencil,
 } from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
+import { supabase } from '@/lib/supabaseClient'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { Avatar } from '@/components/Avatar'
 import { cn } from '@/lib/utils'
 import { pickLabel } from '@/lib/localizedLabel'
 
@@ -45,29 +49,72 @@ function NavItem({
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+          'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
           isActive
-            ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
-            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/25'
+            : 'text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]'
         )
       }
     >
-      <Icon className="size-4" strokeWidth={2} />
-      {label}
+      {({ isActive }) => (
+        <>
+          <Icon className={cn('size-4.5', isActive ? 'text-white' : 'text-muted-foreground')} strokeWidth={2} />
+          {label}
+        </>
+      )}
     </NavLink>
   )
 }
 
-function InitialsTile({ name }: { name: string }) {
-  const initials = name
-    .split(' ')
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
+// Own avatar, clickable anywhere in the app (sidebar footer) to change it --
+// uploads straight to Storage and writes profiles.avatar_url immediately.
+function SelfAvatarUpload({ profileId, name, avatarUrl }: { profileId: string; name: string; avatarUrl?: string | null }) {
+  const { refreshProfile } = useAuth()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+
+  async function handleFile(file: File) {
+    setUploading(true)
+    try {
+      const path = `avatars/${profileId}-${crypto.randomUUID()}-${file.name}`
+      const { error } = await supabase.storage.from('attachments').upload(path, file)
+      if (error) throw error
+      const { data, error: signError } = await supabase.storage
+        .from('attachments')
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 10)
+      if (signError) throw signError
+      const { error: updateError } = await supabase.from('profiles').update({ avatar_url: data.signedUrl }).eq('id', profileId)
+      if (updateError) throw updateError
+      await refreshProfile()
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
-    <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-brand-500 text-xs font-semibold text-white">
-      {initials}
+    <div className="relative shrink-0">
+      <Avatar name={name} avatarUrl={avatarUrl} />
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) void handleFile(file)
+          e.target.value = ''
+        }}
+      />
+      <button
+        type="button"
+        disabled={uploading}
+        onClick={() => inputRef.current?.click()}
+        className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-background text-foreground ring-1 ring-border hover:bg-muted disabled:opacity-50"
+      >
+        <Pencil className="size-2.5" />
+      </button>
     </div>
   )
 }
@@ -98,7 +145,7 @@ export function AppShell() {
   const closeMobileNav = () => setMobileNavOpen(false)
 
   const nav = (
-    <nav className="flex flex-1 flex-col gap-1">
+    <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
       <NavItem to="/cabinet" icon={LayoutGrid} label={t('nav.cabinet')} onNavigate={closeMobileNav} />
       <NavItem to="/tasks" icon={ListTodo} label={t('nav.tasks')} onNavigate={closeMobileNav} />
       {canSeeProjects && (
@@ -148,10 +195,10 @@ export function AppShell() {
 
   const sidebarInner = (
     <>
-      <div className="mb-6 flex items-center justify-between gap-2 px-2">
+      <div className="mb-4 flex items-center justify-between gap-2 px-1.5">
         <div className="flex items-center gap-2">
-          <img src="/riaerp/logo.png" alt="RIA" className="h-6 w-auto" />
-          <span className="text-sm font-semibold tracking-tight">RIA ERP</span>
+          <img src="/riaerp/logo.png" alt="RIA" className="h-7 w-auto" />
+          <span className="text-base font-semibold tracking-tight">RIA ERP</span>
         </div>
         <div className="flex items-center gap-1">
           <LanguageSwitcher />
@@ -164,10 +211,12 @@ export function AppShell() {
         </div>
       </div>
 
+      <div className="mb-3 border-t border-border/60" />
+
       {nav}
 
-      <div className="flex items-center gap-2 rounded-lg px-2 py-2">
-        <InitialsTile name={profile?.full_name ?? '?'} />
+      <div className="mt-3 flex items-center gap-2 rounded-xl border border-border/60 bg-background/70 px-2.5 py-2.5 shadow-sm">
+        {profile && <SelfAvatarUpload profileId={profile.id} name={profile.full_name} avatarUrl={profile.avatar_url} />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{profile?.full_name}</p>
           <p className="truncate text-xs text-muted-foreground">{pickLabel(role, i18n.language)}</p>
@@ -208,7 +257,7 @@ export function AppShell() {
         </div>
       )}
 
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border px-3 py-4 md:flex">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-muted/30 px-3 py-4 dark:bg-white/[0.02] md:flex">
         {sidebarInner}
       </aside>
 

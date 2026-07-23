@@ -28,6 +28,7 @@ type TaskCardData = {
   percent_complete: number
   assignee_profile_id: string | null
   created_via_telegram: boolean
+  completed_at: string | null
 }
 
 function DraggableCard({
@@ -38,6 +39,7 @@ function DraggableCard({
   statusSlug,
   quadrantLabel,
   assigneeName,
+  assigneeAvatarUrl,
   subtasks,
 }: {
   task: TaskCardData
@@ -47,6 +49,7 @@ function DraggableCard({
   statusSlug?: string
   quadrantLabel?: string
   assigneeName?: string
+  assigneeAvatarUrl?: string | null
   subtasks?: TaskCardSubtask[]
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -66,6 +69,7 @@ function DraggableCard({
         deadline={task.deadline}
         percentComplete={task.percent_complete}
         assigneeName={assigneeName}
+        assigneeAvatarUrl={assigneeAvatarUrl}
         subtasks={subtasks}
         createdViaBot={task.created_via_telegram}
         onOpen={() => onOpen(task.id)}
@@ -86,6 +90,7 @@ function DroppableColumn({
   statusSlug,
   quadrantLabelFor,
   assigneeNameFor,
+  assigneeAvatarUrlFor,
   subtasksFor,
 }: {
   id: string
@@ -97,6 +102,7 @@ function DroppableColumn({
   statusSlug?: string
   quadrantLabelFor: (id: string | null) => string | undefined
   assigneeNameFor: (id: string | null) => string | undefined
+  assigneeAvatarUrlFor: (id: string | null) => string | null | undefined
   subtasksFor: (id: string) => TaskCardSubtask[] | undefined
 }) {
   const { setNodeRef, isOver } = useDroppable({ id })
@@ -122,6 +128,7 @@ function DroppableColumn({
             statusSlug={statusSlug}
             quadrantLabel={quadrantLabelFor(t.quadrant_id)}
             assigneeName={assigneeNameFor(t.assignee_profile_id)}
+            assigneeAvatarUrl={assigneeAvatarUrlFor(t.assignee_profile_id)}
             subtasks={subtasksFor(t.id)}
           />
         ))}
@@ -130,7 +137,13 @@ function DroppableColumn({
   )
 }
 
-export function TasksKanban() {
+export function TasksKanban({
+  scopeAssigneeId,
+  employeeFilterId,
+}: {
+  scopeAssigneeId?: string | null
+  employeeFilterId?: string | null
+} = {}) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [activeTask, setActiveTask] = useState<TaskCardData | null>(null)
@@ -153,16 +166,23 @@ export function TasksKanban() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, title, status_id, quadrant_id, deadline, percent_complete, assignee_profile_id, created_via_telegram')
+        .select('id, title, status_id, quadrant_id, deadline, percent_complete, assignee_profile_id, created_via_telegram, completed_at')
       if (error) throw error
       return data as TaskCardData[]
     },
   })
 
+  const filteredTasks = useMemo(() => {
+    let list = tasks ?? []
+    if (scopeAssigneeId) list = list.filter((t) => t.assignee_profile_id === scopeAssigneeId)
+    if (employeeFilterId) list = list.filter((t) => t.assignee_profile_id === employeeFilterId)
+    return list
+  }, [tasks, scopeAssigneeId, employeeFilterId])
+
   const { data: profiles } = useQuery({
     queryKey: ['profiles-lookup'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('id, full_name')
+      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url')
       if (error) throw error
       return data
     },
@@ -228,6 +248,7 @@ export function TasksKanban() {
   }
 
   const assigneeNameFor = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name
+  const assigneeAvatarUrlFor = (id: string | null) => profiles?.find((p) => p.id === id)?.avatar_url
   const subtasksFor = (id: string) => subtasksByTask?.get(id)
   const quadrantLabelFor = (id: string | null) => pickLabel(quadrants?.find((q) => q.id === id), i18n.language)
 
@@ -235,11 +256,16 @@ export function TasksKanban() {
 
   const columns = useMemo(
     () =>
-      (statuses ?? []).map((s) => ({
-        ...s,
-        tasks: (tasks ?? []).filter((task) => task.status_id === s.id),
-      })),
-    [statuses, tasks]
+      (statuses ?? []).map((s) => {
+        const colTasks = filteredTasks.filter((task) => task.status_id === s.id)
+        if (s.slug === 'done') {
+          colTasks.sort(
+            (a, b) => new Date(b.completed_at ?? b.deadline ?? 0).getTime() - new Date(a.completed_at ?? a.deadline ?? 0).getTime()
+          )
+        }
+        return { ...s, tasks: colTasks }
+      }),
+    [statuses, filteredTasks]
   )
 
   function handleDragStart(event: DragStartEvent) {
@@ -275,6 +301,7 @@ export function TasksKanban() {
               statusSlug={col.slug}
               quadrantLabelFor={quadrantLabelFor}
               assigneeNameFor={assigneeNameFor}
+              assigneeAvatarUrlFor={assigneeAvatarUrlFor}
               subtasksFor={subtasksFor}
             />
           ))}

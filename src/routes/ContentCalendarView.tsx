@@ -43,17 +43,16 @@ type ProjectLookup = { id: string; name: string; logo_url?: string | null }
 type StatusLookup = { id: string; slug: string; label_ru: string; label_uz: string }
 
 // 6 fixed content_statuses (plan/script/shoot/edit/ready/published) — one
-// color per stage so a card's progress is readable at a glance in the
-// calendar, per the client's screenshot.
-const STATUS_COLORS: Record<string, string> = {
-  plan: 'bg-slate-100 border-slate-300 dark:bg-slate-800/50 dark:border-slate-600',
-  script: 'bg-blue-100 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
-  shoot: 'bg-amber-100 border-amber-300 dark:bg-amber-900/30 dark:border-amber-700',
-  edit: 'bg-purple-100 border-purple-300 dark:bg-purple-900/30 dark:border-purple-700',
-  ready: 'bg-cyan-100 border-cyan-300 dark:bg-cyan-900/30 dark:border-cyan-700',
-  published: 'bg-emerald-100 border-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-700',
+// color per stage, applied only to the status pill so the card itself stays
+// white/neutral (the client explicitly wants cards white, status colored).
+const STATUS_BADGE_COLORS: Record<string, string> = {
+  plan: 'bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300',
+  script: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  shoot: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  edit: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+  ready: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
+  published: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
 }
-const DEFAULT_STATUS_COLOR = 'bg-muted/60 border-transparent'
 
 // Deterministic color per project so cards are visually distinguishable by
 // project even before anyone bothers uploading a real logo.
@@ -95,33 +94,35 @@ function CalendarItemCard({
         onOpen()
       }}
       className={cn(
-        'flex flex-col gap-0.5 rounded-md border px-1.5 py-1 text-left hover:brightness-95',
-        statusSlug ? STATUS_COLORS[statusSlug] ?? DEFAULT_STATUS_COLOR : DEFAULT_STATUS_COLOR,
+        'flex flex-col gap-1 rounded-md border border-border bg-card px-2 py-1.5 text-left shadow-sm hover:bg-accent/40',
         dragging && 'opacity-40'
       )}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         {logoUrl ? (
-          <img src={logoUrl} alt="" className="size-3.5 shrink-0 rounded-full object-cover" />
+          <img src={logoUrl} alt="" className="size-4.5 shrink-0 rounded-full object-cover" />
         ) : (
           <span
             title={projectName}
             className={cn(
-              'flex size-3.5 shrink-0 items-center justify-center rounded-full text-[7px] font-bold text-white',
+              'flex size-4.5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white',
               projectColorFor(item.project_id)
             )}
           >
             {projectName?.[0]?.toUpperCase()}
           </span>
         )}
-        <span className="truncate text-[11px] font-medium">{item.topic}</span>
+        <span className="truncate text-xs font-medium">{item.topic}</span>
       </div>
-      <div className="flex flex-wrap gap-0.5">
-        <Badge variant="secondary" className="px-1 py-0 text-[9px]">
+      <div className="flex flex-wrap gap-1">
+        <Badge
+          variant="secondary"
+          className={cn('px-1.5 py-0.5 text-[10px]', statusSlug && STATUS_BADGE_COLORS[statusSlug])}
+        >
           {statusLabel}
         </Badge>
         {platformLabels.map((label) => (
-          <Badge key={label} variant="outline" className="px-1 py-0 text-[9px]">
+          <Badge key={label} variant="outline" className="px-1.5 py-0.5 text-[10px]">
             {label}
           </Badge>
         ))}
@@ -155,7 +156,7 @@ function DroppableDayCell({
     <div
       ref={setNodeRef}
       onClick={onClick}
-      className={cn('group/day flex min-h-28 cursor-pointer flex-col gap-1 bg-card p-1.5 hover:bg-accent/40', isOver && 'ring-2 ring-inset ring-brand-400', className)}
+      className={cn('group/day flex min-h-44 cursor-pointer flex-col gap-1.5 bg-card p-2 hover:bg-accent/40', isOver && 'ring-2 ring-inset ring-brand-400', className)}
     >
       {children}
     </div>
@@ -266,9 +267,9 @@ export function ContentCalendarView({
       </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border text-xs">
+        <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border text-sm">
           {weekDayLabels.map((label) => (
-            <div key={label} className="bg-muted/60 py-1.5 text-center font-medium text-muted-foreground">
+            <div key={label} className="bg-muted/60 py-2 text-center font-medium text-muted-foreground">
               {label}
             </div>
           ))}
@@ -285,7 +286,7 @@ export function ContentCalendarView({
                 <div className="flex items-center justify-between">
                   <span
                     className={cn(
-                      'w-fit rounded-full px-1.5 text-[11px]',
+                      'w-fit rounded-full px-2 py-0.5 text-xs',
                       isToday(day) && 'bg-brand-500 font-semibold text-white'
                     )}
                   >

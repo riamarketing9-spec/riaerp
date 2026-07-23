@@ -25,8 +25,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ContentItemSheet } from './ContentItemSheet'
 import { ContentCalendarView } from './ContentCalendarView'
+import { ProjectLogoSquare } from '@/components/ProjectLogoSquare'
 import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
-import { ArrowLeft, Folder, Plus } from 'lucide-react'
+import { ArrowLeft, Plus } from 'lucide-react'
 
 export function ContentPlanPage() {
   const { t, i18n } = useTranslation()
@@ -198,15 +199,15 @@ export function ContentPlanPage() {
                 {visibleFolders.map((p) => (
                   <Card
                     key={p.id}
-                    className="cursor-pointer transition-colors hover:bg-accent"
+                    className="cursor-pointer overflow-hidden transition-colors hover:bg-accent"
                     onClick={() => setSelectedProjectId(p.id)}
                   >
-                    <CardContent className="flex flex-col items-center gap-2 py-6">
-                      {p.logo_url ? (
-                        <img src={p.logo_url} alt="" className="size-10 rounded-full object-cover" />
-                      ) : (
-                        <Folder className="size-10 text-muted-foreground" />
-                      )}
+                    <ProjectLogoSquare
+                      projectId={p.id}
+                      logoUrl={p.logo_url}
+                      onUploaded={() => queryClient.invalidateQueries({ queryKey: ['projects-lookup'] })}
+                    />
+                    <CardContent className="flex flex-col items-center gap-1.5 py-3">
                       <p className="text-center text-sm font-medium">{p.name}</p>
                       <Badge variant="secondary">{itemCountFor(p.id)}</Badge>
                     </CardContent>

@@ -68,7 +68,7 @@ export function TaskSheet({
   defaultProjectId?: string
 }) {
   const { t, i18n } = useTranslation()
-  const { profile } = useAuth()
+  const { profile, hasCapability } = useAuth()
   const queryClient = useQueryClient()
   const isEdit = !!taskId
   const [newSubtask, setNewSubtask] = useState('')
@@ -111,7 +111,7 @@ export function TaskSheet({
   const { data: projects } = useQuery({
     queryKey: ['projects-lookup'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('projects').select('id, name')
+      const { data, error } = await supabase.from('projects').select('id, name, pm_profile_id')
       if (error) throw error
       return data
     },
@@ -172,6 +172,31 @@ export function TaskSheet({
       return data
     },
   })
+
+  const { data: assistantPmRow } = useQuery({
+    queryKey: ['task-sheet-assistant-pm-check', existing?.project_id, profile?.id],
+    enabled: !!existing?.project_id && !!profile,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('project_members')
+        .select('role_on_project')
+        .eq('project_id', existing!.project_id!)
+        .eq('profile_id', profile!.id)
+        .maybeSingle()
+      if (error) throw error
+      return data
+    },
+  })
+
+  // A plain assignee (not CEO/PM/assistant-PM/projects.manage) may only
+  // change this task's status -- everything else is locked in the UI, and
+  // enforced for real by a DB trigger regardless of what the UI allows.
+  const currentProject = projects?.find((p) => p.id === existing?.project_id)
+  const isPmOfProject = !!profile && currentProject?.pm_profile_id === profile.id
+  const isAssistantPmOfProject = assistantPmRow?.role_on_project === 'assistant_pm'
+  const canManageTask =
+    hasCapability('org.full_access') || hasCapability('projects.manage') || isPmOfProject || isAssistantPmOfProject
+  const isOwnTaskOnly = isEdit && !canManageTask && existing?.assignee_profile_id === profile?.id
 
   const { data: existingDeliverableTypes } = useQuery({
     queryKey: ['task_deliverable_types', taskId],
@@ -352,15 +377,22 @@ export function TaskSheet({
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
           className="flex flex-col gap-4"
         >
+          {isOwnTaskOnly && (
+            <p className="rounded-md bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground">
+              {t('tasks.assigneeReadOnlyHint')}
+            </p>
+          )}
+
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="title">{t('tasks.title')}</Label>
-            <Input id="title" {...register('title')} />
+            <Input id="title" disabled={isOwnTaskOnly} {...register('title')} />
             {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label>{t('projects.title')}</Label>
             <Select
+              disabled={isOwnTaskOnly}
               value={watch('project_id')}
               onValueChange={(v: string | null) => setValue('project_id', v ?? '')}
             >
@@ -381,11 +413,13 @@ export function TaskSheet({
 
           <div className="flex flex-col gap-1.5">
             <Label>{t('tasks.assignee')}</Label>
-            <Combobox
-              options={(assignees ?? []).map((a) => ({ value: a.id, label: a.full_name }))}
-              value={watch('assignee_profile_id') ?? ''}
-              onChange={(v) => setValue('assignee_profile_id', v)}
-            />
+            <div className={cn(isOwnTaskOnly && 'pointer-events-none opacity-60')}>
+              <Combobox
+                options={(assignees ?? []).map((a) => ({ value: a.id, label: a.full_name }))}
+                value={watch('assignee_profile_id') ?? ''}
+                onChange={(v) => setValue('assignee_profile_id', v)}
+              />
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -395,9 +429,10 @@ export function TaskSheet({
                 <button
                   key={tt.id}
                   type="button"
+                  disabled={isOwnTaskOnly}
                   onClick={() => setValue('term_type_id', tt.id)}
                   className={cn(
-                    'flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition-colors',
+                    'flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                     watch('term_type_id') === tt.id
                       ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
                       : 'border-border text-muted-foreground hover:bg-muted'
@@ -417,9 +452,10 @@ export function TaskSheet({
                 <button
                   key={q.id}
                   type="button"
+                  disabled={isOwnTaskOnly}
                   onClick={() => setValue('quadrant_id', q.id)}
                   className={cn(
-                    'rounded-lg border px-2 py-2 text-xs font-medium transition-colors',
+                    'rounded-lg border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                     watch('quadrant_id') === q.id
                       ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
                       : 'border-border text-muted-foreground hover:bg-muted'
@@ -462,6 +498,7 @@ export function TaskSheet({
                 <div key={d.id} className="flex items-center gap-1.5">
                   <Checkbox
                     id={`deliverable-${d.id}`}
+                    disabled={isOwnTaskOnly}
                     checked={selectedDeliverableTypes.has(d.id)}
                     onCheckedChange={(checked) => toggleDeliverableType(d.id, checked === true)}
                   />
@@ -476,13 +513,14 @@ export function TaskSheet({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="starts_at">{t('tasks.startsAt')}</Label>
-              <Input id="starts_at" type="datetime-local" {...register('starts_at')} />
+              <Input id="starts_at" type="datetime-local" disabled={isOwnTaskOnly} {...register('starts_at')} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="deadline">{t('tasks.deadline')}</Label>
               <Input
                 id="deadline"
                 type="datetime-local"
+                disabled={isOwnTaskOnly}
                 {...register('deadline', {
                   onChange: (e) => {
                     const slug = suggestTermSlug(e.target.value)
@@ -496,7 +534,7 @@ export function TaskSheet({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="deliverable_text">{t('tasks.deliverable')}</Label>
-            <Textarea id="deliverable_text" rows={2} {...register('deliverable_text')} />
+            <Textarea id="deliverable_text" rows={2} disabled={isOwnTaskOnly} {...register('deliverable_text')} />
           </div>
 
           {isEdit && (

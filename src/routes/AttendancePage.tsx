@@ -10,10 +10,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Combobox } from '@/components/ui/combobox'
+import { Avatar } from '@/components/Avatar'
 import { formatLocalDateTime } from '@/lib/localizedLabel'
-import { Square } from 'lucide-react'
+import { Square, Trophy } from 'lucide-react'
 
-type DateMode = 'today' | 'yesterday' | 'range'
+type DateMode = 'today' | 'yesterday' | 'week' | 'month' | 'range'
 
 function dayBounds(date: Date) {
   const start = new Date(date)
@@ -43,7 +44,7 @@ export function AttendancePage() {
   const { data: profiles } = useQuery({
     queryKey: ['profiles-lookup'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('id, full_name')
+      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url')
       if (error) throw error
       return data
     },
@@ -55,6 +56,18 @@ export function AttendancePage() {
       const y = new Date()
       y.setDate(y.getDate() - 1)
       return dayBounds(y)
+    }
+    if (dateMode === 'week') {
+      const { end: todayEnd } = dayBounds(new Date())
+      const weekStart = new Date(todayEnd)
+      weekStart.setDate(weekStart.getDate() - 7)
+      return { start: weekStart, end: todayEnd }
+    }
+    if (dateMode === 'month') {
+      const { end: todayEnd } = dayBounds(new Date())
+      const monthStart = new Date(todayEnd)
+      monthStart.setDate(monthStart.getDate() - 30)
+      return { start: monthStart, end: todayEnd }
     }
     return {
       start: rangeFrom ? new Date(rangeFrom) : dayBounds(new Date()).start,
@@ -115,6 +128,18 @@ export function AttendancePage() {
   })
 
   const nameFor = (id: string) => profiles?.find((p) => p.id === id)?.full_name ?? '—'
+  const avatarUrlFor = (id: string) => profiles?.find((p) => p.id === id)?.avatar_url
+
+  // Who worked most in the selected period -- aggregates the same `entries`
+  // the history list below already fetched, so no extra query.
+  const leaderboard = useMemo(() => {
+    const totals = new Map<string, number>()
+    for (const e of entries ?? []) {
+      const durationMs = (e.ended_at ? new Date(e.ended_at).getTime() : Date.now()) - new Date(e.started_at).getTime()
+      totals.set(e.profile_id, (totals.get(e.profile_id) ?? 0) + durationMs)
+    }
+    return [...totals.entries()].sort((a, b) => b[1] - a[1])
+  }, [entries])
 
   return (
     <div className="flex flex-col gap-6">
@@ -130,7 +155,10 @@ export function AttendancePage() {
           )}
           {currentlyWorking?.map((e) => (
             <div key={e.id} className="flex items-center justify-between rounded-lg border border-emerald-300/50 bg-emerald-50 p-2.5 text-sm dark:bg-emerald-900/20">
-              <span className="font-medium">{nameFor(e.profile_id)}</span>
+              <div className="flex items-center gap-2">
+                <Avatar name={nameFor(e.profile_id)} avatarUrl={avatarUrlFor(e.profile_id)} className="size-6 rounded-full" />
+                <span className="font-medium">{nameFor(e.profile_id)}</span>
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">
                   {t('attendance.since')} {formatLocalDateTime(e.started_at, i18n.language)}
@@ -164,6 +192,12 @@ export function AttendancePage() {
             <Button size="sm" variant={dateMode === 'yesterday' ? 'default' : 'outline'} onClick={() => setDateMode('yesterday')}>
               {t('attendance.yesterday')}
             </Button>
+            <Button size="sm" variant={dateMode === 'week' ? 'default' : 'outline'} onClick={() => setDateMode('week')}>
+              {t('attendance.week')}
+            </Button>
+            <Button size="sm" variant={dateMode === 'month' ? 'default' : 'outline'} onClick={() => setDateMode('month')}>
+              {t('attendance.month')}
+            </Button>
             <Button size="sm" variant={dateMode === 'range' ? 'default' : 'outline'} onClick={() => setDateMode('range')}>
               {t('attendance.range')}
             </Button>
@@ -195,6 +229,26 @@ export function AttendancePage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="flex items-center gap-1.5 text-base font-medium">
+            <Trophy className="size-4 text-amber-500" />
+            {t('attendance.leaderboard')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {leaderboard.length === 0 && <p className="text-sm text-muted-foreground">{t('attendance.empty')}</p>}
+          {leaderboard.map(([profileId, totalMs], i) => (
+            <div key={profileId} className="flex items-center gap-3 rounded-lg border border-border p-2.5 text-sm">
+              <span className="w-5 shrink-0 text-center text-xs font-semibold text-muted-foreground">{i + 1}</span>
+              <Avatar name={nameFor(profileId)} avatarUrl={avatarUrlFor(profileId)} className="rounded-full" />
+              <span className="flex-1 truncate font-medium">{nameFor(profileId)}</span>
+              <Badge variant="secondary">{formatDuration(totalMs)}</Badge>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base font-medium">{t('attendance.history')}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
@@ -206,7 +260,10 @@ export function AttendancePage() {
             const durationMs = (e.ended_at ? new Date(e.ended_at).getTime() : Date.now()) - new Date(e.started_at).getTime()
             return (
               <div key={e.id} className="flex items-center justify-between rounded-lg border border-border p-2.5 text-sm">
-                <span className="font-medium">{nameFor(e.profile_id)}</span>
+                <div className="flex items-center gap-2">
+                  <Avatar name={nameFor(e.profile_id)} avatarUrl={avatarUrlFor(e.profile_id)} className="size-6 rounded-full" />
+                  <span className="font-medium">{nameFor(e.profile_id)}</span>
+                </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{formatLocalDateTime(e.started_at, i18n.language)}</span>
                   <span>→</span>

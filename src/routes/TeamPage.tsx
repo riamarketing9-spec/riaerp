@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { InviteEmployeeDialog } from './InviteEmployeeDialog'
 import { EditEmployeeDialog } from './EditEmployeeDialog'
+import { Avatar } from '@/components/Avatar'
 import { Copy, Plus, Trash2 } from 'lucide-react'
 import { pickLabel } from '@/lib/localizedLabel'
 import { telegramDeepLink } from '@/lib/telegram'
@@ -107,7 +108,7 @@ export function TeamPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, role_id, staff_status_id')
+        .select('id, full_name, role_id, staff_status_id, avatar_url')
       if (error) throw error
       return data
     },
@@ -185,15 +186,18 @@ export function TeamPage() {
               onClick={() => setEditingId(p.id)}
             >
               <CardContent className="flex items-center justify-between py-3">
-                <div>
-                  <p className="text-sm font-medium">{p.full_name}</p>
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-xs text-muted-foreground">{roleLabel(p.role_id)}</p>
-                    {status && (
-                      <Badge variant={status.slug === 'inactive' ? 'secondary' : 'outline'} className="text-[10px]">
-                        {pickLabel(status, i18n.language)}
-                      </Badge>
-                    )}
+                <div className="flex items-center gap-2.5">
+                  <Avatar name={p.full_name} avatarUrl={p.avatar_url} className="rounded-full" />
+                  <div>
+                    <p className="text-sm font-medium">{p.full_name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs text-muted-foreground">{roleLabel(p.role_id)}</p>
+                      {status && (
+                        <Badge variant={status.slug === 'inactive' ? 'secondary' : 'outline'} className="text-[10px]">
+                          {pickLabel(status, i18n.language)}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>

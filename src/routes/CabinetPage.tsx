@@ -210,7 +210,7 @@ function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
   const { data: profiles } = useQuery({
     queryKey: ['profiles-lookup'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('id, full_name')
+      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url')
       if (error) throw error
       return data
     },
@@ -220,6 +220,7 @@ function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
   const { data: subtasksByTask } = useSubtasksBatch(taskIds)
 
   const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name
+  const assigneeAvatarUrl = (id: string | null) => profiles?.find((p) => p.id === id)?.avatar_url
 
   return (
     <Card>
@@ -235,6 +236,7 @@ function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
             deadline={task.deadline}
             percentComplete={task.percent_complete}
             assigneeName={assigneeName(task.assignee_profile_id)}
+            assigneeAvatarUrl={assigneeAvatarUrl(task.assignee_profile_id)}
             subtasks={subtasksByTask?.get(task.id)}
             onOpen={() => onOpen(task.id)}
           />
