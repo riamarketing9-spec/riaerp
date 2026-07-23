@@ -175,7 +175,7 @@ export function WorkloadPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">{t('workload.title')}</h1>
+      <h1 className="text-3xl font-bold tracking-tight">{t('workload.title')}</h1>
 
       <div className="flex items-end gap-3 rounded-lg border border-border p-3">
         <div className="flex flex-col gap-1.5">

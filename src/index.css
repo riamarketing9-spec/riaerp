@@ -38,20 +38,33 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  /* Generous, soft scale (Notion/Linear-like) -- xl/2xl aren't redefined by
+     most component files explicitly, but Tailwind's rounded-xl/rounded-2xl
+     utilities read these theme variables, so overriding them here reshapes
+     every card/dialog/menu/select in the app without touching those files. */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
 
   /* Tinted toward the foreground hue instead of pure black -- flat panels
      read as "AI-default" the moment a shadow goes neutral-gray/black. */
-  --shadow-xs: 0 1px 2px rgb(15 23 20 / 0.05);
-  --shadow-sm: 0 1px 2px rgb(15 23 20 / 0.04), 0 2px 6px rgb(15 23 20 / 0.06);
-  --shadow-md: 0 2px 4px rgb(15 23 20 / 0.04), 0 8px 20px rgb(15 23 20 / 0.08);
-  --shadow-lg: 0 4px 8px rgb(15 23 20 / 0.05), 0 16px 40px rgb(15 23 20 / 0.12);
+  --shadow-xs: 0 1px 2px rgb(15 23 20 / 0.06);
+  --shadow-sm: 0 1px 3px rgb(15 23 20 / 0.05), 0 3px 10px rgb(15 23 20 / 0.08);
+  --shadow-md: 0 2px 6px rgb(15 23 20 / 0.06), 0 10px 26px rgb(15 23 20 / 0.1);
+  --shadow-lg: 0 4px 10px rgb(15 23 20 / 0.06), 0 20px 48px rgb(15 23 20 / 0.16);
+
+  /* Brand-tinted glow, used behind the primary CTA so it reads as the one
+     "hero" action on a page instead of blending into neutral chrome. */
+  --shadow-brand: 0 2px 8px color-mix(in oklch, var(--color-brand-500), transparent 72%), 0 8px 24px color-mix(in oklch, var(--color-brand-500), transparent 80%);
 
   /* Strong ease-out: starts fast, settles gently -- reads as "responsive"
      instead of the sluggish feel of ease-in on the same duration. */
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Overshoot spring: slight bounce past the resting state on press-release,
+     the "dynamic" feel of Apple/Telegram-style controls. */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 :root {
@@ -134,7 +147,9 @@
   }
   body {
     margin: 0;
-    background: var(--background);
+    background: radial-gradient(ellipse 1200px 800px at 15% -10%, color-mix(in oklch, var(--color-brand-500), transparent 94%), transparent),
+      var(--background);
+    background-attachment: fixed;
     color: var(--foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;

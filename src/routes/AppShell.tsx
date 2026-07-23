@@ -49,16 +49,23 @@ function NavItem({
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+          'group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-medium transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.98]',
           isActive
-            ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/25'
+            ? 'bg-[linear-gradient(to_bottom,var(--primary),color-mix(in_oklch,var(--primary),black_10%))] text-white shadow-brand'
             : 'text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]'
         )
       }
     >
       {({ isActive }) => (
         <>
-          <Icon className={cn('size-4.5', isActive ? 'text-white' : 'text-muted-foreground')} strokeWidth={2} />
+          <span
+            className={cn(
+              'flex size-7 shrink-0 items-center justify-center rounded-lg transition-colors',
+              isActive ? 'bg-white/15' : 'bg-transparent'
+            )}
+          >
+            <Icon className={cn('size-4', isActive ? 'text-white' : 'text-muted-foreground')} strokeWidth={2.25} />
+          </span>
           {label}
         </>
       )}

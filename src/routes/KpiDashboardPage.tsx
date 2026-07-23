@@ -12,7 +12,7 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <Card>
       <CardContent className="py-5">
-        <p className="text-2xl font-semibold tracking-tight">{value}</p>
+        <p className="text-3xl font-bold tracking-tight">{value}</p>
         <p className="mt-1 text-xs text-muted-foreground">{label}</p>
       </CardContent>
     </Card>
@@ -43,7 +43,7 @@ export function KpiDashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">{t('kpi.title')}</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t('kpi.title')}</h1>
         <BackupExportButton />
       </div>
 
