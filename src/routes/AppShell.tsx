@@ -143,9 +143,6 @@ export function AppShell() {
   const canSeeProjects = hasCapability('projects.manage') || hasCapability('projects.read_scoped')
   const canSeeSales = hasCapability('sales.read') || hasCapability('sales.manage')
   const canSeeFinance = hasCapability('finance.read') || hasCapability('finance.write')
-  // PMs can see their own team's attendance (time_entries_select_pm_team
-  // RLS), not just the CEO -- match the nav gate to that.
-  const canSeeAttendance = hasCapability('org.full_access') || hasCapability('projects.manage')
   const canSeeChecklistAdmin = hasCapability('org.full_access')
   const canSeeLookupAdmin = hasCapability('org.full_access')
 
@@ -183,9 +180,7 @@ export function AppShell() {
       {canSeeAudit && (
         <NavItem to="/audit" icon={ScrollText} label={t('nav.audit')} onNavigate={closeMobileNav} />
       )}
-      {canSeeAttendance && (
-        <NavItem to="/attendance" icon={Clock} label={t('nav.attendance')} onNavigate={closeMobileNav} />
-      )}
+      <NavItem to="/attendance" icon={Clock} label={t('nav.attendance')} onNavigate={closeMobileNav} />
       {canSeeChecklistAdmin && (
         <NavItem
           to="/checklist-templates"

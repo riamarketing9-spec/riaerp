@@ -98,14 +98,7 @@ const router = createBrowserRouter(
             </RequireCapability>
           ),
         },
-        {
-          path: 'attendance',
-          element: (
-            <RequireCapability anyOf={['org.full_access', 'projects.manage']}>
-              <AttendancePage />
-            </RequireCapability>
-          ),
-        },
+        { path: 'attendance', element: <AttendancePage /> },
         {
           path: 'checklist-templates',
           element: (

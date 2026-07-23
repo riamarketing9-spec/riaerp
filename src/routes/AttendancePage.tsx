@@ -35,6 +35,11 @@ export function AttendancePage() {
   const { t, i18n } = useTranslation()
   const { hasCapability } = useAuth()
   const canForceStop = hasCapability('org.full_access')
+  // A plain employee only ever gets their own rows back from RLS anyway, so
+  // the "who else is working"/leaderboard/employee-picker sections -- built
+  // for PM/CEO to watch the team -- are hidden rather than shown pointlessly
+  // scoped to just themselves.
+  const isManagement = hasCapability('org.full_access') || hasCapability('projects.manage')
   const queryClient = useQueryClient()
   const [dateMode, setDateMode] = useState<DateMode>('today')
   const [rangeFrom, setRangeFrom] = useState('')
@@ -77,6 +82,7 @@ export function AttendancePage() {
 
   const { data: currentlyWorking } = useQuery({
     queryKey: ['attendance-open'],
+    enabled: isManagement,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('time_entries')
@@ -145,42 +151,44 @@ export function AttendancePage() {
     <div className="flex flex-col gap-6">
       <h1 className="text-3xl font-bold tracking-tight">{t('attendance.title')}</h1>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-medium">{t('attendance.currentlyWorking')}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {(currentlyWorking?.length ?? 0) === 0 && (
-            <p className="text-sm text-muted-foreground">{t('attendance.noneWorking')}</p>
-          )}
-          {currentlyWorking?.map((e) => (
-            <div key={e.id} className="flex items-center justify-between rounded-lg border border-emerald-300/50 bg-emerald-50 p-2.5 text-sm dark:bg-emerald-900/20">
-              <div className="flex items-center gap-2">
-                <Avatar name={nameFor(e.profile_id)} avatarUrl={avatarUrlFor(e.profile_id)} className="size-6 rounded-full" />
-                <span className="font-medium">{nameFor(e.profile_id)}</span>
+      {isManagement && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium">{t('attendance.currentlyWorking')}</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {(currentlyWorking?.length ?? 0) === 0 && (
+              <p className="text-sm text-muted-foreground">{t('attendance.noneWorking')}</p>
+            )}
+            {currentlyWorking?.map((e) => (
+              <div key={e.id} className="flex items-center justify-between rounded-lg border border-emerald-300/50 bg-emerald-50 p-2.5 text-sm dark:bg-emerald-900/20">
+                <div className="flex items-center gap-2">
+                  <Avatar name={nameFor(e.profile_id)} avatarUrl={avatarUrlFor(e.profile_id)} className="size-6 rounded-full" />
+                  <span className="font-medium">{nameFor(e.profile_id)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {t('attendance.since')} {formatLocalDateTime(e.started_at, i18n.language)}
+                    {e.started_device ? ` · ${e.started_device}` : ''}
+                  </span>
+                  <Badge className="bg-emerald-500 text-white">{t('attendance.working')}</Badge>
+                  {canForceStop && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={forceStopMutation.isPending}
+                      onClick={() => forceStopMutation.mutate(e.id)}
+                    >
+                      <Square className="size-3.5" />
+                      {t('attendance.forceStop')}
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  {t('attendance.since')} {formatLocalDateTime(e.started_at, i18n.language)}
-                  {e.started_device ? ` · ${e.started_device}` : ''}
-                </span>
-                <Badge className="bg-emerald-500 text-white">{t('attendance.working')}</Badge>
-                {canForceStop && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={forceStopMutation.isPending}
-                    onClick={() => forceStopMutation.mutate(e.id)}
-                  >
-                    <Square className="size-3.5" />
-                    {t('attendance.forceStop')}
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3">
         <div className="flex flex-col gap-1.5">
@@ -215,37 +223,41 @@ export function AttendancePage() {
             </div>
           </>
         )}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">{t('attendance.employee')}</Label>
-          <Combobox
-            className="w-48"
-            options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
-            value={employeeFilter}
-            onChange={setEmployeeFilter}
-            placeholder={t('attendance.allEmployees')}
-          />
-        </div>
+        {isManagement && (
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">{t('attendance.employee')}</Label>
+            <Combobox
+              className="w-48"
+              options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
+              value={employeeFilter}
+              onChange={setEmployeeFilter}
+              placeholder={t('attendance.allEmployees')}
+            />
+          </div>
+        )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-1.5 text-base font-medium">
-            <Trophy className="size-4 text-amber-500" />
-            {t('attendance.leaderboard')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {leaderboard.length === 0 && <p className="text-sm text-muted-foreground">{t('attendance.empty')}</p>}
-          {leaderboard.map(([profileId, totalMs], i) => (
-            <div key={profileId} className="flex items-center gap-3 rounded-lg border border-border p-2.5 text-sm">
-              <span className="w-5 shrink-0 text-center text-xs font-semibold text-muted-foreground">{i + 1}</span>
-              <Avatar name={nameFor(profileId)} avatarUrl={avatarUrlFor(profileId)} className="rounded-full" />
-              <span className="flex-1 truncate font-medium">{nameFor(profileId)}</span>
-              <Badge variant="secondary">{formatDuration(totalMs)}</Badge>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      {isManagement && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-1.5 text-base font-medium">
+              <Trophy className="size-4 text-amber-500" />
+              {t('attendance.leaderboard')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {leaderboard.length === 0 && <p className="text-sm text-muted-foreground">{t('attendance.empty')}</p>}
+            {leaderboard.map(([profileId, totalMs], i) => (
+              <div key={profileId} className="flex items-center gap-3 rounded-lg border border-border p-2.5 text-sm">
+                <span className="w-5 shrink-0 text-center text-xs font-semibold text-muted-foreground">{i + 1}</span>
+                <Avatar name={nameFor(profileId)} avatarUrl={avatarUrlFor(profileId)} className="rounded-full" />
+                <span className="flex-1 truncate font-medium">{nameFor(profileId)}</span>
+                <Badge variant="secondary">{formatDuration(totalMs)}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
