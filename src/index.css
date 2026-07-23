@@ -41,6 +41,17 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+
+  /* Tinted toward the foreground hue instead of pure black -- flat panels
+     read as "AI-default" the moment a shadow goes neutral-gray/black. */
+  --shadow-xs: 0 1px 2px rgb(15 23 20 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(15 23 20 / 0.04), 0 2px 6px rgb(15 23 20 / 0.06);
+  --shadow-md: 0 2px 4px rgb(15 23 20 / 0.04), 0 8px 20px rgb(15 23 20 / 0.08);
+  --shadow-lg: 0 4px 8px rgb(15 23 20 / 0.05), 0 16px 40px rgb(15 23 20 / 0.12);
+
+  /* Strong ease-out: starts fast, settles gently -- reads as "responsive"
+     instead of the sluggish feel of ease-in on the same duration. */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 :root {
@@ -117,6 +128,9 @@
 @layer base {
   * {
     border-color: var(--border);
+    /* Every hover/press/color transition in the app inherits this curve --
+       one line instead of hand-tuning easing on every component. */
+    transition-timing-function: var(--ease-out-strong);
   }
   body {
     margin: 0;
@@ -125,8 +139,12 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11", "ss01", "cv01", "cv03";
   }
   #root {
     min-height: 100svh;
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.015em;
   }
 }
