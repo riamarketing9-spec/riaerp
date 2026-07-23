@@ -107,11 +107,23 @@ export function TeamPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, role_id, staff_status_id, telegram_chat_id')
+        .select('id, full_name, role_id, staff_status_id')
       if (error) throw error
       return data
     },
   })
+
+  const { data: telegramLinks } = useQuery({
+    queryKey: ['team-telegram-links'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profile_telegram_links').select('profile_id')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const telegramLinkCount = (profileId: string) =>
+    (telegramLinks ?? []).filter((l) => l.profile_id === profileId).length
 
   const { data: roles } = useQuery({
     queryKey: ['roles-lookup'],
@@ -185,15 +197,18 @@ export function TeamPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <Badge variant={p.telegram_chat_id ? 'default' : 'secondary'}>
-                    {p.telegram_chat_id ? t('team.telegramConnected') : t('team.telegramNotConnected')}
-                  </Badge>
-                  {!p.telegram_chat_id && (
-                    <Button size="sm" variant="outline" onClick={() => copyLink(p.id)}>
-                      <Copy className="size-3.5" />
-                      {t('team.copyLink')}
-                    </Button>
-                  )}
+                  {(() => {
+                    const count = telegramLinkCount(p.id)
+                    return (
+                      <Badge variant={count > 0 ? 'default' : 'secondary'}>
+                        {count > 0 ? t('team.telegramConnectedCount', { count }) : t('team.telegramNotConnected')}
+                      </Badge>
+                    )
+                  })()}
+                  <Button size="sm" variant="outline" onClick={() => copyLink(p.id)}>
+                    <Copy className="size-3.5" />
+                    {t('team.copyLink')}
+                  </Button>
                 </div>
               </CardContent>
             </Card>

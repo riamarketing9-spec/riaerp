@@ -163,12 +163,27 @@ Deno.serve(async (req) => {
     }
 
     async function getLinkedProfile(chatId: number) {
-      const { data } = await admin
-        .from('profiles')
-        .select('id, full_name, role_id')
-        .eq('telegram_chat_id', String(chatId))
+      const { data: link } = await admin
+        .from('profile_telegram_links')
+        .select('profiles (id, full_name, role_id)')
+        .eq('chat_id', String(chatId))
         .maybeSingle()
-      return data
+      // deno-lint-ignore no-explicit-any
+      return (link as any)?.profiles ?? null
+    }
+
+    // A profile can have several linked chats (new phone, second account,
+    // etc.) -- anything that used to read a single profiles.telegram_chat_id
+    // now sends to every one of them.
+    async function getLinkedChatIds(profileId: string): Promise<number[]> {
+      const { data } = await admin.from('profile_telegram_links').select('chat_id').eq('profile_id', profileId)
+      return (data ?? []).map((l: { chat_id: string }) => Number(l.chat_id))
+    }
+
+    // deno-lint-ignore no-explicit-any
+    function telegramLabelFrom(from: any): string | null {
+      if (!from) return null
+      return from.username ? `@${from.username}` : from.first_name ?? null
     }
 
     async function isCeoProfile(profileId: string) {
@@ -214,8 +229,10 @@ Deno.serve(async (req) => {
       return data as { state: string; payload: Record<string, string> }
     }
 
-    async function linkChatAndWelcome(chatId: number, profileId: string, fullName: string) {
-      await admin.from('profiles').update({ telegram_chat_id: String(chatId) }).eq('id', profileId)
+    async function linkChatAndWelcome(chatId: number, profileId: string, fullName: string, telegramLabel?: string | null) {
+      await admin
+        .from('profile_telegram_links')
+        .upsert({ chat_id: String(chatId), profile_id: profileId, telegram_label: telegramLabel ?? null }, { onConflict: 'chat_id' })
       await send(
         chatId,
         `Tabriklaymiz, ${fullName}! Endi men sizga muddatlar yaqinlashganda eslatib turaman va "📋 Vazifalarim" tugmasi orqali joriy vazifalaringizni ko'rsataman.`,
@@ -320,18 +337,21 @@ Deno.serve(async (req) => {
 
       const { data: assignee } = await admin
         .from('profiles')
-        .select('telegram_chat_id, full_name')
+        .select('full_name')
         .eq('id', assigneeProfileId)
         .maybeSingle()
+      const assigneeChatIds = await getLinkedChatIds(assigneeProfileId)
 
-      if (assignee?.telegram_chat_id) {
+      if (assigneeChatIds.length > 0) {
         const deadlineText = deadline
           ? deadline.toLocaleDateString('uz-Latn-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' })
           : "muddatsiz"
-        await send(
-          Number(assignee.telegram_chat_id),
-          `📌 CEO sizga yangi vazifa berdi:\n\n«${title}»\nMuddat: ${deadlineText}\n\nTizimga kirib tekshiring.`
-        )
+        for (const assigneeChatId of assigneeChatIds) {
+          await send(
+            assigneeChatId,
+            `📌 CEO sizga yangi vazifa berdi:\n\n«${title}»\nMuddat: ${deadlineText}\n\nTizimga kirib tekshiring.`
+          )
+        }
         await send(chatId, "✅ Vazifa yaratildi va tizimda ko'rinadi. Xodimga Telegram orqali xabar yuborildi.", {
           reply_markup: await keyboardFor(chatId),
         })
@@ -377,7 +397,7 @@ Deno.serve(async (req) => {
         const { data: profile } = await admin.from('profiles').select('full_name').eq('id', profileId).maybeSingle()
         await answerCallback(callbackQuery.id)
         if (profile) {
-          await linkChatAndWelcome(chatId, profileId, profile.full_name)
+          await linkChatAndWelcome(chatId, profileId, profile.full_name, telegramLabelFrom(callbackQuery.from))
         } else {
           await send(chatId, "Xatolik yuz berdi, iltimos emailingizni qaytadan yuboring.")
         }
@@ -484,7 +504,7 @@ Deno.serve(async (req) => {
       if (!profile) {
         await send(chatId, "Xodim topilmadi. Havolani CEO'dan qaytadan so'rang.")
       } else {
-        await linkChatAndWelcome(chatId, profileId, profile.full_name)
+        await linkChatAndWelcome(chatId, profileId, profile.full_name, telegramLabelFrom(message.from))
       }
       return new Response('ok')
     }

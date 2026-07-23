@@ -35,7 +35,6 @@ type ProfileRow = {
   auth_user_id: string | null
   full_name: string
   phone: string | null
-  telegram_chat_id: string | null
   role_id: string
   department_id: string | null
   staff_status_id: string | null
@@ -422,6 +421,14 @@ type TimeEntryRow = {
   created_at: string
 }
 
+type ProfileTelegramLinkRow = {
+  id: string
+  profile_id: string
+  chat_id: string
+  telegram_label: string | null
+  linked_at: string
+}
+
 function table<Row, RequiredKeys extends keyof Row>(): {
   Row: Row
   Insert: Partial<Row> & Pick<Row, RequiredKeys>
@@ -492,6 +499,7 @@ export type Database = {
       content_plan_platforms: { Row: ContentPlanPlatformRow; Insert: ContentPlanPlatformRow; Update: Partial<ContentPlanPlatformRow>; Relationships: [] }
       kb_articles: ReturnType<typeof table<KbArticleRow, 'title'>>
       time_entries: ReturnType<typeof table<TimeEntryRow, 'profile_id'>>
+      profile_telegram_links: { Row: ProfileTelegramLinkRow; Insert: Pick<ProfileTelegramLinkRow, 'profile_id' | 'chat_id'> & Partial<ProfileTelegramLinkRow>; Update: Partial<ProfileTelegramLinkRow>; Relationships: [] }
     }
     Views: {
       v_task_queue: { Row: TaskQueueViewRow; Relationships: [] }

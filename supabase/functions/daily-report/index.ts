@@ -103,10 +103,7 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const admin = createClient(supabaseUrl, serviceRoleKey)
 
-    const { data: profiles } = await admin
-      .from('profiles')
-      .select('id, telegram_chat_id')
-      .not('telegram_chat_id', 'is', null)
+    const { data: profiles } = await admin.from('profiles').select('id')
 
     const ceoChatIds: number[] = []
     for (const p of profiles ?? []) {
@@ -114,7 +111,9 @@ Deno.serve(async (req) => {
         p_profile_id: p.id,
         p_capability: 'org.full_access',
       })
-      if (isCeo) ceoChatIds.push(Number(p.telegram_chat_id))
+      if (!isCeo) continue
+      const { data: links } = await admin.from('profile_telegram_links').select('chat_id').eq('profile_id', p.id)
+      for (const l of links ?? []) ceoChatIds.push(Number(l.chat_id))
     }
 
     if (ceoChatIds.length === 0) return new Response('ok')

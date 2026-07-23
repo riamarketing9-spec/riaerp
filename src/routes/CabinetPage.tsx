@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +11,7 @@ import { TaskSheet } from './TaskSheet'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
 import { formatLocalDate } from '@/lib/localizedLabel'
 import { Button } from '@/components/ui/button'
+import { Trash2 } from 'lucide-react'
 import { telegramDeepLink } from '@/lib/telegram'
 import { TimeTrackerWidget } from '@/components/TimeTrackerWidget'
 
@@ -245,33 +247,65 @@ function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
 function TelegramConnectCard() {
   const { t } = useTranslation()
   const { profile } = useAuth()
+  const queryClient = useQueryClient()
 
-  const { data: profileRow } = useQuery({
-    queryKey: ['my-telegram-status', profile?.id],
+  const { data: links } = useQuery({
+    queryKey: ['my-telegram-links', profile?.id],
     enabled: !!profile,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('telegram_chat_id')
-        .eq('id', profile!.id)
-        .single()
+        .from('profile_telegram_links')
+        .select('id, telegram_label, linked_at')
+        .eq('profile_id', profile!.id)
+        .order('linked_at', { ascending: false })
       if (error) throw error
       return data
     },
   })
 
-  const connected = !!profileRow?.telegram_chat_id
+  const unlinkMutation = useMutation({
+    mutationFn: async (linkId: string) => {
+      const { error } = await supabase.from('profile_telegram_links').delete().eq('id', linkId)
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-telegram-links', profile?.id] }),
+    onError: (err: Error) => toast.error(err.message),
+  })
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base font-medium">{t('cabinet.telegramTitle')}</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <Badge variant={connected ? 'default' : 'secondary'} className="w-fit">
-          {connected ? t('team.telegramConnected') : t('team.telegramNotConnected')}
-        </Badge>
-        {!connected && profile && (
+      <CardContent className="flex flex-col gap-3">
+        {links && links.length > 0 ? (
+          <div className="flex flex-col gap-1.5">
+            {links.map((link) => (
+              <div key={link.id} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="default">{t('team.telegramConnected')}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {link.telegram_label ?? t('cabinet.telegramUnknownAccount')}
+                  </span>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-7"
+                  disabled={unlinkMutation.isPending}
+                  onClick={() => unlinkMutation.mutate(link.id)}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Badge variant="secondary" className="w-fit">
+            {t('team.telegramNotConnected')}
+          </Badge>
+        )}
+        {profile && (
           <>
             <p className="text-xs text-muted-foreground">{t('cabinet.telegramInstructions')}</p>
             <Button size="sm" className="w-fit" render={<a href={telegramDeepLink(profile.id)} target="_blank" rel="noreferrer" />}>
