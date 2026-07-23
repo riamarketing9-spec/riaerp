@@ -353,7 +353,7 @@ export function CabinetPage() {
   const { data: subtasksByTask } = useSubtasksBatch(taskIds)
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">{t('cabinet.title')}</h1>
         <p className="text-sm text-muted-foreground">{profile?.full_name}</p>

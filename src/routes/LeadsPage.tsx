@@ -57,7 +57,7 @@ export function LeadsPage() {
   const stageName = (id: string) => pickLabel(stages?.find((s) => s.id === id), i18n.language) ?? '—'
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">{t('leads.title')}</h1>
         {canManage && <CreateLeadDialog />}

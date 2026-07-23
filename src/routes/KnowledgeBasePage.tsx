@@ -70,7 +70,7 @@ export function KnowledgeBasePage() {
   const readCount = (articleId: string) => (allReads ?? []).filter((r) => r.article_id === articleId).length
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">{t('kb.title')}</h1>
         {canAdmin && <CreateKbArticleDialog />}

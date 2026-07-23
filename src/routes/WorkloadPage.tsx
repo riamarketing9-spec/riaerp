@@ -174,7 +174,7 @@ export function WorkloadPage() {
   const openProfileName = visibleWorkload.find((w) => w.profile_id === openProfileId)?.full_name
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <h1 className="text-3xl font-bold tracking-tight">{t('workload.title')}</h1>
 
       <div className="flex items-end gap-3 rounded-lg border border-border p-3">

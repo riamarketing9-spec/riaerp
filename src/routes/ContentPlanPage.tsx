@@ -171,7 +171,7 @@ export function ContentPlanPage() {
   const selectedProjectName = projects?.find((p) => p.id === selectedProjectId)?.name
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">{t('contentPlan.title')}</h1>
         <Button onClick={openCreate}>
@@ -186,7 +186,7 @@ export function ContentPlanPage() {
           <TabsTrigger value="calendar">{t('contentPlan.calendarView')}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="folders" className="flex flex-col gap-6">
+        <TabsContent value="folders" className="flex flex-col gap-8">
           {selectedProjectId === null ? (
             <>
               <Input

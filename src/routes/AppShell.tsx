@@ -213,11 +213,11 @@ export function AppShell() {
         </div>
       </div>
 
-      <div className="mb-3 border-t border-border/60" />
+      <div className="mb-3 border-t border-border/30" />
 
       {nav}
 
-      <div className="mt-3 flex items-center gap-2 rounded-xl border border-border/60 bg-background/70 px-2.5 py-2.5 shadow-sm">
+      <div className="mt-3 flex items-center gap-2 rounded-xl bg-background/60 px-2.5 py-2.5 shadow-sm ring-1 ring-foreground/[0.04]">
         {profile && <SelfAvatarUpload profileId={profile.id} name={profile.full_name} avatarUrl={profile.avatar_url} />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{profile?.full_name}</p>
@@ -259,12 +259,12 @@ export function AppShell() {
         </div>
       )}
 
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-muted/30 px-3 py-4 dark:bg-white/[0.02] md:flex">
+      <aside className="hidden w-72 shrink-0 flex-col bg-white/90 px-3.5 py-5 shadow-[1px_0_0_rgb(0_0_0_/_0.05),_8px_0_32px_rgb(15_23_20_/_0.06)] backdrop-blur-xl dark:bg-black/30 dark:shadow-[1px_0_0_rgb(255_255_255_/_0.06)] md:flex">
         {sidebarInner}
       </aside>
 
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-5xl px-4 py-5 sm:px-6 sm:py-8 md:px-8">
+        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-10 md:px-10">
           <Outlet />
         </div>
       </main>

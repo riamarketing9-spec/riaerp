@@ -68,7 +68,10 @@
 }
 
 :root {
-  --background: #fafaf9;
+  /* Deliberately a shade off pure white/gray-90 -- a distinct "canvas" tone
+     is what makes white cards and the sidebar read as elevated surfaces
+     instead of blending into the page (Notion/Linear's layering trick). */
+  --background: #f0f1ed;
   --foreground: #1f2421;
   --card: #ffffff;
   --card-foreground: #1f2421;
@@ -147,7 +150,8 @@
   }
   body {
     margin: 0;
-    background: radial-gradient(ellipse 1200px 800px at 15% -10%, color-mix(in oklch, var(--color-brand-500), transparent 94%), transparent),
+    background: radial-gradient(ellipse 1200px 800px at 15% -10%, color-mix(in oklch, var(--color-brand-500), transparent 88%), transparent),
+      radial-gradient(ellipse 900px 700px at 100% 0%, color-mix(in oklch, var(--color-brand-300), transparent 93%), transparent),
       var(--background);
     background-attachment: fixed;
     color: var(--foreground);
@@ -161,5 +165,13 @@
   }
   h1, h2, h3 {
     letter-spacing: -0.015em;
+  }
+
+  /* Every clickable Card (project tiles, folder grids, team rows, ...)
+     already carries cursor-pointer -- this one rule gives all of them a
+     hover lift instead of hand-adding it to a dozen page files. */
+  [data-slot="card"].cursor-pointer:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
   }
 }

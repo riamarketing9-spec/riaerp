@@ -81,7 +81,7 @@ export function AuditLogPage() {
     action === 'insert' ? 'default' : action === 'delete' ? 'destructive' : 'secondary'
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <h1 className="text-3xl font-bold tracking-tight">{t('audit.title')}</h1>
 
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3">
