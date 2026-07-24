@@ -287,6 +287,7 @@ export const ru = {
     allProjects: 'Все проекты',
     searchProjects: 'Поиск по названию проекта',
     allPlatforms: 'Все платформы',
+    allFormats: 'Все форматы',
     dateFrom: 'С даты',
     dateTo: 'По дату',
     resetFilters: 'Сбросить',

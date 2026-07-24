@@ -36,11 +36,13 @@ type ContentItem = {
   topic: string
   project_id: string
   status_id: string
+  format_id?: string | null
   publish_date: string | null
 }
 
 type ProjectLookup = { id: string; name: string; logo_url?: string | null }
 type StatusLookup = { id: string; slug: string; label_ru: string; label_uz: string }
+type FormatLookup = { id: string; slug: string; label_ru: string; label_uz: string }
 
 // 6 fixed content_statuses (plan/script/shoot/edit/ready/published) — one
 // color per stage, applied only to the status pill so the card itself stays
@@ -94,35 +96,35 @@ function CalendarItemCard({
         onOpen()
       }}
       className={cn(
-        'flex flex-col gap-1 rounded-md border border-border bg-card px-2 py-1.5 text-left shadow-sm hover:bg-accent/40',
+        'flex flex-col gap-1.5 rounded-lg border border-border bg-card px-3 py-2.5 text-left shadow-xs hover:bg-accent/40',
         dragging && 'opacity-40'
       )}
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         {logoUrl ? (
-          <img src={logoUrl} alt="" className="size-4.5 shrink-0 rounded-full object-cover" />
+          <img src={logoUrl} alt="" className="size-5 shrink-0 rounded-full object-cover" />
         ) : (
           <span
             title={projectName}
             className={cn(
-              'flex size-4.5 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white',
+              'flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white',
               projectColorFor(item.project_id)
             )}
           >
             {projectName?.[0]?.toUpperCase()}
           </span>
         )}
-        <span className="truncate text-xs font-medium">{item.topic}</span>
+        <span className="truncate text-sm font-medium">{item.topic}</span>
       </div>
       <div className="flex flex-wrap gap-1">
         <Badge
           variant="secondary"
-          className={cn('px-1.5 py-0.5 text-[10px]', statusSlug && STATUS_BADGE_COLORS[statusSlug])}
+          className={cn('px-2 py-0.5 text-[11px]', statusSlug && STATUS_BADGE_COLORS[statusSlug])}
         >
           {statusLabel}
         </Badge>
         {platformLabels.map((label) => (
-          <Badge key={label} variant="outline" className="px-1.5 py-0.5 text-[10px]">
+          <Badge key={label} variant="outline" className="px-2 py-0.5 text-[11px]">
             {label}
           </Badge>
         ))}
@@ -156,7 +158,7 @@ function DroppableDayCell({
     <div
       ref={setNodeRef}
       onClick={onClick}
-      className={cn('group/day flex min-h-44 cursor-pointer flex-col gap-1.5 bg-card p-2 hover:bg-accent/40', isOver && 'ring-2 ring-inset ring-brand-400', className)}
+      className={cn('group/day flex min-h-64 cursor-pointer flex-col gap-2 bg-card p-3', isOver && 'ring-2 ring-inset ring-brand-400', className)}
     >
       {children}
     </div>
@@ -169,6 +171,7 @@ export function ContentCalendarView({
   statuses,
   itemPlatforms,
   platforms,
+  contentFormats,
   onOpen,
   onCreate,
   onMove,
@@ -178,6 +181,7 @@ export function ContentCalendarView({
   statuses?: StatusLookup[]
   itemPlatforms?: { content_plan_item_id: string; platform_id: string }[]
   platforms?: { id: string; label_ru: string; label_uz: string }[]
+  contentFormats?: FormatLookup[]
   onOpen: (id: string) => void
   onCreate: (publishDate: string) => void
   onMove: (itemId: string, newDate: string) => void
@@ -185,6 +189,8 @@ export function ContentCalendarView({
   const { t, i18n } = useTranslation()
   const [month, setMonth] = useState(() => new Date())
   const [projectFilter, setProjectFilter] = useState('')
+  const [platformFilter, setPlatformFilter] = useState('')
+  const [formatFilter, setFormatFilter] = useState('')
   const [activeItem, setActiveItem] = useState<ContentItem | null>(null)
   const locale = i18n.language.startsWith('uz') ? uz : ru
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -200,12 +206,19 @@ export function ContentCalendarView({
     for (const item of items) {
       if (!item.publish_date) continue
       if (projectFilter && item.project_id !== projectFilter) continue
+      if (formatFilter && item.format_id !== formatFilter) continue
+      if (platformFilter) {
+        const hasPlatform = (itemPlatforms ?? []).some(
+          (ip) => ip.content_plan_item_id === item.id && ip.platform_id === platformFilter
+        )
+        if (!hasPlatform) continue
+      }
       const list = map.get(item.publish_date) ?? []
       list.push(item)
       map.set(item.publish_date, list)
     }
     return map
-  }, [items, projectFilter])
+  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms])
 
   const statusOf = (id: string) => statuses?.find((s) => s.id === id)
   const statusLabel = (id: string) => pickLabel(statusOf(id), i18n.language)
@@ -241,20 +254,36 @@ export function ContentCalendarView({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Combobox
-          className="w-48"
-          options={(projects ?? []).map((p) => ({ value: p.id, label: p.name }))}
-          value={projectFilter}
-          onChange={setProjectFilter}
-          placeholder={t('contentPlan.allProjects')}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Combobox
+            className="w-44"
+            options={(projects ?? []).map((p) => ({ value: p.id, label: p.name }))}
+            value={projectFilter}
+            onChange={setProjectFilter}
+            placeholder={t('contentPlan.allProjects')}
+          />
+          <Combobox
+            className="w-40"
+            options={(platforms ?? []).map((p) => ({ value: p.id, label: pickLabel(p, i18n.language) ?? '' }))}
+            value={platformFilter}
+            onChange={setPlatformFilter}
+            placeholder={t('contentPlan.allPlatforms')}
+          />
+          <Combobox
+            className="w-40"
+            options={(contentFormats ?? []).map((f) => ({ value: f.id, label: pickLabel(f, i18n.language) ?? '' }))}
+            value={formatFilter}
+            onChange={setFormatFilter}
+            placeholder={t('contentPlan.allFormats')}
+          />
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon-sm" onClick={() => setMonth((m) => subMonths(m, 1))}>
             <ChevronLeft className="size-4" />
           </Button>
-          <h2 className="w-36 text-center text-sm font-semibold capitalize">
+          <h2 className="w-40 text-center text-base font-semibold capitalize">
             {format(month, 'LLLL yyyy', { locale })}
           </h2>
           <Button variant="ghost" size="icon-sm" onClick={() => setMonth((m) => addMonths(m, 1))}>
@@ -267,9 +296,9 @@ export function ContentCalendarView({
       </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border text-sm">
+        <div className="grid grid-cols-7 overflow-hidden rounded-lg border border-border [&>*]:border-b [&>*]:border-r [&>*:nth-child(7n)]:border-r-0">
           {weekDayLabels.map((label) => (
-            <div key={label} className="bg-muted/60 py-2 text-center font-medium text-muted-foreground">
+            <div key={label} className="bg-muted/40 py-3 text-center text-sm font-medium text-muted-foreground">
               {label}
             </div>
           ))}
@@ -281,20 +310,20 @@ export function ContentCalendarView({
                 key={key}
                 dateKey={key}
                 onClick={() => onCreate(key)}
-                className={cn(!isSameMonth(day, month) && 'bg-muted/30 text-muted-foreground')}
+                className={cn(!isSameMonth(day, month) && 'bg-muted/20 text-muted-foreground')}
               >
                 <div className="flex items-center justify-between">
                   <span
                     className={cn(
-                      'w-fit rounded-full px-2 py-0.5 text-xs',
-                      isToday(day) && 'bg-brand-500 font-semibold text-white'
+                      'flex size-7 w-fit items-center justify-center rounded-full px-2 text-sm',
+                      isToday(day) && 'bg-primary font-semibold text-primary-foreground'
                     )}
                   >
                     {format(day, 'd')}
                   </span>
-                  <Plus className="size-3 text-muted-foreground opacity-0 group-hover/day:opacity-100" />
+                  <Plus className="size-3.5 text-muted-foreground opacity-0 group-hover/day:opacity-100" />
                 </div>
-                <div className="flex flex-col gap-1 overflow-y-auto">
+                <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
                   {dayItems.map((item) => (
                     <DraggableItemCard
                       key={item.id}

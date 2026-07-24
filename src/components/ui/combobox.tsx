@@ -33,13 +33,13 @@ function Combobox({
     >
       <div
         className={cn(
-          "flex h-8 w-full items-center gap-1.5 rounded-lg border border-input bg-transparent pr-2 pl-2.5 text-sm transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30",
+          "flex h-9 w-full items-center gap-1.5 rounded-lg border border-input bg-transparent pr-2 pl-2.5 text-sm transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30",
           className
         )}
       >
         <ComboboxPrimitive.Input
           placeholder={placeholder}
-          className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          className="h-full min-w-0 flex-1 truncate bg-transparent text-sm outline-none placeholder:text-muted-foreground placeholder:truncate"
         />
         {value && (
           <ComboboxPrimitive.Clear

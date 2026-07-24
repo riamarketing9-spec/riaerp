@@ -287,6 +287,7 @@ export const uz = {
     allProjects: 'Barcha loyihalar',
     searchProjects: 'Loyiha nomi bo\'yicha qidiruv',
     allPlatforms: 'Barcha platformalar',
+    allFormats: 'Barcha formatlar',
     dateFrom: 'Sanadan',
     dateTo: 'Sanagacha',
     resetFilters: 'Tozalash',

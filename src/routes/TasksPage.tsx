@@ -149,7 +149,7 @@ export function TasksPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">{t('tasks.title')}</h1>
+        <h1 className="text-4xl font-bold tracking-tight">{t('tasks.title')}</h1>
         <NewTaskButton />
       </div>
 

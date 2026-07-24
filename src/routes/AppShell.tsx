@@ -49,23 +49,16 @@ function NavItem({
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm font-medium transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.98]',
+          'group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors duration-150',
           isActive
-            ? 'bg-[linear-gradient(to_bottom,var(--primary),color-mix(in_oklch,var(--primary),black_10%))] text-white shadow-brand'
-            : 'text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]'
+            ? 'bg-muted text-foreground'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
         )
       }
     >
       {({ isActive }) => (
         <>
-          <span
-            className={cn(
-              'flex size-7 shrink-0 items-center justify-center rounded-lg transition-colors',
-              isActive ? 'bg-white/15' : 'bg-transparent'
-            )}
-          >
-            <Icon className={cn('size-4', isActive ? 'text-white' : 'text-muted-foreground')} strokeWidth={2.25} />
-          </span>
+          <Icon className={cn('size-4.5 shrink-0', isActive ? 'text-foreground' : 'text-muted-foreground')} strokeWidth={1.75} />
           {label}
         </>
       )}
@@ -217,7 +210,7 @@ export function AppShell() {
 
       {nav}
 
-      <div className="mt-3 flex items-center gap-2 rounded-xl bg-background/60 px-2.5 py-2.5 shadow-sm ring-1 ring-foreground/[0.04]">
+      <div className="mt-3 flex items-center gap-2 rounded-lg px-2.5 py-2.5 hover:bg-accent">
         {profile && <SelfAvatarUpload profileId={profile.id} name={profile.full_name} avatarUrl={profile.avatar_url} />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{profile?.full_name}</p>
@@ -259,12 +252,12 @@ export function AppShell() {
         </div>
       )}
 
-      <aside className="hidden w-72 shrink-0 flex-col bg-white/90 px-3.5 py-5 shadow-[1px_0_0_rgb(0_0_0_/_0.05),_8px_0_32px_rgb(15_23_20_/_0.06)] backdrop-blur-xl dark:bg-black/30 dark:shadow-[1px_0_0_rgb(255_255_255_/_0.06)] md:flex">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-background px-3.5 py-5 md:flex">
         {sidebarInner}
       </aside>
 
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-10 md:px-10">
+        <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-8 sm:py-10 md:px-10">
           <Outlet />
         </div>
       </main>

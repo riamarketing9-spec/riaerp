@@ -45,7 +45,7 @@ export function ContentPlanPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('content_plan_items')
-        .select('id, topic, project_id, status_id, shoot_date, publish_date')
+        .select('id, topic, project_id, status_id, format_id, shoot_date, publish_date')
         .order('publish_date', { ascending: true, nullsFirst: false })
       if (error) throw error
       return data
@@ -102,6 +102,15 @@ export function ContentPlanPage() {
     queryKey: ['platforms'],
     queryFn: async () => {
       const { data, error } = await supabase.from('platforms').select('id, label_ru, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: contentFormats } = useQuery({
+    queryKey: ['content_formats'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('content_formats').select('id, slug, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -173,7 +182,7 @@ export function ContentPlanPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">{t('contentPlan.title')}</h1>
+        <h1 className="text-4xl font-bold tracking-tight">{t('contentPlan.title')}</h1>
         <Button onClick={openCreate}>
           <Plus />
           {t('contentPlan.newItem')}
@@ -328,6 +337,7 @@ export function ContentPlanPage() {
             statuses={statuses}
             itemPlatforms={itemPlatforms}
             platforms={platforms}
+            contentFormats={contentFormats}
             onOpen={openEdit}
             onCreate={openCreateWithDate}
             onMove={handleMove}
