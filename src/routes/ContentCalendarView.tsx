@@ -158,7 +158,7 @@ function DroppableDayCell({
     <div
       ref={setNodeRef}
       onClick={onClick}
-      className={cn('group/day flex min-h-52 cursor-pointer flex-col gap-2 bg-card p-3', isOver && 'ring-2 ring-inset ring-brand-400', className)}
+      className={cn('group/day flex min-h-40 cursor-pointer flex-col gap-2 bg-card p-3', isOver && 'ring-2 ring-inset ring-brand-400', className)}
     >
       {children}
     </div>

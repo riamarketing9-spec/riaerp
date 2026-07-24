@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Combobox } from '@/components/ui/combobox'
 import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
+import { cn } from '@/lib/utils'
 import { ExternalLink } from 'lucide-react'
 
 type ContentItem = {
@@ -26,6 +27,17 @@ type ContentItem = {
 }
 
 type Lookup = { id: string; slug?: string; label_ru: string; label_uz: string }
+
+// Same per-status colors as the calendar card view — the status pill is the
+// one place color carries meaning, everything else in the table stays plain.
+const STATUS_BADGE_COLORS: Record<string, string> = {
+  plan: 'bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300',
+  script: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  shoot: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  edit: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+  ready: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
+  published: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+}
 
 // Notion's "All table" view — one flat spreadsheet across every project,
 // the counterpart to the calendar's card view (same data, same filters).
@@ -69,6 +81,7 @@ export function ContentTableView({
 
   const projectName = (id: string) => projects?.find((p) => p.id === id)?.name ?? '—'
   const statusLabel = (id: string) => pickLabel(statuses?.find((s) => s.id === id), i18n.language) ?? '—'
+  const statusSlug = (id: string) => statuses?.find((s) => s.id === id)?.slug
   const formatLabel = (id?: string | null) => (id ? pickLabel(contentFormats?.find((f) => f.id === id), i18n.language) : null)
   const rubricLabel = (id?: string | null) => (id ? pickLabel(contentRubrics?.find((r) => r.id === id), i18n.language) : null)
   const platformsFor = (itemId: string) =>
@@ -131,7 +144,12 @@ export function ContentTableView({
                 <TableCell className="font-medium">{item.topic}</TableCell>
                 <TableCell className="text-muted-foreground">{projectName(item.project_id)}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{statusLabel(item.status_id)}</Badge>
+                  <Badge
+                    variant="secondary"
+                    className={cn(statusSlug(item.status_id) && STATUS_BADGE_COLORS[statusSlug(item.status_id)!])}
+                  >
+                    {statusLabel(item.status_id)}
+                  </Badge>
                 </TableCell>
                 <TableCell>{formatLabel(item.format_id) ?? '—'}</TableCell>
                 <TableCell>{formatLocalDate(item.publish_date, i18n.language)}</TableCell>
