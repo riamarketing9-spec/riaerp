@@ -1,0 +1,176 @@
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import { Combobox } from '@/components/ui/combobox'
+import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
+import { ExternalLink } from 'lucide-react'
+
+type ContentItem = {
+  id: string
+  topic: string
+  project_id: string
+  status_id: string
+  format_id?: string | null
+  rubric_id?: string | null
+  video_goal?: string | null
+  reference_url?: string | null
+  publish_date: string | null
+}
+
+type Lookup = { id: string; slug?: string; label_ru: string; label_uz: string }
+
+// Notion's "All table" view — one flat spreadsheet across every project,
+// the counterpart to the calendar's card view (same data, same filters).
+export function ContentTableView({
+  items,
+  projects,
+  statuses,
+  itemPlatforms,
+  platforms,
+  contentFormats,
+  contentRubrics,
+  onOpen,
+}: {
+  items: ContentItem[]
+  projects?: { id: string; name: string }[]
+  statuses?: Lookup[]
+  itemPlatforms?: { content_plan_item_id: string; platform_id: string }[]
+  platforms?: Lookup[]
+  contentFormats?: Lookup[]
+  contentRubrics?: Lookup[]
+  onOpen: (id: string) => void
+}) {
+  const { t, i18n } = useTranslation()
+  const [projectFilter, setProjectFilter] = useState('')
+  const [platformFilter, setPlatformFilter] = useState('')
+  const [formatFilter, setFormatFilter] = useState('')
+
+  const filtered = useMemo(() => {
+    return items.filter((item) => {
+      if (projectFilter && item.project_id !== projectFilter) return false
+      if (formatFilter && item.format_id !== formatFilter) return false
+      if (platformFilter) {
+        const hasPlatform = (itemPlatforms ?? []).some(
+          (ip) => ip.content_plan_item_id === item.id && ip.platform_id === platformFilter
+        )
+        if (!hasPlatform) return false
+      }
+      return true
+    })
+  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms])
+
+  const projectName = (id: string) => projects?.find((p) => p.id === id)?.name ?? '—'
+  const statusLabel = (id: string) => pickLabel(statuses?.find((s) => s.id === id), i18n.language) ?? '—'
+  const formatLabel = (id?: string | null) => (id ? pickLabel(contentFormats?.find((f) => f.id === id), i18n.language) : null)
+  const rubricLabel = (id?: string | null) => (id ? pickLabel(contentRubrics?.find((r) => r.id === id), i18n.language) : null)
+  const platformsFor = (itemId: string) =>
+    (itemPlatforms ?? [])
+      .filter((ip) => ip.content_plan_item_id === itemId)
+      .map((ip) => pickLabel(platforms?.find((p) => p.id === ip.platform_id), i18n.language))
+      .filter((l): l is string => !!l)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Combobox
+          className="w-44"
+          options={(projects ?? []).map((p) => ({ value: p.id, label: p.name }))}
+          value={projectFilter}
+          onChange={setProjectFilter}
+          placeholder={t('contentPlan.allProjects')}
+        />
+        <Combobox
+          className="w-40"
+          options={(platforms ?? []).map((p) => ({ value: p.id, label: pickLabel(p, i18n.language) ?? '' }))}
+          value={platformFilter}
+          onChange={setPlatformFilter}
+          placeholder={t('contentPlan.allPlatforms')}
+        />
+        <Combobox
+          className="w-40"
+          options={(contentFormats ?? []).map((f) => ({ value: f.id, label: pickLabel(f, i18n.language) ?? '' }))}
+          value={formatFilter}
+          onChange={setFormatFilter}
+          placeholder={t('contentPlan.allFormats')}
+        />
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('contentPlan.topic')}</TableHead>
+              <TableHead>{t('projects.title')}</TableHead>
+              <TableHead>{t('contentPlan.status')}</TableHead>
+              <TableHead>{t('contentPlan.format')}</TableHead>
+              <TableHead>{t('contentPlan.publishDate')}</TableHead>
+              <TableHead>{t('contentPlan.platforms')}</TableHead>
+              <TableHead>{t('contentPlan.rubric')}</TableHead>
+              <TableHead>{t('contentPlan.videoGoal')}</TableHead>
+              <TableHead>{t('contentPlan.referenceUrl')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center text-muted-foreground">
+                  {t('contentPlan.empty')}
+                </TableCell>
+              </TableRow>
+            )}
+            {filtered.map((item) => (
+              <TableRow key={item.id} className="cursor-pointer" onClick={() => onOpen(item.id)}>
+                <TableCell className="font-medium">{item.topic}</TableCell>
+                <TableCell className="text-muted-foreground">{projectName(item.project_id)}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary">{statusLabel(item.status_id)}</Badge>
+                </TableCell>
+                <TableCell>{formatLabel(item.format_id) ?? '—'}</TableCell>
+                <TableCell>{formatLocalDate(item.publish_date, i18n.language)}</TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {platformsFor(item.id).map((label) => (
+                      <Badge key={label} variant="outline" className="text-[11px]">
+                        {label}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {rubricLabel(item.rubric_id) ? (
+                    <Badge variant="secondary">{rubricLabel(item.rubric_id)}</Badge>
+                  ) : (
+                    '—'
+                  )}
+                </TableCell>
+                <TableCell className="max-w-48 truncate text-muted-foreground">{item.video_goal || '—'}</TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  {item.reference_url ? (
+                    <a
+                      href={item.reference_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <ExternalLink className="size-3.5" />
+                    </a>
+                  ) : (
+                    '—'
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  )
+}

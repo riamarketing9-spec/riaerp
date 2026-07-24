@@ -281,6 +281,7 @@ export const ru = {
     referenceUrl: 'Ссылка/референс',
     calendarView: 'Календарь',
     foldersView: 'Папки',
+    tableView: 'Таблица',
     today: 'Сегодня',
     deliverableType: 'Тип работы (для расчёта зарплаты)',
     filters: 'Фильтры',

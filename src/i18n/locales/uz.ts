@@ -281,6 +281,7 @@ export const uz = {
     referenceUrl: 'Havola/referens',
     calendarView: 'Kalendar',
     foldersView: 'Papkalar',
+    tableView: 'Jadval',
     today: 'Bugun',
     deliverableType: 'Ish turi (oylik hisobi uchun)',
     filters: 'Filtrlar',

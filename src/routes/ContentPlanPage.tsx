@@ -25,6 +25,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ContentItemSheet } from './ContentItemSheet'
 import { ContentCalendarView } from './ContentCalendarView'
+import { ContentTableView } from './ContentTableView'
 import { ProjectLogoSquare } from '@/components/ProjectLogoSquare'
 import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
 import { ArrowLeft, Plus } from 'lucide-react'
@@ -45,7 +46,7 @@ export function ContentPlanPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('content_plan_items')
-        .select('id, topic, project_id, status_id, format_id, shoot_date, publish_date')
+        .select('id, topic, project_id, status_id, format_id, rubric_id, video_goal, reference_url, shoot_date, publish_date')
         .order('publish_date', { ascending: true, nullsFirst: false })
       if (error) throw error
       return data
@@ -111,6 +112,15 @@ export function ContentPlanPage() {
     queryKey: ['content_formats'],
     queryFn: async () => {
       const { data, error } = await supabase.from('content_formats').select('id, slug, label_ru, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: contentRubrics } = useQuery({
+    queryKey: ['content_rubrics'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('content_rubrics').select('id, slug, label_ru, label_uz').order('sort_order')
       if (error) throw error
       return data
     },
@@ -193,6 +203,7 @@ export function ContentPlanPage() {
         <TabsList>
           <TabsTrigger value="folders">{t('contentPlan.foldersView')}</TabsTrigger>
           <TabsTrigger value="calendar">{t('contentPlan.calendarView')}</TabsTrigger>
+          <TabsTrigger value="table">{t('contentPlan.tableView')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="folders" className="flex flex-col gap-8">
@@ -341,6 +352,19 @@ export function ContentPlanPage() {
             onOpen={openEdit}
             onCreate={openCreateWithDate}
             onMove={handleMove}
+          />
+        </TabsContent>
+
+        <TabsContent value="table">
+          <ContentTableView
+            items={items ?? []}
+            projects={projects}
+            statuses={statuses}
+            itemPlatforms={itemPlatforms}
+            platforms={platforms}
+            contentFormats={contentFormats}
+            contentRubrics={contentRubrics}
+            onOpen={openEdit}
           />
         </TabsContent>
       </Tabs>
