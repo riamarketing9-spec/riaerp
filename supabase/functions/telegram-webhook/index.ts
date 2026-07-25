@@ -126,9 +126,13 @@ async function buildReport(admin: any, profileId?: string): Promise<string> {
     )
   }
 
-  const { data: profiles } = await admin.from('profiles').select('id, full_name')
+  // deno-lint-ignore no-explicit-any
+  const { data: profiles } = await admin.from('profiles').select('id, full_name, staff_statuses(slug)')
   const lines: string[] = []
-  for (const p of profiles ?? []) {
+  // deno-lint-ignore no-explicit-any
+  for (const p of (profiles ?? []) as any[]) {
+    if (p.staff_statuses?.slug === 'inactive') continue
+
     let completedQuery = admin
       .from('tasks')
       .select('id', { count: 'exact', head: true })
@@ -136,12 +140,20 @@ async function buildReport(admin: any, profileId?: string): Promise<string> {
       .gte('completed_at', dayAgo)
     if (doneStatus) completedQuery = completedQuery.eq('status_id', doneStatus.id)
     const { count: completedCount } = await completedQuery
+
+    const { count: openCount } = await admin
+      .from('tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('assignee_profile_id', p.id)
+      .neq('status_id', doneStatus?.id ?? '00000000-0000-0000-0000-000000000000')
+
     const workedMs = await workedMsToday(p.id)
-    if ((completedCount ?? 0) === 0 && workedMs === 0) continue
-    lines.push(`• <b>${escapeHtml(p.full_name)}</b>: ${completedCount ?? 0} ta vazifa bajarildi, ${formatDuration(workedMs)} ishladi`)
+    lines.push(
+      `• <b>${escapeHtml(p.full_name)}</b>: 📋 ${openCount ?? 0} faol, ✅ ${completedCount ?? 0} bajarildi (24soat), ⏱ ${formatDuration(workedMs)}`
+    )
   }
 
-  if (lines.length === 0) return "📊 <b>Umumiy hisobot</b> (so'nggi 24 soat):\n\nHozircha faoliyat yo'q."
+  if (lines.length === 0) return "📊 <b>Umumiy hisobot</b> (so'nggi 24 soat):\n\nXodimlar topilmadi."
   return `📊 <b>Umumiy hisobot</b> (so'nggi 24 soat):\n\n${lines.join('\n')}`
 }
 
@@ -305,11 +317,11 @@ Deno.serve(async (req) => {
         return
       }
 
-      await send(chatId, "Vazifani kimga berasiz?", {
+      await send(chatId, "👤 Vazifani kimga berasiz?", {
         reply_markup: {
           inline_keyboard: [
             ...active.map((p: { id: string; full_name: string }) => [
-              { text: p.full_name, callback_data: `assign_emp:${p.id}` },
+              { text: `👤 ${p.full_name}`, callback_data: `assign_emp:${p.id}` },
             ]),
             [{ text: '❌ Bekor qilish', callback_data: 'cancel_assign' }],
           ],
@@ -321,12 +333,12 @@ Deno.serve(async (req) => {
       return {
         inline_keyboard: [
           [
-            { text: 'Bugun', callback_data: 'deadline:0' },
-            { text: 'Ertaga', callback_data: 'deadline:1' },
+            { text: '🟢 Bugun', callback_data: 'deadline:0' },
+            { text: '🌅 Ertaga', callback_data: 'deadline:1' },
           ],
           [
-            { text: '3 kundan keyin', callback_data: 'deadline:3' },
-            { text: '1 haftadan keyin', callback_data: 'deadline:7' },
+            { text: '📆 3 kundan keyin', callback_data: 'deadline:3' },
+            { text: '🗓 1 haftadan keyin', callback_data: 'deadline:7' },
           ],
           [{ text: "📅 Boshqa sana", callback_data: 'deadline_manual' }],
           [{ text: '❌ Bekor qilish', callback_data: 'cancel_assign' }],
@@ -336,11 +348,11 @@ Deno.serve(async (req) => {
 
     async function sendProjectPicker(chatId: number) {
       const { data: projects } = await admin.from('projects').select('id, name').order('name')
-      await send(chatId, "Loyihaga bog'laymizmi?", {
+      await send(chatId, "📁 Loyihaga bog'laymizmi?", {
         reply_markup: {
           inline_keyboard: [
             ...(projects ?? []).map((p: { id: string; name: string }) => [
-              { text: p.name, callback_data: `project_pick:${p.id}` },
+              { text: `📁 ${p.name}`, callback_data: `project_pick:${p.id}` },
             ]),
             [{ text: '⏭ Loyihasiz', callback_data: 'project_skip' }],
             [{ text: '❌ Bekor qilish', callback_data: 'cancel_assign' }],
@@ -349,22 +361,29 @@ Deno.serve(async (req) => {
       })
     }
 
+    // One quadrant per row (not two) so the longer Uzbek labels ("Shoshilinch
+    // emas, lekin muhim" etc.) render in full instead of looking clipped in
+    // a cramped side-by-side pair.
+    const QUADRANT_EMOJI: Record<string, string> = {
+      do_now: '🔥',
+      schedule: '⭐',
+      delegate: '📌',
+      eliminate: '🗑',
+    }
+
     async function sendQuadrantPicker(chatId: number) {
       const { data: quadrants } = await admin
         .from('task_priority_quadrants')
         .select('id, slug, label_uz')
         .order('sort_order')
       const q = quadrants ?? []
-      const rows = []
-      for (let i = 0; i < q.length; i += 2) {
-        rows.push(
-          q.slice(i, i + 2).map((item: { id: string; label_uz: string }) => ({
-            text: item.label_uz,
-            callback_data: `quadrant_pick:${item.id}`,
-          }))
-        )
-      }
-      await send(chatId, 'Muhimlik darajasi?', {
+      const rows = q.map((item: { id: string; slug: string; label_uz: string }) => [
+        {
+          text: `${QUADRANT_EMOJI[item.slug] ?? '⭐'} ${item.label_uz}`,
+          callback_data: `quadrant_pick:${item.id}`,
+        },
+      ])
+      await send(chatId, '⭐ Muhimlik darajasi?', {
         reply_markup: {
           inline_keyboard: [
             ...rows,
@@ -469,11 +488,11 @@ Deno.serve(async (req) => {
     }
 
     async function sendReportPicker(chatId: number) {
-      await send(chatId, "Hisobot turi:", {
+      await send(chatId, "📊 Hisobot turi:", {
         reply_markup: {
           inline_keyboard: [
-            [{ text: 'Umumiy', callback_data: 'report_all' }],
-            [{ text: "Xodim bo'yicha", callback_data: 'report_pick' }],
+            [{ text: '📊 Umumiy', callback_data: 'report_all' }],
+            [{ text: "👤 Xodim bo'yicha", callback_data: 'report_pick' }],
           ],
         },
       })
@@ -481,10 +500,10 @@ Deno.serve(async (req) => {
 
     async function sendEmployeeReportPicker(chatId: number) {
       const { data: profiles } = await admin.from('profiles').select('id, full_name').order('full_name')
-      await send(chatId, "Qaysi xodim bo'yicha?", {
+      await send(chatId, "👤 Qaysi xodim bo'yicha?", {
         reply_markup: {
           inline_keyboard: (profiles ?? []).map((p: { id: string; full_name: string }) => [
-            { text: p.full_name, callback_data: `report_emp:${p.id}` },
+            { text: `👤 ${p.full_name}`, callback_data: `report_emp:${p.id}` },
           ]),
         },
       })
@@ -517,7 +536,7 @@ Deno.serve(async (req) => {
         }
         const assigneeProfileId = data.slice('assign_emp:'.length)
         await setState(chatId, 'awaiting_task_text', { assignee_profile_id: assigneeProfileId })
-        await send(chatId, "Vazifa nomini yuboring:")
+        await send(chatId, "📝 Vazifa nomini yuboring:")
       } else if (data.startsWith('project_pick:')) {
         await answerCallback(callbackQuery.id)
         const state = await getState(chatId)
@@ -537,13 +556,13 @@ Deno.serve(async (req) => {
         if (!state || state.state !== 'awaiting_quadrant') return new Response('ok')
         const quadrantId = data.slice('quadrant_pick:'.length)
         await setState(chatId, 'awaiting_deadline', { ...state.payload, quadrant_id: quadrantId })
-        await send(chatId, "Muddatni tanlang:", { reply_markup: deadlineKeyboard() })
+        await send(chatId, "📅 Muddatni tanlang:", { reply_markup: deadlineKeyboard() })
       } else if (data === 'quadrant_skip') {
         await answerCallback(callbackQuery.id)
         const state = await getState(chatId)
         if (!state || state.state !== 'awaiting_quadrant') return new Response('ok')
         await setState(chatId, 'awaiting_deadline', state.payload)
-        await send(chatId, "Muddatni tanlang:", { reply_markup: deadlineKeyboard() })
+        await send(chatId, "📅 Muddatni tanlang:", { reply_markup: deadlineKeyboard() })
       } else if (data.startsWith('deadline:')) {
         await answerCallback(callbackQuery.id)
         const state = await getState(chatId)

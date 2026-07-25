@@ -76,9 +76,13 @@ async function buildReport(admin: any, profileId?: string): Promise<string> {
     )
   }
 
-  const { data: profiles } = await admin.from('profiles').select('id, full_name')
+  // deno-lint-ignore no-explicit-any
+  const { data: profiles } = await admin.from('profiles').select('id, full_name, staff_statuses(slug)')
   const lines: string[] = []
-  for (const p of profiles ?? []) {
+  // deno-lint-ignore no-explicit-any
+  for (const p of (profiles ?? []) as any[]) {
+    if (p.staff_statuses?.slug === 'inactive') continue
+
     let completedQuery = admin
       .from('tasks')
       .select('id', { count: 'exact', head: true })
@@ -86,12 +90,20 @@ async function buildReport(admin: any, profileId?: string): Promise<string> {
       .gte('completed_at', dayAgo)
     if (doneStatus) completedQuery = completedQuery.eq('status_id', doneStatus.id)
     const { count: completedCount } = await completedQuery
+
+    const { count: openCount } = await admin
+      .from('tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('assignee_profile_id', p.id)
+      .neq('status_id', doneStatus?.id ?? '00000000-0000-0000-0000-000000000000')
+
     const workedMs = await workedMsToday(p.id)
-    if ((completedCount ?? 0) === 0 && workedMs === 0) continue
-    lines.push(`• <b>${escapeHtml(p.full_name)}</b>: ${completedCount ?? 0} ta vazifa bajarildi, ${formatDuration(workedMs)} ishladi`)
+    lines.push(
+      `• <b>${escapeHtml(p.full_name)}</b>: 📋 ${openCount ?? 0} faol, ✅ ${completedCount ?? 0} bajarildi (24soat), ⏱ ${formatDuration(workedMs)}`
+    )
   }
 
-  if (lines.length === 0) return "📊 <b>Umumiy hisobot</b> (so'nggi 24 soat):\n\nHozircha faoliyat yo'q."
+  if (lines.length === 0) return "📊 <b>Umumiy hisobot</b> (so'nggi 24 soat):\n\nXodimlar topilmadi."
   return `📊 <b>Umumiy hisobot</b> (so'nggi 24 soat):\n\n${lines.join('\n')}`
 }
 
