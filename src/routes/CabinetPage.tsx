@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { PeriodicChecklist } from './PeriodicChecklist'
 import { TaskSheet } from './TaskSheet'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
 import { formatLocalDate } from '@/lib/localizedLabel'
@@ -372,12 +371,6 @@ export function CabinetPage() {
           <TodayContentWidget />
         </div>
       )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <PeriodicChecklist cadenceSlug="daily" title={t('checklist.daily')} />
-        <PeriodicChecklist cadenceSlug="weekly" title={t('checklist.weekly')} />
-        <PeriodicChecklist cadenceSlug="monthly" title={t('checklist.monthly')} />
-      </div>
 
       <Card>
         <CardHeader>

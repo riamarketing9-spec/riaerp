@@ -30,7 +30,6 @@ export const uz = {
     docs: 'Hujjatlar',
     audit: 'Amallar jurnali',
     attendance: 'Xodimlar ish vaqti',
-    checklistAdmin: 'Cheklist shablonlari',
     lookupAdmin: "Ma'lumotnomalar",
   },
   attendance: {
@@ -89,6 +88,7 @@ export const uz = {
     allEmployees: 'Barcha xodimlar',
     empty: "Hozircha yozuvlar yo'q",
     system: 'Tizim',
+    details: "Nima o'zgardi",
   },
   projects: {
     title: 'Loyihalar',
@@ -298,12 +298,6 @@ export const uz = {
   kanban: {
     title: 'Vazifalar kanban',
   },
-  checklist: {
-    daily: 'Kunlik checklist',
-    weekly: 'Haftalik tahlil',
-    monthly: 'Oyni yakunlash',
-    note: 'Izoh',
-  },
   kb: {
     title: 'Bilimlar bazasi',
     newArticle: 'Yangi maqola',
@@ -370,26 +364,6 @@ export const uz = {
     periodStart: 'Davr boshi',
     periodEnd: 'Davr oxiri',
     generating: 'Yaratilmoqda...',
-  },
-  checklistAdmin: {
-    title: 'Cheklist shablonlari',
-    newTemplate: 'Yangi shablon',
-    templateTitle: 'Shablon nomi',
-    cadence: 'Davriylik',
-    cadence_daily: 'Har kuni',
-    cadence_weekly: 'Har hafta',
-    cadence_monthly: 'Har oy',
-    appliesToAll: "Barchaga qo'llaniladi",
-    role: 'Rol (ixtiyoriy)',
-    department: "Bo'lim (ixtiyoriy)",
-    noRole: "Istalgan rol",
-    noDepartment: "Istalgan bo'lim",
-    addItem: "Band qo'shish",
-    labelRu: 'Matn (rus)',
-    labelUz: 'Matn (uzb)',
-    requiresNote: 'Izoh talab qiladi',
-    empty: 'Hozircha shablonlar yo\'q',
-    emptyItems: "Hozircha bandlar yo'q",
   },
   lookupManager: {
     title: "Ma'lumotnomalar",

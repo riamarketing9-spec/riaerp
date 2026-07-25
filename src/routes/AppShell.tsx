@@ -20,7 +20,6 @@ import {
   X,
   ScrollText,
   Clock,
-  ListChecks,
   ListTree,
   Pencil,
 } from 'lucide-react'
@@ -138,7 +137,6 @@ export function AppShell() {
   const canSeeProjects = hasCapability('projects.manage') || hasCapability('projects.read_scoped')
   const canSeeSales = hasCapability('sales.read') || hasCapability('sales.manage')
   const canSeeFinance = hasCapability('finance.read') || hasCapability('finance.write')
-  const canSeeChecklistAdmin = hasCapability('org.full_access')
   const canSeeLookupAdmin = hasCapability('org.full_access')
 
   const closeMobileNav = () => setMobileNavOpen(false)
@@ -176,14 +174,6 @@ export function AppShell() {
         <NavItem to="/audit" icon={ScrollText} label={t('nav.audit')} onNavigate={closeMobileNav} />
       )}
       <NavItem to="/attendance" icon={Clock} label={t('nav.attendance')} onNavigate={closeMobileNav} />
-      {canSeeChecklistAdmin && (
-        <NavItem
-          to="/checklist-templates"
-          icon={ListChecks}
-          label={t('nav.checklistAdmin')}
-          onNavigate={closeMobileNav}
-        />
-      )}
       {canSeeLookupAdmin && (
         <NavItem to="/lookups" icon={ListTree} label={t('nav.lookupAdmin')} onNavigate={closeMobileNav} />
       )}

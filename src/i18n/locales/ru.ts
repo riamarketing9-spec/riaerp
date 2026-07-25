@@ -30,7 +30,6 @@ export const ru = {
     docs: 'Документы',
     audit: 'Журнал действий',
     attendance: 'Учёт рабочего времени',
-    checklistAdmin: 'Шаблоны чек-листов',
     lookupAdmin: 'Справочники',
   },
   attendance: {
@@ -89,6 +88,7 @@ export const ru = {
     allEmployees: 'Все сотрудники',
     empty: 'Записей пока нет',
     system: 'Система',
+    details: 'Что изменилось',
   },
   projects: {
     title: 'Проекты',
@@ -298,12 +298,6 @@ export const ru = {
   kanban: {
     title: 'Канбан задач',
   },
-  checklist: {
-    daily: 'Ежедневный чек-лист',
-    weekly: 'Еженедельный разбор',
-    monthly: 'Закрытие месяца',
-    note: 'Заметка',
-  },
   kb: {
     title: 'База знаний',
     newArticle: 'Новая статья',
@@ -370,26 +364,6 @@ export const ru = {
     periodStart: 'Начало периода',
     periodEnd: 'Конец периода',
     generating: 'Генерируем...',
-  },
-  checklistAdmin: {
-    title: 'Шаблоны чек-листов',
-    newTemplate: 'Новый шаблон',
-    templateTitle: 'Название шаблона',
-    cadence: 'Периодичность',
-    cadence_daily: 'Ежедневно',
-    cadence_weekly: 'Еженедельно',
-    cadence_monthly: 'Ежемесячно',
-    appliesToAll: 'Применяется ко всем',
-    role: 'Роль (по желанию)',
-    department: 'Отдел (по желанию)',
-    noRole: 'Любая роль',
-    noDepartment: 'Любой отдел',
-    addItem: 'Добавить пункт',
-    labelRu: 'Текст (рус)',
-    labelUz: 'Текст (узб)',
-    requiresNote: 'Требует комментарий',
-    empty: 'Шаблонов пока нет',
-    emptyItems: 'Пунктов пока нет',
   },
   lookupManager: {
     title: 'Справочники',

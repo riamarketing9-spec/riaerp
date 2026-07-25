@@ -34,6 +34,80 @@ const TABLE_LABELS: Record<string, string> = {
   profiles: 'Сотрудники / Xodimlar',
 }
 
+// Only a handful of columns actually mean something to a human reading the
+// log -- everything else (id, timestamps the trigger itself stamps, etc.)
+// is noise. Anything not listed here just falls back to its raw column
+// name, which is still far better than nothing.
+const FIELD_LABELS: Record<string, string> = {
+  title: 'Название',
+  name: 'Название',
+  full_name: 'Имя',
+  topic: 'Тема',
+  status_id: 'Статус',
+  quadrant_id: 'Приоритет',
+  deadline: 'Дедлайн',
+  percent_complete: 'Готовность, %',
+  assignee_profile_id: 'Исполнитель',
+  pm_profile_id: 'Менеджер проекта',
+  project_id: 'Проект',
+  client_id: 'Клиент',
+  logo_url: 'Логотип',
+  goal: 'Цель',
+  amount: 'Сумма',
+  shoot_date: 'Дата съёмки',
+  publish_date: 'Дата публикации',
+  format_id: 'Формат',
+  rubric_id: 'Рубрика',
+  reference_url: 'Ссылка',
+  storage_path: 'Файл',
+  role_id: 'Роль',
+  department_id: 'Отдел',
+  is_active: 'Активен',
+  phone: 'Телефон',
+  email: 'Email',
+  avatar_url: 'Фото',
+}
+
+const IGNORED_DIFF_FIELDS = new Set(['id', 'created_at', 'updated_at'])
+
+const DATE_FIELDS = new Set(['deadline', 'shoot_date', 'publish_date', 'completed_at', 'billing_day'])
+
+type Diff = { old?: Record<string, unknown>; new?: Record<string, unknown> } | null
+
+function recordLabel(diff: Diff): string | null {
+  const obj = diff?.new ?? diff?.old
+  if (!obj) return null
+  const candidate = obj.title ?? obj.name ?? obj.full_name ?? obj.topic ?? obj.label_ru
+  return typeof candidate === 'string' && candidate.trim() ? candidate : null
+}
+
+function formatDiffValue(field: string, value: unknown, profiles?: { id: string; full_name: string }[]): string {
+  if (value === null || value === undefined || value === '') return '—'
+  if (field.endsWith('_profile_id') && typeof value === 'string') {
+    return profiles?.find((p) => p.id === value)?.full_name ?? value.slice(0, 8)
+  }
+  if (typeof value === 'boolean') return value ? 'Да' : 'Нет'
+  if (DATE_FIELDS.has(field) && typeof value === 'string') {
+    const d = new Date(value)
+    if (!Number.isNaN(d.getTime())) return d.toLocaleDateString('ru-RU')
+  }
+  const str = String(value)
+  return str.length > 50 ? str.slice(0, 50) + '…' : str
+}
+
+function changedFields(diff: Diff): { field: string; from: unknown; to: unknown }[] {
+  if (!diff?.old || !diff?.new) return []
+  const keys = new Set([...Object.keys(diff.old), ...Object.keys(diff.new)])
+  const changes: { field: string; from: unknown; to: unknown }[] = []
+  for (const key of keys) {
+    if (IGNORED_DIFF_FIELDS.has(key)) continue
+    const a = diff.old[key]
+    const b = diff.new[key]
+    if (JSON.stringify(a) !== JSON.stringify(b)) changes.push({ field: key, from: a, to: b })
+  }
+  return changes
+}
+
 export function AuditLogPage() {
   const { t, i18n } = useTranslation()
   const [tableFilter, setTableFilter] = useState('')
@@ -44,11 +118,19 @@ export function AuditLogPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('audit_log')
-        .select('id, table_name, record_id, action, actor_profile_id, changed_at')
+        .select('id, table_name, record_id, action, actor_profile_id, changed_at, diff')
         .order('changed_at', { ascending: false })
         .limit(300)
       if (error) throw error
-      return data
+      return data as unknown as {
+        id: string
+        table_name: string
+        record_id: string | null
+        action: string
+        actor_profile_id: string | null
+        changed_at: string
+        diff: Diff
+      }[]
     },
   })
 
@@ -129,39 +211,59 @@ export function AuditLogPage() {
               <TableHead>{t('audit.actor')}</TableHead>
               <TableHead>{t('audit.action')}</TableHead>
               <TableHead>{t('audit.table')}</TableHead>
+              <TableHead>{t('audit.details')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   {t('common.loading')}...
                 </TableCell>
               </TableRow>
             )}
             {!isLoading && filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   {t('audit.empty')}
                 </TableCell>
               </TableRow>
             )}
-            {filtered.map((log) => (
-              <TableRow key={log.id}>
-                <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                  {formatLocalDate(log.changed_at, i18n.language)}{' '}
-                  {new Date(log.changed_at).toLocaleTimeString(i18n.language.startsWith('uz') ? 'uz-Latn-UZ' : 'ru-RU', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </TableCell>
-                <TableCell className="font-medium">{actorName(log.actor_profile_id)}</TableCell>
-                <TableCell>
-                  <Badge variant={actionVariant(log.action)}>{actionLabel(log.action)}</Badge>
-                </TableCell>
-                <TableCell>{TABLE_LABELS[log.table_name] ?? log.table_name}</TableCell>
-              </TableRow>
-            ))}
+            {filtered.map((log) => {
+              const label = recordLabel(log.diff)
+              const changes = log.action === 'update' ? changedFields(log.diff) : []
+              return (
+                <TableRow key={log.id}>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                    {formatLocalDate(log.changed_at, i18n.language)}{' '}
+                    {new Date(log.changed_at).toLocaleTimeString(i18n.language.startsWith('uz') ? 'uz-Latn-UZ' : 'ru-RU', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </TableCell>
+                  <TableCell className="font-medium">{actorName(log.actor_profile_id)}</TableCell>
+                  <TableCell>
+                    <Badge variant={actionVariant(log.action)}>{actionLabel(log.action)}</Badge>
+                  </TableCell>
+                  <TableCell>{TABLE_LABELS[log.table_name] ?? log.table_name}</TableCell>
+                  <TableCell className="max-w-md">
+                    {label && <p className="text-sm font-medium">{label}</p>}
+                    {changes.length > 0 && (
+                      <ul className="flex flex-col gap-0.5">
+                        {changes.map((c) => (
+                          <li key={c.field} className="text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">{FIELD_LABELS[c.field] ?? c.field}</span>
+                            {': '}
+                            {formatDiffValue(c.field, c.from, profiles)} → {formatDiffValue(c.field, c.to, profiles)}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {!label && changes.length === 0 && <span className="text-xs text-muted-foreground">—</span>}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </div>
