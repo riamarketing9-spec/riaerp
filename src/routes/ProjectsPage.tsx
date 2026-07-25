@@ -28,6 +28,7 @@ export function ProjectsPage() {
         .select(
           'id, name, logo_url, goal, deliverables_text, target_audience, target_audience_voice_url, target_audience_file_url, billing_day, project_type_id, status_id, pm_profile_id, client_id'
         )
+        .order('name')
       if (error) throw error
       return data
     },

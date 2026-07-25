@@ -96,7 +96,7 @@ export function ContentPlanPage() {
   const { data: projects } = useQuery({
     queryKey: ['projects-lookup'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('projects').select('id, name, logo_url')
+      const { data, error } = await supabase.from('projects').select('id, name, logo_url').order('name')
       if (error) throw error
       return data
     },
@@ -251,11 +251,7 @@ export function ContentPlanPage() {
                     className="cursor-pointer overflow-hidden transition-colors hover:bg-accent"
                     onClick={() => setSelectedProjectId(p.id)}
                   >
-                    <ProjectLogoSquare
-                      projectId={p.id}
-                      logoUrl={p.logo_url}
-                      onUploaded={() => queryClient.invalidateQueries({ queryKey: ['projects-lookup'] })}
-                    />
+                    <ProjectLogoSquare logoUrl={p.logo_url} />
                     <CardContent className="flex flex-col items-center gap-1.5 py-3">
                       <p className="text-center text-sm font-medium">{p.name}</p>
                       <Badge variant="secondary">{itemCountFor(p.id)}</Badge>

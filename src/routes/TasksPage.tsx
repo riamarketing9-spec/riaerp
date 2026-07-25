@@ -127,12 +127,18 @@ export function TasksPage() {
   }, [tasks, profiles])
 
   // Open tasks keep the view's own sort_score/deadline order; completed
-  // tasks sink to the bottom, most-recently-completed first.
+  // tasks sink to the bottom, most-recently-completed first. "Completed"
+  // here means status = done OR all subtasks checked off (100%) -- staff
+  // routinely finish a task by ticking off its checklist and never touch
+  // the status dropdown, so status_id alone misses most of what people
+  // actually consider "yakunlandi" and left it stuck at the top by its old
+  // priority/deadline score.
   const sortedTasks = useMemo(() => {
     if (!tasks) return tasks
-    const open = tasks.filter((t) => t.status_id !== doneStatusId)
+    const isDone = (t: (typeof tasks)[number]) => t.status_id === doneStatusId || t.percent_complete >= 100
+    const open = tasks.filter((t) => !isDone(t))
     const done = tasks
-      .filter((t) => t.status_id === doneStatusId)
+      .filter((t) => isDone(t))
       .slice()
       .sort((a, b) => new Date(b.completed_at ?? b.deadline ?? 0).getTime() - new Date(a.completed_at ?? a.deadline ?? 0).getTime())
     return [...open, ...done]

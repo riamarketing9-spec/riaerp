@@ -62,7 +62,7 @@ export function ContentItemSheet({
   const { data: projects } = useQuery({
     queryKey: ['projects-lookup'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('projects').select('id, name, logo_url')
+      const { data, error } = await supabase.from('projects').select('id, name, logo_url').order('name')
       if (error) throw error
       return data
     },
