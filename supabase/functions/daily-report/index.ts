@@ -15,6 +15,10 @@ function tashkentMidnightUtc(): Date {
   return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), -TASHKENT_OFFSET_HOURS, 0, 0))
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 // deno-lint-ignore no-explicit-any
 async function buildReport(admin: any, profileId?: string): Promise<string> {
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
@@ -64,11 +68,11 @@ async function buildReport(admin: any, profileId?: string): Promise<string> {
     const workedMs = await workedMsToday(profileId)
 
     return (
-      `📊 ${profile.full_name} bo'yicha hisobot (so'nggi 24 soat):\n\n` +
-      `✅ Bajarilgan vazifalar: ${completed?.length ?? 0}\n` +
+      `📊 <b>${escapeHtml(profile.full_name)}</b> bo'yicha hisobot (so'nggi 24 soat):\n\n` +
+      `✅ Bajarilgan vazifalar: <b>${completed?.length ?? 0}</b>\n` +
       // deno-lint-ignore no-explicit-any
-      `📋 Ochiq vazifalar: ${(openTasks as any)?.length ?? (openTasks as any)?.count ?? 0}\n` +
-      `⏱ Bugun ishlagan vaqti: ${formatDuration(workedMs)}`
+      `📋 Ochiq vazifalar: <b>${(openTasks as any)?.length ?? (openTasks as any)?.count ?? 0}</b>\n` +
+      `⏱ Bugun ishlagan vaqti: <b>${formatDuration(workedMs)}</b>`
     )
   }
 
@@ -84,11 +88,11 @@ async function buildReport(admin: any, profileId?: string): Promise<string> {
     const { count: completedCount } = await completedQuery
     const workedMs = await workedMsToday(p.id)
     if ((completedCount ?? 0) === 0 && workedMs === 0) continue
-    lines.push(`• ${p.full_name}: ${completedCount ?? 0} ta vazifa bajarildi, ${formatDuration(workedMs)} ishladi`)
+    lines.push(`• <b>${escapeHtml(p.full_name)}</b>: ${completedCount ?? 0} ta vazifa bajarildi, ${formatDuration(workedMs)} ishladi`)
   }
 
-  if (lines.length === 0) return "📊 Umumiy hisobot (so'nggi 24 soat):\n\nHozircha faoliyat yo'q."
-  return `📊 Umumiy hisobot (so'nggi 24 soat):\n\n${lines.join('\n')}`
+  if (lines.length === 0) return "📊 <b>Umumiy hisobot</b> (so'nggi 24 soat):\n\nHozircha faoliyat yo'q."
+  return `📊 <b>Umumiy hisobot</b> (so'nggi 24 soat):\n\n${lines.join('\n')}`
 }
 
 Deno.serve(async (req) => {
@@ -124,7 +128,11 @@ Deno.serve(async (req) => {
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: `🕘 Kunlik hisobot (21:00):\n\n${report}` }),
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `🕘 <b>Kunlik hisobot</b> (21:00):\n\n${report}`,
+          parse_mode: 'HTML',
+        }),
       })
     }
 

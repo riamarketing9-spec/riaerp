@@ -52,6 +52,23 @@ function tashkentMidnightUtc(): Date {
   return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), -TASHKENT_OFFSET_HOURS, 0, 0))
 }
 
+// Every message now renders as HTML (parse_mode below) so task titles/names
+// can be bolded -- anything interpolated from user/DB content has to be
+// escaped first or a stray "<"/"&" in a title breaks the whole message.
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// Mirrors the web app's own auto-derivation (TaskSheet.tsx suggestTermSlug):
+// short/medium/long term purely from how many days out the deadline is.
+function suggestTermSlug(deadline: Date | null): 'qisqa' | 'orta' | 'uzoq' {
+  if (!deadline) return 'orta'
+  const days = (deadline.getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+  if (days <= 3) return 'qisqa'
+  if (days <= 10) return 'orta'
+  return 'uzoq'
+}
+
 // deno-lint-ignore no-explicit-any
 async function buildReport(admin: any, profileId?: string): Promise<string> {
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
@@ -101,11 +118,11 @@ async function buildReport(admin: any, profileId?: string): Promise<string> {
     const workedMs = await workedMsToday(profileId)
 
     return (
-      `📊 ${profile.full_name} bo'yicha hisobot (so'nggi 24 soat):\n\n` +
-      `✅ Bajarilgan vazifalar: ${completed?.length ?? 0}\n` +
+      `📊 <b>${escapeHtml(profile.full_name)}</b> bo'yicha hisobot (so'nggi 24 soat):\n\n` +
+      `✅ Bajarilgan vazifalar: <b>${completed?.length ?? 0}</b>\n` +
       // deno-lint-ignore no-explicit-any
-      `📋 Ochiq vazifalar: ${(openTasks as any)?.length ?? (openTasks as any)?.count ?? 0}\n` +
-      `⏱ Bugun ishlagan vaqti: ${formatDuration(workedMs)}`
+      `📋 Ochiq vazifalar: <b>${(openTasks as any)?.length ?? (openTasks as any)?.count ?? 0}</b>\n` +
+      `⏱ Bugun ishlagan vaqti: <b>${formatDuration(workedMs)}</b>`
     )
   }
 
@@ -121,11 +138,11 @@ async function buildReport(admin: any, profileId?: string): Promise<string> {
     const { count: completedCount } = await completedQuery
     const workedMs = await workedMsToday(p.id)
     if ((completedCount ?? 0) === 0 && workedMs === 0) continue
-    lines.push(`• ${p.full_name}: ${completedCount ?? 0} ta vazifa bajarildi, ${formatDuration(workedMs)} ishladi`)
+    lines.push(`• <b>${escapeHtml(p.full_name)}</b>: ${completedCount ?? 0} ta vazifa bajarildi, ${formatDuration(workedMs)} ishladi`)
   }
 
-  if (lines.length === 0) return "📊 Umumiy hisobot (so'nggi 24 soat):\n\nHozircha faoliyat yo'q."
-  return `📊 Umumiy hisobot (so'nggi 24 soat):\n\n${lines.join('\n')}`
+  if (lines.length === 0) return "📊 <b>Umumiy hisobot</b> (so'nggi 24 soat):\n\nHozircha faoliyat yo'q."
+  return `📊 <b>Umumiy hisobot</b> (so'nggi 24 soat):\n\n${lines.join('\n')}`
 }
 
 const TASKS_KEYBOARD = {
@@ -150,7 +167,7 @@ Deno.serve(async (req) => {
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text, ...extra }),
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', ...extra }),
       })
     }
 
@@ -235,7 +252,7 @@ Deno.serve(async (req) => {
         .upsert({ chat_id: String(chatId), profile_id: profileId, telegram_label: telegramLabel ?? null }, { onConflict: 'chat_id' })
       await send(
         chatId,
-        `Tabriklaymiz, ${fullName}! Endi men sizga muddatlar yaqinlashganda eslatib turaman va "📋 Vazifalarim" tugmasi orqali joriy vazifalaringizni ko'rsataman.`,
+        `🎉 Tabriklaymiz, <b>${escapeHtml(fullName)}</b>! Endi men sizga muddatlar yaqinlashganda eslatib turaman va "📋 Vazifalarim" tugmasi orqali joriy vazifalaringizni ko'rsataman.`,
         { reply_markup: await keyboardFor(chatId) }
       )
     }
@@ -269,10 +286,10 @@ Deno.serve(async (req) => {
         const deadline = t.deadline
           ? new Date(t.deadline).toLocaleDateString('uz-Latn-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' })
           : "muddatsiz"
-        const botTag = t.created_via_telegram ? ' [bot]' : ''
-        return `• ${t.title}${botTag} — ${deadline}`
+        const botTag = t.created_via_telegram ? ' 🤖' : ''
+        return `• <b>${escapeHtml(t.title)}</b>${botTag} — ${deadline}`
       })
-      await send(chatId, `Sizning faol vazifalaringiz:\n\n${lines.join('\n')}`)
+      await send(chatId, `📋 <b>Sizning faol vazifalaringiz:</b>\n\n${lines.join('\n')}`)
     }
 
     async function startAssignFlow(chatId: number) {
@@ -317,21 +334,108 @@ Deno.serve(async (req) => {
       }
     }
 
-    async function createTaskFromBot(chatId: number, assigneeProfileId: string, title: string, deadline: Date | null) {
+    async function sendProjectPicker(chatId: number) {
+      const { data: projects } = await admin.from('projects').select('id, name').order('name')
+      await send(chatId, "Loyihaga bog'laymizmi?", {
+        reply_markup: {
+          inline_keyboard: [
+            ...(projects ?? []).map((p: { id: string; name: string }) => [
+              { text: p.name, callback_data: `project_pick:${p.id}` },
+            ]),
+            [{ text: '⏭ Loyihasiz', callback_data: 'project_skip' }],
+            [{ text: '❌ Bekor qilish', callback_data: 'cancel_assign' }],
+          ],
+        },
+      })
+    }
+
+    async function sendQuadrantPicker(chatId: number) {
+      const { data: quadrants } = await admin
+        .from('task_priority_quadrants')
+        .select('id, slug, label_uz')
+        .order('sort_order')
+      const q = quadrants ?? []
+      const rows = []
+      for (let i = 0; i < q.length; i += 2) {
+        rows.push(
+          q.slice(i, i + 2).map((item: { id: string; label_uz: string }) => ({
+            text: item.label_uz,
+            callback_data: `quadrant_pick:${item.id}`,
+          }))
+        )
+      }
+      await send(chatId, 'Muhimlik darajasi?', {
+        reply_markup: {
+          inline_keyboard: [
+            ...rows,
+            [{ text: "⏭ O'tkazib yuborish", callback_data: 'quadrant_skip' }],
+            [{ text: '❌ Bekor qilish', callback_data: 'cancel_assign' }],
+          ],
+        },
+      })
+    }
+
+    async function sendConfirmSummary(chatId: number, payload: Record<string, string>) {
+      const { data: assignee } = await admin
+        .from('profiles')
+        .select('full_name')
+        .eq('id', payload.assignee_profile_id)
+        .maybeSingle()
+      const projectName = payload.project_id
+        ? (await admin.from('projects').select('name').eq('id', payload.project_id).maybeSingle()).data?.name
+        : null
+      const quadrantLabel = payload.quadrant_id
+        ? (await admin.from('task_priority_quadrants').select('label_uz').eq('id', payload.quadrant_id).maybeSingle()).data
+            ?.label_uz
+        : null
+      const deadlineText = payload.deadline
+        ? new Date(payload.deadline).toLocaleDateString('uz-Latn-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : 'Muddatsiz'
+
+      const summary =
+        `📝 <b>Vazifani tekshiring:</b>\n\n` +
+        `👤 Kimga: <b>${escapeHtml(assignee?.full_name ?? '—')}</b>\n` +
+        `📌 Nomi: <b>${escapeHtml(payload.title)}</b>\n` +
+        `📁 Loyiha: ${projectName ? escapeHtml(projectName) : 'Loyihasiz'}\n` +
+        `⭐ Muhimlik: ${quadrantLabel ? escapeHtml(quadrantLabel) : 'Belgilanmagan'}\n` +
+        `📅 Muddat: ${deadlineText}`
+
+      await send(chatId, summary, {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ Tasdiqlash', callback_data: 'confirm_create' }],
+            [{ text: '❌ Bekor qilish', callback_data: 'cancel_assign' }],
+          ],
+        },
+      })
+    }
+
+    async function createTaskFromBot(chatId: number, payload: Record<string, string>) {
       const ceoProfile = await getLinkedProfile(chatId)
+      const assigneeProfileId = payload.assignee_profile_id
+      const title = payload.title
+      const deadline = payload.deadline ? new Date(payload.deadline) : null
+      const projectId = payload.project_id || null
+      const quadrantId = payload.quadrant_id || null
+
       const { data: newStatus } = await admin.from('task_statuses').select('id').eq('slug', 'backlog').maybeSingle()
+      const termSlug = suggestTermSlug(deadline)
+      const { data: termType } = await admin.from('task_term_types').select('id').eq('slug', termSlug).maybeSingle()
 
       const { error } = await admin.from('tasks').insert({
         title,
         assignee_profile_id: assigneeProfileId,
         status_id: newStatus?.id,
         deadline: deadline ? deadline.toISOString() : null,
+        project_id: projectId,
+        quadrant_id: quadrantId,
+        term_type_id: termType?.id ?? null,
         created_by: ceoProfile?.id ?? null,
         created_via_telegram: true,
       })
 
       if (error) {
-        await send(chatId, "Xatolik yuz berdi, vazifa yaratilmadi.")
+        await send(chatId, "⚠️ Xatolik yuz berdi, vazifa yaratilmadi.")
         return
       }
 
@@ -349,7 +453,7 @@ Deno.serve(async (req) => {
         for (const assigneeChatId of assigneeChatIds) {
           await send(
             assigneeChatId,
-            `📌 CEO sizga yangi vazifa berdi:\n\n«${title}»\nMuddat: ${deadlineText}\n\nTizimga kirib tekshiring.`
+            `📌 CEO sizga yangi vazifa berdi:\n\n<b>${escapeHtml(title)}</b>\nMuddat: ${deadlineText}\n\nTizimga kirib tekshiring.`
           )
         }
         await send(chatId, "✅ Vazifa yaratildi va tizimda ko'rinadi. Xodimga Telegram orqali xabar yuborildi.", {
@@ -358,7 +462,7 @@ Deno.serve(async (req) => {
       } else {
         await send(
           chatId,
-          `✅ Vazifa yaratildi va tizimda ko'rinadi.\n\n⚠️ Diqqat: ${assignee?.full_name ?? 'bu xodim'} hali Telegram botga ulanmagan, shuning uchun unga bildirishnoma YUBORILMADI. Vazifani faqat tizimga kirganda ko'radi.`,
+          `✅ Vazifa yaratildi va tizimda ko'rinadi.\n\n⚠️ Diqqat: <b>${escapeHtml(assignee?.full_name ?? 'bu xodim')}</b> hali Telegram botga ulanmagan, shuning uchun unga bildirishnoma YUBORILMADI. Vazifani faqat tizimga kirganda ko'radi.`,
           { reply_markup: await keyboardFor(chatId) }
         )
       }
@@ -408,30 +512,63 @@ Deno.serve(async (req) => {
         await answerCallback(callbackQuery.id)
         const profile = await getLinkedProfile(chatId)
         if (!profile || !(await isCeoProfile(profile.id))) {
-          await send(chatId, "Bu funksiya faqat CEO uchun.")
+          await send(chatId, "🚫 Bu funksiya faqat CEO uchun.")
           return new Response('ok')
         }
         const assigneeProfileId = data.slice('assign_emp:'.length)
         await setState(chatId, 'awaiting_task_text', { assignee_profile_id: assigneeProfileId })
-        await send(chatId, "Vazifa matnini yuboring:")
+        await send(chatId, "Vazifa nomini yuboring:")
+      } else if (data.startsWith('project_pick:')) {
+        await answerCallback(callbackQuery.id)
+        const state = await getState(chatId)
+        if (!state || state.state !== 'awaiting_project') return new Response('ok')
+        const projectId = data.slice('project_pick:'.length)
+        await setState(chatId, 'awaiting_quadrant', { ...state.payload, project_id: projectId })
+        await sendQuadrantPicker(chatId)
+      } else if (data === 'project_skip') {
+        await answerCallback(callbackQuery.id)
+        const state = await getState(chatId)
+        if (!state || state.state !== 'awaiting_project') return new Response('ok')
+        await setState(chatId, 'awaiting_quadrant', state.payload)
+        await sendQuadrantPicker(chatId)
+      } else if (data.startsWith('quadrant_pick:')) {
+        await answerCallback(callbackQuery.id)
+        const state = await getState(chatId)
+        if (!state || state.state !== 'awaiting_quadrant') return new Response('ok')
+        const quadrantId = data.slice('quadrant_pick:'.length)
+        await setState(chatId, 'awaiting_deadline', { ...state.payload, quadrant_id: quadrantId })
+        await send(chatId, "Muddatni tanlang:", { reply_markup: deadlineKeyboard() })
+      } else if (data === 'quadrant_skip') {
+        await answerCallback(callbackQuery.id)
+        const state = await getState(chatId)
+        if (!state || state.state !== 'awaiting_quadrant') return new Response('ok')
+        await setState(chatId, 'awaiting_deadline', state.payload)
+        await send(chatId, "Muddatni tanlang:", { reply_markup: deadlineKeyboard() })
       } else if (data.startsWith('deadline:')) {
         await answerCallback(callbackQuery.id)
         const state = await getState(chatId)
         if (!state || state.state !== 'awaiting_deadline') return new Response('ok')
         const days = Number(data.slice('deadline:'.length))
         const deadline = tashkentDeadline(days)
-        await clearState(chatId)
-        await createTaskFromBot(chatId, state.payload.assignee_profile_id, state.payload.title, deadline)
+        const payload = { ...state.payload, deadline: deadline.toISOString() }
+        await setState(chatId, 'awaiting_confirm', payload)
+        await sendConfirmSummary(chatId, payload)
       } else if (data === 'deadline_manual') {
         await answerCallback(callbackQuery.id)
         const state = await getState(chatId)
         if (!state || state.state !== 'awaiting_deadline') return new Response('ok')
         await setState(chatId, 'awaiting_deadline_manual', state.payload)
         await send(chatId, "Muddatni KK.OO.YYYY formatida yuboring (masalan: 25.12.2026):")
+      } else if (data === 'confirm_create') {
+        await answerCallback(callbackQuery.id)
+        const state = await getState(chatId)
+        if (!state || state.state !== 'awaiting_confirm') return new Response('ok')
+        await clearState(chatId)
+        await createTaskFromBot(chatId, state.payload)
       } else if (data === 'cancel_assign') {
         await answerCallback(callbackQuery.id)
         await clearState(chatId)
-        await send(chatId, "Bekor qilindi.", { reply_markup: await keyboardFor(chatId) })
+        await send(chatId, "❌ Bekor qilindi.", { reply_markup: await keyboardFor(chatId) })
       } else if (data === 'report_all') {
         await answerCallback(callbackQuery.id)
         const profile = await getLinkedProfile(chatId)
@@ -471,7 +608,7 @@ Deno.serve(async (req) => {
       text === '📊 Hisobot' ||
       text === '/start' ||
       text === '/tasks' ||
-      text === "Bekor qilish" ||
+      text === '❌ Bekor qilish' ||
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim())
     let state = await getState(chatId)
     if (state && escapesState) {
@@ -479,8 +616,8 @@ Deno.serve(async (req) => {
       state = null
     }
     if (state?.state === 'awaiting_task_text') {
-      await setState(chatId, 'awaiting_deadline', { ...state.payload, title: text.trim() })
-      await send(chatId, "Muddatni tanlang:", { reply_markup: deadlineKeyboard() })
+      await setState(chatId, 'awaiting_project', { ...state.payload, title: text.trim() })
+      await sendProjectPicker(chatId)
       return new Response('ok')
     }
     if (state?.state === 'awaiting_deadline_manual') {
@@ -491,8 +628,9 @@ Deno.serve(async (req) => {
       }
       const [, day, month, year] = match
       const deadline = tashkentDeadlineFromYMD(Number(year), Number(month) - 1, Number(day))
-      await clearState(chatId)
-      await createTaskFromBot(chatId, state.payload.assignee_profile_id, state.payload.title, deadline)
+      const payload = { ...state.payload, deadline: deadline.toISOString() }
+      await setState(chatId, 'awaiting_confirm', payload)
+      await sendConfirmSummary(chatId, payload)
       return new Response('ok')
     }
 
@@ -517,7 +655,7 @@ Deno.serve(async (req) => {
     if (text === '➕ Vazifa berish') {
       const profile = await getLinkedProfile(chatId)
       if (!profile || !(await isCeoProfile(profile.id))) {
-        await send(chatId, "Bu funksiya faqat CEO uchun.")
+        await send(chatId, "🚫 Bu funksiya faqat CEO uchun.")
         return new Response('ok')
       }
       await startAssignFlow(chatId)
@@ -527,7 +665,7 @@ Deno.serve(async (req) => {
     if (text === '📊 Hisobot') {
       const profile = await getLinkedProfile(chatId)
       if (!profile || !(await isCeoProfile(profile.id))) {
-        await send(chatId, "Bu funksiya faqat CEO uchun.")
+        await send(chatId, "🚫 Bu funksiya faqat CEO uchun.")
         return new Response('ok')
       }
       await sendReportPicker(chatId)
@@ -564,7 +702,7 @@ Deno.serve(async (req) => {
 
       const { data: role } = await admin.from('roles').select('label_uz').eq('id', profile.role_id).maybeSingle()
 
-      await send(chatId, `Siz ${profile.full_name} (${role?.label_uz ?? ''}) misiz?`, {
+      await send(chatId, `Siz <b>${escapeHtml(profile.full_name)}</b> (${escapeHtml(role?.label_uz ?? '')}) misiz?`, {
         reply_markup: {
           inline_keyboard: [
             [

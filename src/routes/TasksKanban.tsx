@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { pickLabel } from '@/lib/localizedLabel'
 import { TaskSheet } from './TaskSheet'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
+import { useCanDeleteTask } from '@/hooks/useCanDeleteTask'
 
 type TaskCardData = {
   id: string
@@ -29,12 +30,15 @@ type TaskCardData = {
   assignee_profile_id: string | null
   created_via_telegram: boolean
   completed_at: string | null
+  created_by: string | null
+  project_id: string | null
 }
 
 function DraggableCard({
   task,
   onOpen,
   onDelete,
+  canDelete,
   statusLabel,
   statusSlug,
   quadrantLabel,
@@ -45,6 +49,7 @@ function DraggableCard({
   task: TaskCardData
   onOpen: (id: string) => void
   onDelete: (id: string) => void
+  canDelete: (task: TaskCardData) => boolean
   statusLabel: string
   statusSlug?: string
   quadrantLabel?: string
@@ -73,7 +78,7 @@ function DraggableCard({
         subtasks={subtasks}
         createdViaBot={task.created_via_telegram}
         onOpen={() => onOpen(task.id)}
-        onDelete={() => onDelete(task.id)}
+        onDelete={canDelete(task) ? () => onDelete(task.id) : undefined}
         className="w-full cursor-grab active:cursor-grabbing"
       />
     </div>
@@ -86,6 +91,7 @@ function DroppableColumn({
   tasks,
   onOpen,
   onDelete,
+  canDelete,
   statusLabel,
   statusSlug,
   quadrantLabelFor,
@@ -98,6 +104,7 @@ function DroppableColumn({
   tasks: TaskCardData[]
   onOpen: (id: string) => void
   onDelete: (id: string) => void
+  canDelete: (task: TaskCardData) => boolean
   statusLabel: string
   statusSlug?: string
   quadrantLabelFor: (id: string | null) => string | undefined
@@ -124,6 +131,7 @@ function DroppableColumn({
             task={t}
             onOpen={onOpen}
             onDelete={onDelete}
+            canDelete={canDelete}
             statusLabel={statusLabel}
             statusSlug={statusSlug}
             quadrantLabel={quadrantLabelFor(t.quadrant_id)}
@@ -146,6 +154,7 @@ export function TasksKanban({
 } = {}) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
+  const canDelete = useCanDeleteTask()
   const [activeTask, setActiveTask] = useState<TaskCardData | null>(null)
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
 
@@ -166,7 +175,7 @@ export function TasksKanban({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, title, status_id, quadrant_id, deadline, percent_complete, assignee_profile_id, created_via_telegram, completed_at')
+        .select('id, title, status_id, quadrant_id, deadline, percent_complete, assignee_profile_id, created_via_telegram, completed_at, created_by, project_id')
       if (error) throw error
       return data as TaskCardData[]
     },
@@ -297,6 +306,7 @@ export function TasksKanban({
               tasks={col.tasks}
               onOpen={setOpenTaskId}
               onDelete={handleDelete}
+              canDelete={canDelete}
               statusLabel={pickLabel(col, i18n.language) ?? ''}
               statusSlug={col.slug}
               quadrantLabelFor={quadrantLabelFor}

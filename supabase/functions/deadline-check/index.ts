@@ -28,6 +28,10 @@ function dateOnly(d: Date) {
   return new Date(d.getTime() + TASHKENT_OFFSET_HOURS * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 Deno.serve(async (req) => {
   const cronSecret = Deno.env.get('CRON_SECRET')
   if (req.headers.get('x-cron-secret') !== cronSecret) {
@@ -63,7 +67,7 @@ Deno.serve(async (req) => {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text }),
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
     })
     return res.ok
   }
@@ -132,12 +136,13 @@ Deno.serve(async (req) => {
     if (await alreadySentToday({ related_task_id: task.id }, type)) continue
 
     const deadlineStr = new Date(task.deadline!).toLocaleDateString('uz-Latn-UZ')
+    const taskTitle = escapeHtml(task.title)
     const text =
       type === 'due_tomorrow'
-        ? `⏰ Ertaga muddati tugaydi: "${task.title}" — ${deadlineStr}`
+        ? `⏰ Ertaga muddati tugaydi: <b>${taskTitle}</b> — ${deadlineStr}`
         : type === 'due_today'
-          ? `⏰ Bugun muddati tugaydi: "${task.title}" — ${deadlineStr}`
-          : `⚠ Muddati o'tgan vazifa: "${task.title}" (muddat ${deadlineStr} edi)`
+          ? `⏰ Bugun muddati tugaydi: <b>${taskTitle}</b> — ${deadlineStr}`
+          : `⚠ Muddati o'tgan vazifa: <b>${taskTitle}</b> (muddat ${deadlineStr} edi)`
 
     if (await sendToProfile(task.assignee_profile_id!, text)) {
       sent += 1
@@ -169,7 +174,7 @@ Deno.serve(async (req) => {
     const recipients = [...new Set([...ceoChatIds, ...(await getPmChatIds(task.project_id))])]
     if (recipients.length === 0) continue
 
-    const text = `⚠️ Vazifaga ijrochi tayinlanmagan: "${task.title}"`
+    const text = `⚠️ Vazifaga ijrochi tayinlanmagan: <b>${escapeHtml(task.title)}</b>`
     let anySent = false
     for (const chatId of recipients) {
       if (await sendTelegram(chatId, text)) anySent = true
@@ -212,7 +217,7 @@ Deno.serve(async (req) => {
       const recipients = [...new Set([...ceoChatIds, ...(await getPmChatIds(item.project_id))])]
       if (recipients.length === 0) continue
 
-      const text = `⚠️ Kontent-reja bandiga hech kim tayinlanmagan: "${item.topic}"`
+      const text = `⚠️ Kontent-reja bandiga hech kim tayinlanmagan: <b>${escapeHtml(item.topic)}</b>`
       let anySent = false
       for (const chatId of recipients) {
         if (await sendTelegram(chatId, text)) anySent = true
@@ -243,10 +248,11 @@ Deno.serve(async (req) => {
       if (already && already.length > 0) continue
 
       const dateStr = new Date(item.publish_date!).toLocaleDateString('uz-Latn-UZ')
+      const itemTopic = escapeHtml(item.topic)
       const text =
         type === 'due_tomorrow'
-          ? `⏰ Ertaga chiqish sanasi: "${item.topic}" — ${dateStr}`
-          : `⏰ Bugun chiqish sanasi: "${item.topic}" — ${dateStr}`
+          ? `⏰ Ertaga chiqish sanasi: <b>${itemTopic}</b> — ${dateStr}`
+          : `⏰ Bugun chiqish sanasi: <b>${itemTopic}</b> — ${dateStr}`
 
       if (await sendToProfile(profileId, text)) {
         sent += 1

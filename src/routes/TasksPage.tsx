@@ -13,10 +13,12 @@ import { TasksKanban } from './TasksKanban'
 import { TaskCard } from '@/components/TaskCard'
 import { pickLabel } from '@/lib/localizedLabel'
 import { cn } from '@/lib/utils'
+import { useCanDeleteTask } from '@/hooks/useCanDeleteTask'
 
 export function TasksPage() {
   const { t, i18n } = useTranslation()
   const { profile } = useAuth()
+  const canDeleteTask = useCanDeleteTask()
   const [searchParams, setSearchParams] = useSearchParams()
   const view = searchParams.get('view') === 'kanban' ? 'kanban' : 'list'
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
@@ -33,7 +35,7 @@ export function TasksPage() {
       const { data, error } = await supabase
         .from('v_task_queue')
         .select(
-          'id, title, status_id, deadline, percent_complete, quadrant_id, assignee_profile_id, sort_score, created_via_telegram, completed_at'
+          'id, title, status_id, deadline, percent_complete, quadrant_id, assignee_profile_id, sort_score, created_via_telegram, completed_at, created_by, project_id'
         )
         .order('sort_score', { ascending: false })
         .order('deadline', { ascending: true, nullsFirst: false })
@@ -229,9 +231,13 @@ export function TasksPage() {
                 subtasks={subtasksByTask?.get(task.id)}
                 createdViaBot={task.created_via_telegram}
                 onOpen={() => setOpenTaskId(task.id)}
-                onDelete={() => {
-                  if (window.confirm(t('common.delete') + '?')) deleteMutation.mutate(task.id)
-                }}
+                onDelete={
+                  canDeleteTask(task)
+                    ? () => {
+                        if (window.confirm(t('common.delete') + '?')) deleteMutation.mutate(task.id)
+                      }
+                    : undefined
+                }
               />
             ))}
           </div>

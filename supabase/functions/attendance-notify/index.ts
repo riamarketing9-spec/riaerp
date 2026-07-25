@@ -23,6 +23,10 @@ function formatDuration(ms: number): string {
   return `${hours} soat ${minutes} daqiqa`
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 Deno.serve(async (req) => {
   const cronSecret = req.headers.get('x-cron-secret')
   if (!cronSecret || cronSecret !== Deno.env.get('CRON_SECRET')) {
@@ -41,8 +45,8 @@ Deno.serve(async (req) => {
 
   const text =
     event === 'start'
-      ? `🟢 ${name} ishni boshladi — ${tashkentTimeStr(occurred_at)}`
-      : `🔴 ${name} ishni tugatdi — ${tashkentTimeStr(occurred_at)} (${formatDuration(
+      ? `🟢 <b>${escapeHtml(name)}</b> ishni boshladi — ${tashkentTimeStr(occurred_at)}`
+      : `🔴 <b>${escapeHtml(name)}</b> ishni tugatdi — ${tashkentTimeStr(occurred_at)} (${formatDuration(
           new Date(occurred_at).getTime() - new Date(started_at).getTime()
         )})`
 
@@ -59,7 +63,7 @@ Deno.serve(async (req) => {
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: link.chat_id, text }),
+        body: JSON.stringify({ chat_id: link.chat_id, text, parse_mode: 'HTML' }),
       })
     }
   }
