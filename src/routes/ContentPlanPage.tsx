@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -32,9 +33,37 @@ import { ArrowLeft, Plus } from 'lucide-react'
 
 export function ContentPlanPage() {
   const { t, i18n } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view = ['folders', 'calendar', 'table'].includes(searchParams.get('view') ?? '')
+    ? searchParams.get('view')!
+    : 'folders'
+  const selectedProjectId = searchParams.get('project')
+
+  function setView(v: string) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('view', v)
+        return next
+      },
+      { replace: true }
+    )
+  }
+
+  function setSelectedProjectId(id: string | null) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (id) next.set('project', id)
+        else next.delete('project')
+        return next
+      },
+      { replace: true }
+    )
+  }
+
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [createDate, setCreateDate] = useState<string | null>(null)
   const [folderSearch, setFolderSearch] = useState('')
   const [platformFilter, setPlatformFilter] = useState<string>('')
@@ -199,7 +228,7 @@ export function ContentPlanPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="folders">
+      <Tabs value={view} onValueChange={(v) => setView(String(v))}>
         <TabsList>
           <TabsTrigger value="folders">{t('contentPlan.foldersView')}</TabsTrigger>
           <TabsTrigger value="calendar">{t('contentPlan.calendarView')}</TabsTrigger>

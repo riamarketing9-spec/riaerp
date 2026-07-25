@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -16,6 +17,8 @@ import { cn } from '@/lib/utils'
 export function TasksPage() {
   const { t, i18n } = useTranslation()
   const { profile } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view = searchParams.get('view') === 'kanban' ? 'kanban' : 'list'
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [scopeFilter, setScopeFilter] = useState<'mine' | 'team'>('mine')
   const [employeeFilter, setEmployeeFilter] = useState<string>('')
@@ -182,7 +185,19 @@ export function TasksPage() {
         </div>
       )}
 
-      <Tabs defaultValue="list">
+      <Tabs
+        value={view}
+        onValueChange={(v) =>
+          setSearchParams(
+            (prev) => {
+              const next = new URLSearchParams(prev)
+              next.set('view', String(v))
+              return next
+            },
+            { replace: true }
+          )
+        }
+      >
         <TabsList>
           <TabsTrigger value="list">{t('tasks.title')}</TabsTrigger>
           <TabsTrigger value="kanban">{t('kanban.title')}</TabsTrigger>

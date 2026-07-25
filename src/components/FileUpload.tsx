@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { compressImage } from '@/lib/imageCompression'
 
 export function FileUpload({
   value,
@@ -21,9 +22,10 @@ export function FileUpload({
   const [uploading, setUploading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  async function handleFile(file: File) {
+  async function handleFile(rawFile: File) {
     setUploading(true)
     try {
+      const file = await compressImage(rawFile)
       const path = `${folder}/${crypto.randomUUID()}-${file.name}`
       const { error } = await supabase.storage.from('attachments').upload(path, file)
       if (error) throw error

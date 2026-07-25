@@ -31,6 +31,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { Avatar } from '@/components/Avatar'
 import { cn } from '@/lib/utils'
 import { pickLabel } from '@/lib/localizedLabel'
+import { compressImage } from '@/lib/imageCompression'
 
 function NavItem({
   to,
@@ -73,9 +74,10 @@ function SelfAvatarUpload({ profileId, name, avatarUrl }: { profileId: string; n
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
 
-  async function handleFile(file: File) {
+  async function handleFile(rawFile: File) {
     setUploading(true)
     try {
+      const file = await compressImage(rawFile)
       const path = `avatars/${profileId}-${crypto.randomUUID()}-${file.name}`
       const { error } = await supabase.storage.from('attachments').upload(path, file)
       if (error) throw error

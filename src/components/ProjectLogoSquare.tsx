@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
 import { Folder, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { compressImage } from '@/lib/imageCompression'
 
 // A full square tile: shows the project's logo edge-to-edge once set, a
 // folder placeholder otherwise. The pencil button in the corner uploads a
@@ -22,9 +23,10 @@ export function ProjectLogoSquare({
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
 
-  async function handleFile(file: File) {
+  async function handleFile(rawFile: File) {
     setUploading(true)
     try {
+      const file = await compressImage(rawFile)
       const path = `project-logos/${projectId}-${crypto.randomUUID()}-${file.name}`
       const { error } = await supabase.storage.from('attachments').upload(path, file)
       if (error) throw error
