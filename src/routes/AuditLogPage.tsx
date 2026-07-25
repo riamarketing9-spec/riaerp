@@ -72,6 +72,31 @@ const IGNORED_DIFF_FIELDS = new Set(['id', 'created_at', 'updated_at'])
 
 const DATE_FIELDS = new Set(['deadline', 'shoot_date', 'publish_date', 'completed_at', 'billing_day'])
 
+// Any field ending in _url, plus storage_path, holds a long signed-URL
+// token that's meaningless to a human and clutters the row -- just say
+// whether a link was set/cleared/changed instead of dumping the raw URL.
+function isUrlField(field: string) {
+  return field.endsWith('_url') || field === 'storage_path'
+}
+
+// Every *_id column that isn't a profile reference points at some lookup
+// table (status, priority quadrant, format, role, project, client, ...);
+// resolved once into a single id -> label map since UUIDs don't collide
+// across tables.
+const LOOKUP_QUERIES: { table: string; labelCol: 'label_ru' | 'name' | 'title' }[] = [
+  { table: 'task_statuses', labelCol: 'label_ru' },
+  { table: 'task_priority_quadrants', labelCol: 'label_ru' },
+  { table: 'content_statuses', labelCol: 'label_ru' },
+  { table: 'content_formats', labelCol: 'label_ru' },
+  { table: 'content_rubrics', labelCol: 'label_ru' },
+  { table: 'project_statuses', labelCol: 'label_ru' },
+  { table: 'project_types', labelCol: 'label_ru' },
+  { table: 'roles', labelCol: 'label_ru' },
+  { table: 'departments', labelCol: 'label_ru' },
+  { table: 'projects', labelCol: 'name' },
+  { table: 'clients', labelCol: 'name' },
+]
+
 type Diff = { old?: Record<string, unknown>; new?: Record<string, unknown> } | null
 
 function recordLabel(diff: Diff): string | null {
@@ -81,10 +106,20 @@ function recordLabel(diff: Diff): string | null {
   return typeof candidate === 'string' && candidate.trim() ? candidate : null
 }
 
-function formatDiffValue(field: string, value: unknown, profiles?: { id: string; full_name: string }[]): string {
+function formatDiffValue(
+  field: string,
+  value: unknown,
+  profiles?: { id: string; full_name: string }[],
+  idLabels?: Map<string, string>
+): string {
   if (value === null || value === undefined || value === '') return '—'
+  if (isUrlField(field)) return 'изменено'
   if (field.endsWith('_profile_id') && typeof value === 'string') {
     return profiles?.find((p) => p.id === value)?.full_name ?? value.slice(0, 8)
+  }
+  if (field.endsWith('_id') && typeof value === 'string') {
+    const label = idLabels?.get(value)
+    if (label) return label
   }
   if (typeof value === 'boolean') return value ? 'Да' : 'Нет'
   if (DATE_FIELDS.has(field) && typeof value === 'string') {
@@ -140,6 +175,27 @@ export function AuditLogPage() {
       const { data, error } = await supabase.from('profiles').select('id, full_name')
       if (error) throw error
       return data
+    },
+  })
+
+  const { data: idLabels } = useQuery({
+    queryKey: ['audit-id-labels'],
+    queryFn: async () => {
+      const map = new Map<string, string>()
+      await Promise.all(
+        LOOKUP_QUERIES.map(async ({ table, labelCol }) => {
+          const untypedSupabase = supabase as unknown as {
+            from: (t: string) => { select: (s: string) => Promise<{ data: Record<string, unknown>[] | null; error: unknown }> }
+          }
+          const { data, error } = await untypedSupabase.from(table).select(`id, ${labelCol}`)
+          if (error) return
+          for (const row of data ?? []) {
+            const label = row[labelCol]
+            if (typeof row.id === 'string' && typeof label === 'string') map.set(row.id, label)
+          }
+        })
+      )
+      return map
     },
   })
 
@@ -254,7 +310,7 @@ export function AuditLogPage() {
                           <li key={c.field} className="text-xs text-muted-foreground">
                             <span className="font-medium text-foreground">{FIELD_LABELS[c.field] ?? c.field}</span>
                             {': '}
-                            {formatDiffValue(c.field, c.from, profiles)} → {formatDiffValue(c.field, c.to, profiles)}
+                            {formatDiffValue(c.field, c.from, profiles, idLabels)} → {formatDiffValue(c.field, c.to, profiles, idLabels)}
                           </li>
                         ))}
                       </ul>
