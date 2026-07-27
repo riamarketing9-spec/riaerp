@@ -8,12 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TaskSheet } from './TaskSheet'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
-import { formatLocalDate } from '@/lib/localizedLabel'
+import { formatLocalDate, pickLabel } from '@/lib/localizedLabel'
 import { Button } from '@/components/ui/button'
 import { Trash2 } from 'lucide-react'
 import { telegramDeepLink } from '@/lib/telegram'
 import { TimeTrackerWidget } from '@/components/TimeTrackerWidget'
-import { StatCard } from '@/components/StatCard'
+import { TaskStatusChart, type TaskStatusBucket } from '@/components/charts/TaskStatusChart'
+import { ProjectTasksChart, type ProjectTaskBar } from '@/components/charts/ProjectTasksChart'
+import { RevenueProfitChart } from '@/components/charts/RevenueProfitChart'
+import { ExpenseDonutChart } from '@/components/charts/ExpenseDonutChart'
+import { BackupExportButton } from './BackupExportButton'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
@@ -118,91 +122,6 @@ function IdleTeamWidget() {
   )
 }
 
-// The management row (CEO/PM) -- reuses v_ceo_dashboard (same view the
-// dedicated /kpi page reads) so the two never drift apart, but surfaced
-// right on the daily-use Cabinet page instead of requiring a separate visit.
-function ManagementStatsRow({ canSeeFinance }: { canSeeFinance: boolean }) {
-  const { t } = useTranslation()
-  const { data: dashboard } = useQuery({
-    queryKey: ['v_ceo_dashboard'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('v_ceo_dashboard').select('*').single()
-      if (error) throw error
-      return data
-    },
-  })
-  const { data: profit } = useQuery({
-    queryKey: ['v_project_profit'],
-    enabled: canSeeFinance,
-    queryFn: async () => {
-      const { data, error } = await supabase.from('v_project_profit').select('profit')
-      if (error) throw error
-      return data
-    },
-  })
-
-  const netProfit = (profit ?? []).reduce((sum, p) => sum + Number(p.profit), 0)
-  const overdueTasks = dashboard?.overdue_tasks ?? 0
-
-  return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-      {canSeeFinance && <StatCard label={t('dashboard.expectedRevenue')} value={formatMoney(dashboard?.mrr ?? 0)} />}
-      {canSeeFinance && <StatCard label={t('dashboard.netProfit')} value={formatMoney(netProfit)} />}
-      <StatCard label={t('kpi.activeProjects')} value={dashboard?.active_projects ?? 0} />
-      <StatCard label={t('kpi.overdueTasks')} value={overdueTasks} tone={overdueTasks > 0 ? 'destructive' : 'default'} />
-      <StatCard label={t('kpi.overloadedEmployees')} value={dashboard?.overloaded_employees ?? 0} />
-    </div>
-  )
-}
-
-// Everyone's own quick stats -- the thing missing that made Cabinet feel like
-// a bare task list instead of a dashboard: no numbers to glance at.
-function MyStatsRow() {
-  const { t } = useTranslation()
-  const { profile } = useAuth()
-
-  const { data: doneStatus } = useQuery({
-    queryKey: ['task_statuses-done'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('task_statuses').select('id').eq('slug', 'done').maybeSingle()
-      if (error) throw error
-      return data
-    },
-  })
-
-  const { data: myTasks } = useQuery({
-    queryKey: ['dashboard-my-stats', profile?.id],
-    enabled: !!profile,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('id, deadline, status_id, completed_at')
-        .eq('assignee_profile_id', profile!.id)
-      if (error) throw error
-      return data
-    },
-  })
-
-  const doneId = doneStatus?.id
-  const now = Date.now()
-  const weekAgo = now - 7 * 24 * 60 * 60 * 1000
-  const openCount = (myTasks ?? []).filter((task) => task.status_id !== doneId).length
-  const overdueCount = (myTasks ?? []).filter(
-    (task) => task.status_id !== doneId && task.deadline && new Date(task.deadline).getTime() < now
-  ).length
-  const completedThisWeek = (myTasks ?? []).filter(
-    (task) => task.status_id === doneId && task.completed_at && new Date(task.completed_at).getTime() >= weekAgo
-  ).length
-
-  return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <StatCard label={t('dashboard.myOpenTasks')} value={openCount} />
-      <StatCard label={t('dashboard.myOverdue')} value={overdueCount} tone={overdueCount > 0 ? 'destructive' : 'default'} />
-      <StatCard label={t('dashboard.completedThisWeek')} value={completedThisWeek} />
-    </div>
-  )
-}
-
 function TodayContentWidget() {
   const { t } = useTranslation()
   const today = new Date().toISOString().slice(0, 10)
@@ -232,6 +151,309 @@ function TodayContentWidget() {
         ))}
       </CardContent>
     </Card>
+  )
+}
+
+// Replaces the old plain stat-card tiles: a status-colored bar chart (open /
+// overdue / due-soon) and a per-project bar list, both personal for a plain
+// employee but switching to the team-wide aggregate for CEO/PM -- one view,
+// not both stacked. Clicking a bar/segment expands the matching task list
+// inline, which doubles as the accessible "table view" for the chart.
+function TaskChartsSection() {
+  const { t } = useTranslation()
+  const { profile, hasCapability } = useAuth()
+  const seesTeamAggregate = hasCapability('cabinets.read_all') || hasCapability('projects.manage')
+
+  const { data: statuses } = useQuery({
+    queryKey: ['task_statuses-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_statuses').select('id, slug')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: tasks } = useQuery({
+    queryKey: ['dashboard-task-charts', seesTeamAggregate, profile?.id],
+    enabled: !!profile,
+    queryFn: async () => {
+      let query = supabase
+        .from('v_task_queue')
+        .select('id, title, deadline, status_id, project_id, assignee_profile_id')
+      if (!seesTeamAggregate) query = query.eq('assignee_profile_id', profile!.id)
+      const { data, error } = await query
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: projects } = useQuery({
+    queryKey: ['projects-lookup-names'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('projects').select('id, name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const doneId = statuses?.find((s) => s.slug === 'done')?.id
+  const backlogId = statuses?.find((s) => s.slug === 'backlog')?.id
+  const now = Date.now()
+  const soon = now + 3 * 24 * 60 * 60 * 1000
+
+  const toBucketTasks = (list: NonNullable<typeof tasks>) =>
+    list.slice(0, 20).map((tsk) => ({ id: tsk.id, title: tsk.title, deadline: tsk.deadline }))
+
+  const openTasks = (tasks ?? []).filter((tsk) => tsk.status_id !== doneId && tsk.status_id !== backlogId)
+  const overdueTasks = openTasks.filter((tsk) => tsk.deadline && new Date(tsk.deadline).getTime() < now)
+  const dueSoonTasks = openTasks.filter(
+    (tsk) => tsk.deadline && new Date(tsk.deadline).getTime() >= now && new Date(tsk.deadline).getTime() <= soon
+  )
+
+  const buckets: TaskStatusBucket[] = [
+    { key: 'in_progress', label: t('dashboard.inProgress'), count: openTasks.length, color: '#2a78d6', tasks: toBucketTasks(openTasks) },
+    { key: 'overdue', label: t('dashboard.overdue'), count: overdueTasks.length, color: 'var(--destructive)', tasks: toBucketTasks(overdueTasks) },
+    { key: 'due_soon', label: t('dashboard.dueSoon'), count: dueSoonTasks.length, color: '#eda100', tasks: toBucketTasks(dueSoonTasks) },
+  ]
+
+  const projectBars: ProjectTaskBar[] = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof tasks>>()
+    for (const tsk of openTasks) {
+      if (!tsk.project_id) continue
+      const list = map.get(tsk.project_id) ?? []
+      list.push(tsk)
+      map.set(tsk.project_id, list)
+    }
+    return [...map.entries()]
+      .map(([projectId, list]) => ({
+        projectId,
+        projectName: projects?.find((p) => p.id === projectId)?.name ?? '—',
+        count: list.length,
+        tasks: toBucketTasks(list),
+      }))
+      .sort((a, b) => b.count - a.count)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openTasks, projects])
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-medium">
+            {seesTeamAggregate ? t('dashboard.taskStatusChartTeam') : t('dashboard.taskStatusChart')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TaskStatusChart buckets={buckets} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-medium">{t('dashboard.byProjectChart')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ProjectTasksChart bars={projectBars} />
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+const TREND_MONTHS = 6
+
+function monthKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+// Moved in from the retired /kpi page: same charts, same queries, now living
+// where the CEO already spends their time instead of a separate visit.
+function FinanceSection() {
+  const { t, i18n } = useTranslation()
+
+  const { data: dashboard } = useQuery({
+    queryKey: ['v_ceo_dashboard'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('v_ceo_dashboard').select('*').single()
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: profit } = useQuery({
+    queryKey: ['v_project_profit'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('v_project_profit').select('*')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const sinceDate = useMemo(() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() - (TREND_MONTHS - 1))
+    d.setDate(1)
+    return d
+  }, [])
+
+  const { data: revenueRows } = useQuery({
+    queryKey: ['finance_project_revenue-trend', sinceDate.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('finance_project_revenue')
+        .select('month, amount')
+        .gte('month', sinceDate.toISOString().slice(0, 10))
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: expenseRows } = useQuery({
+    queryKey: ['finance_expenses-trend', sinceDate.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('finance_expenses')
+        .select('expense_date, amount')
+        .gte('expense_date', sinceDate.toISOString().slice(0, 10))
+      if (error) throw error
+      return data
+    },
+  })
+
+  const months = useMemo(() => {
+    const list: { key: string; date: Date }[] = []
+    for (let i = TREND_MONTHS - 1; i >= 0; i--) {
+      const d = new Date(sinceDate)
+      d.setMonth(d.getMonth() + (TREND_MONTHS - 1 - i))
+      list.push({ key: monthKey(d), date: d })
+    }
+    return list
+  }, [sinceDate])
+
+  const chartData = useMemo(() => {
+    const revenueByMonth = new Map<string, number>()
+    for (const r of revenueRows ?? []) {
+      const k = monthKey(new Date(r.month))
+      revenueByMonth.set(k, (revenueByMonth.get(k) ?? 0) + Number(r.amount))
+    }
+    const expenseByMonth = new Map<string, number>()
+    for (const e of expenseRows ?? []) {
+      const k = monthKey(new Date(e.expense_date))
+      expenseByMonth.set(k, (expenseByMonth.get(k) ?? 0) + Number(e.amount))
+    }
+    return months.map(({ key, date }) => {
+      const revenue = revenueByMonth.get(key) ?? 0
+      const expenses = expenseByMonth.get(key) ?? 0
+      return {
+        monthLabel: date.toLocaleDateString(i18n.language.startsWith('uz') ? 'uz-Latn-UZ' : 'ru-RU', { month: 'short' }),
+        revenue,
+        profit: revenue - expenses,
+      }
+    })
+  }, [months, revenueRows, expenseRows, i18n.language])
+
+  const monthStart = useMemo(() => {
+    const d = new Date()
+    d.setDate(1)
+    return d.toISOString().slice(0, 10)
+  }, [])
+
+  const { data: expensesByCategory } = useQuery({
+    queryKey: ['finance_expenses-by-category', monthStart],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('finance_expenses')
+        .select('amount, category_id')
+        .gte('expense_date', monthStart)
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: categories } = useQuery({
+    queryKey: ['expense_categories'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('expense_categories').select('id, label_ru, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const slices = useMemo(() => {
+    const byCategory = new Map<string, number>()
+    for (const e of expensesByCategory ?? []) {
+      const key = e.category_id ?? '__none__'
+      byCategory.set(key, (byCategory.get(key) ?? 0) + Number(e.amount))
+    }
+    const withLabels = [...byCategory.entries()].map(([id, value]) => ({
+      label: id === '__none__' ? t('kpi.otherCategory') : pickLabel(categories?.find((c) => c.id === id), i18n.language) ?? t('kpi.otherCategory'),
+      value,
+    }))
+    withLabels.sort((a, b) => b.value - a.value)
+    const top = withLabels.slice(0, 3)
+    const rest = withLabels.slice(3).reduce((sum, s) => sum + s.value, 0)
+    if (rest > 0) top.push({ label: t('kpi.otherCategory'), value: rest })
+    return top
+  }, [expensesByCategory, categories, i18n.language, t])
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold">{t('dashboard.finance')}</h2>
+        <BackupExportButton />
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        {t('kpi.mrr')}: <span className="font-medium text-foreground">{formatMoney(dashboard?.mrr ?? 0)}</span>
+        {' · '}
+        {t('kpi.activeProjects')}: <span className="font-medium text-foreground">{dashboard?.active_projects ?? 0}</span>
+        {' · '}
+        {t('kpi.overdueTasks')}: <span className="font-medium text-foreground">{dashboard?.overdue_tasks ?? 0}</span>
+        {' · '}
+        {t('kpi.overloadedEmployees')}: <span className="font-medium text-foreground">{dashboard?.overloaded_employees ?? 0}</span>
+      </p>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium">{t('kpi.revenueProfitTrend')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RevenueProfitChart
+              data={chartData}
+              revenueLabel={t('kpi.mrr')}
+              profitLabel={t('dashboard.netProfit')}
+              tableToggleLabel={t('dashboard.showTable')}
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium">{t('kpi.expenseBreakdown')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {slices.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('kpi.expenseBreakdownEmpty')}</p>
+            ) : (
+              <ExpenseDonutChart slices={slices} totalLabel={t('kpi.totalExpenses')} tableToggleLabel={t('dashboard.showTable')} />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold">{t('kpi.projectProfit')}</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {profit?.map((p) => (
+            <Card key={p.project_id}>
+              <CardContent className="py-4">
+                <p className="text-sm font-medium">{p.name}</p>
+                <p className="mt-1 text-sm text-brand-700 dark:text-brand-300">{formatMoney(p.profit)}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -406,7 +628,7 @@ export function CabinetPage() {
         <p className="text-sm text-muted-foreground">{profile?.full_name}</p>
       </div>
 
-      <MyStatsRow />
+      <TaskChartsSection />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <TimeTrackerWidget />
@@ -414,14 +636,11 @@ export function CabinetPage() {
       </div>
 
       {canSeeTeamWidgets && (
-        <>
-          <ManagementStatsRow canSeeFinance={canSeeFinance} />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <DeadlinesWidget />
-            <IdleTeamWidget />
-            <TodayContentWidget />
-          </div>
-        </>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <DeadlinesWidget />
+          <IdleTeamWidget />
+          <TodayContentWidget />
+        </div>
       )}
 
       <Card>
@@ -447,6 +666,8 @@ export function CabinetPage() {
       </Card>
 
       {isPm && <TeamTasksWidget onOpen={setOpenTaskId} />}
+
+      {canSeeFinance && <FinanceSection />}
 
       <TaskSheet
         open={!!openTaskId}

@@ -77,6 +77,11 @@ export const uz = {
     myOpenTasks: 'Mening ochiq vazifalarim',
     myOverdue: "Mening muddati o'tganlarim",
     completedThisWeek: '7 kunda bajarilgan',
+    inProgress: 'Jarayonda',
+    taskStatusChart: 'Vazifalar',
+    taskStatusChartTeam: 'Jamoa vazifalari',
+    byProjectChart: "Loyihalar bo'yicha",
+    showTable: 'Jadval',
   },
   audit: {
     title: 'Amallar jurnali',

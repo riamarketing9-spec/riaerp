@@ -77,6 +77,11 @@ export const ru = {
     myOpenTasks: 'Мои открытые задачи',
     myOverdue: 'Просрочено у меня',
     completedThisWeek: 'Выполнено за 7 дней',
+    inProgress: 'В процессе',
+    taskStatusChart: 'Задачи',
+    taskStatusChartTeam: 'Задачи команды',
+    byProjectChart: 'По проектам',
+    showTable: 'Таблица',
   },
   audit: {
     title: 'Журнал действий',

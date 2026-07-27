@@ -20,12 +20,15 @@ export function RevenueProfitChart({
   data,
   revenueLabel,
   profitLabel,
+  tableToggleLabel,
 }: {
   data: MonthPoint[]
   revenueLabel: string
   profitLabel: string
+  tableToggleLabel: string
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  const [tableOpen, setTableOpen] = useState(false)
 
   const plotW = WIDTH - PAD_LEFT - PAD_RIGHT
   const plotH = HEIGHT - PAD_TOP - PAD_BOTTOM
@@ -62,9 +65,12 @@ export function RevenueProfitChart({
 
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="w-full"
+        className="w-full cursor-pointer"
         style={{ ['--chart-revenue' as string]: '#2a78d6', ['--chart-profit' as string]: '#1baf7a' }}
         onMouseLeave={() => setHoverIndex(null)}
+        onClick={() => setTableOpen((v) => !v)}
+        role="button"
+        aria-expanded={tableOpen}
       >
         <defs>
           <linearGradient id="revenue-fill" x1="0" y1="0" x2="0" y2="1">
@@ -117,6 +123,35 @@ export function RevenueProfitChart({
           <span style={{ color: 'var(--chart-revenue)' }}>{revenueLabel}: {formatCompact(data[hoverIndex].revenue)}</span>
           <span style={{ color: 'var(--chart-profit)' }}>{profitLabel}: {formatCompact(data[hoverIndex].profit)}</span>
         </div>
+      )}
+
+      <button
+        type="button"
+        className="mt-2 text-xs text-muted-foreground underline-offset-2 hover:underline"
+        onClick={() => setTableOpen((v) => !v)}
+      >
+        {tableToggleLabel}
+      </button>
+
+      {tableOpen && (
+        <table className="mt-2 w-full text-xs">
+          <thead>
+            <tr className="border-b border-border text-left text-muted-foreground">
+              <th className="py-1 font-normal">{' '}</th>
+              <th className="py-1 font-normal" style={{ color: 'var(--chart-revenue)' }}>{revenueLabel}</th>
+              <th className="py-1 font-normal" style={{ color: 'var(--chart-profit)' }}>{profitLabel}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((d) => (
+              <tr key={d.monthLabel} className="border-b border-border/50">
+                <td className="py-1 font-medium">{d.monthLabel}</td>
+                <td className="py-1">{formatCompact(d.revenue)}</td>
+                <td className="py-1">{formatCompact(d.profit)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   )

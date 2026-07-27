@@ -12,7 +12,6 @@ import {
   Contact,
   FileText,
   Wallet,
-  BarChart3,
   CalendarDays,
   BookOpen,
   UserPlus,
@@ -163,9 +162,6 @@ export function AppShell() {
       <NavItem to="/kb" icon={BookOpen} label={t('kb.title')} onNavigate={closeMobileNav} />
       {canSeeFinance && (
         <NavItem to="/finance" icon={Wallet} label={t('finance.title')} onNavigate={closeMobileNav} />
-      )}
-      {canSeeFinance && (
-        <NavItem to="/kpi" icon={BarChart3} label={t('kpi.title')} onNavigate={closeMobileNav} />
       )}
       {canSeeTeam && (
         <NavItem to="/team" icon={UserPlus} label={t('team.title')} onNavigate={closeMobileNav} />

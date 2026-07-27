@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 const SIZE = 176
 const STROKE = 26
 const RADIUS = (SIZE - STROKE) / 2
@@ -28,10 +30,13 @@ const SLICE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#9b9a97']
 export function ExpenseDonutChart({
   slices,
   totalLabel,
+  tableToggleLabel,
 }: {
   slices: { label: string; value: number }[]
   totalLabel: string
+  tableToggleLabel: string
 }) {
+  const [tableOpen, setTableOpen] = useState(false)
   const total = slices.reduce((sum, s) => sum + s.value, 0)
   let cursor = 0
   const arcs = slices.map((s, i) => {
@@ -43,38 +48,75 @@ export function ExpenseDonutChart({
   })
 
   return (
-    <div className="flex items-center gap-6">
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}>
-        {arcs.map((a) =>
-          a.end > a.start ? (
-            <path
-              key={a.label}
-              d={arcPath(a.start, a.end)}
-              fill="none"
-              stroke={a.color}
-              strokeWidth={STROKE}
-              strokeLinecap="round"
-            />
-          ) : null
-        )}
-        <text x={CENTER} y={CENTER - 4} textAnchor="middle" className="fill-foreground text-2xl font-bold" fontSize={22}>
-          {formatMoney(total)}
-        </text>
-        <text x={CENTER} y={CENTER + 16} textAnchor="middle" className="fill-muted-foreground" fontSize={11}>
-          {totalLabel}
-        </text>
-      </svg>
-      <div className="flex flex-col gap-2">
-        {arcs.map((a) => (
-          <div key={a.label} className="flex items-center gap-2 text-sm">
-            <span className="size-2.5 shrink-0 rounded-full" style={{ background: a.color }} />
-            <span className="text-foreground">{a.label}</span>
-            <span className="text-muted-foreground">
-              {total > 0 ? Math.round((a.value / total) * 100) : 0}%
-            </span>
-          </div>
-        ))}
+    <div>
+      <div className="flex items-center gap-6">
+        <svg
+          viewBox={`0 0 ${SIZE} ${SIZE}`}
+          width={SIZE}
+          height={SIZE}
+          className="cursor-pointer"
+          onClick={() => setTableOpen((v) => !v)}
+          role="button"
+          aria-expanded={tableOpen}
+        >
+          {arcs.map((a) =>
+            a.end > a.start ? (
+              <path
+                key={a.label}
+                d={arcPath(a.start, a.end)}
+                fill="none"
+                stroke={a.color}
+                strokeWidth={STROKE}
+                strokeLinecap="round"
+              />
+            ) : null
+          )}
+          <text x={CENTER} y={CENTER - 4} textAnchor="middle" className="fill-foreground text-2xl font-bold" fontSize={22}>
+            {formatMoney(total)}
+          </text>
+          <text x={CENTER} y={CENTER + 16} textAnchor="middle" className="fill-muted-foreground" fontSize={11}>
+            {totalLabel}
+          </text>
+        </svg>
+        <div className="flex flex-col gap-2">
+          {arcs.map((a) => (
+            <div key={a.label} className="flex items-center gap-2 text-sm">
+              <span className="size-2.5 shrink-0 rounded-full" style={{ background: a.color }} />
+              <span className="text-foreground">{a.label}</span>
+              <span className="text-muted-foreground">
+                {total > 0 ? Math.round((a.value / total) * 100) : 0}%
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
+
+      <button
+        type="button"
+        className="mt-2 text-xs text-muted-foreground underline-offset-2 hover:underline"
+        onClick={() => setTableOpen((v) => !v)}
+      >
+        {tableToggleLabel}
+      </button>
+
+      {tableOpen && (
+        <table className="mt-2 w-full text-xs">
+          <tbody>
+            {arcs.map((a) => (
+              <tr key={a.label} className="border-b border-border/50">
+                <td className="py-1">
+                  <span className="mr-1.5 inline-block size-2.5 rounded-full align-middle" style={{ background: a.color }} />
+                  {a.label}
+                </td>
+                <td className="py-1 text-right">{formatMoney(a.value)}</td>
+                <td className="py-1 pl-2 text-right text-muted-foreground">
+                  {total > 0 ? Math.round((a.value / total) * 100) : 0}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   )
 }

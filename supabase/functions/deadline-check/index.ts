@@ -4,12 +4,16 @@
 // infrastructure every 30 minutes — independent of whether anyone's
 // computer is on.
 //
-// Reminds, per the client's explicit spec: exactly 1 day before the
-// deadline, and again on the day of the deadline itself. Two separate
-// buckets ('due_tomorrow' / 'due_today'), each deduped once per day per
-// task/item so re-running every 30 minutes doesn't spam the same person.
-// Also keeps the pre-existing daily "missed deadline" nudge for tasks that
-// are overdue and still not done.
+// Reminds, per the client's explicit spec: exactly once at 12:00 Tashkent
+// the day before the deadline/publish-date, once at 09:00, and once more at
+// 14:00 on the day itself -- three distinct types per task/item
+// (due_tomorrow_noon / due_today_morning / due_today_afternoon, and their
+// pub_* counterparts for content-plan), each deduped independently so two
+// reminders landing on the same calendar day don't collide. The job still
+// runs every 30 minutes; an hour-equality check (not exact-minute) means
+// whichever of the two ticks inside the target hour runs first sends it,
+// deduped so it never fires twice. Also keeps the pre-existing daily
+// "missed deadline" nudge for tasks that are overdue and still not done.
 //
 // Covers everything a person is tagged on ("за всё где он отмечен"), not
 // just their own tasks: task assignee, and content-plan shooter/editor/
@@ -26,6 +30,10 @@ const TASHKENT_OFFSET_HOURS = 5
 
 function dateOnly(d: Date) {
   return new Date(d.getTime() + TASHKENT_OFFSET_HOURS * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
+function tashkentHour(d: Date) {
+  return new Date(d.getTime() + TASHKENT_OFFSET_HOURS * 60 * 60 * 1000).getUTCHours()
 }
 
 function escapeHtml(value: string): string {
@@ -125,11 +133,14 @@ Deno.serve(async (req) => {
     .not('assignee_profile_id', 'is', null)
     .neq('status_id', doneStatus?.id ?? '')
 
+  const hour = tashkentHour(now)
+
   for (const task of tasks ?? []) {
     const deadlineKey = dateOnly(new Date(task.deadline!))
     let type: string | null = null
-    if (deadlineKey === tomorrowKey) type = 'due_tomorrow'
-    else if (deadlineKey === todayKey) type = 'due_today'
+    if (deadlineKey === tomorrowKey && hour === 12) type = 'due_tomorrow_noon'
+    else if (deadlineKey === todayKey && hour === 9) type = 'due_today_morning'
+    else if (deadlineKey === todayKey && hour === 14) type = 'due_today_afternoon'
     else if (new Date(task.deadline!) < now) type = 'missed_deadline'
     if (!type) continue
 
@@ -138,9 +149,9 @@ Deno.serve(async (req) => {
     const deadlineStr = new Date(task.deadline!).toLocaleDateString('uz-Latn-UZ')
     const taskTitle = escapeHtml(task.title)
     const text =
-      type === 'due_tomorrow'
+      type === 'due_tomorrow_noon'
         ? `⏰ Ertaga muddati tugaydi: <b>${taskTitle}</b> — ${deadlineStr}`
-        : type === 'due_today'
+        : type === 'due_today_morning' || type === 'due_today_afternoon'
           ? `⏰ Bugun muddati tugaydi: <b>${taskTitle}</b> — ${deadlineStr}`
           : `⚠ Muddati o'tgan vazifa: <b>${taskTitle}</b> (muddat ${deadlineStr} edi)`
 
@@ -203,7 +214,12 @@ Deno.serve(async (req) => {
     .in('publish_date', [todayKey, tomorrowKey])
 
   for (const item of contentItems ?? []) {
-    const type = item.publish_date === tomorrowKey ? 'due_tomorrow' : 'due_today'
+    const isTomorrow = item.publish_date === tomorrowKey
+    let type: string | null = null
+    if (isTomorrow && hour === 12) type = 'pub_tomorrow_noon'
+    else if (!isTomorrow && hour === 9) type = 'pub_today_morning'
+    else if (!isTomorrow && hour === 14) type = 'pub_today_afternoon'
+    if (!type) continue
 
     const taggedProfileIds = [...new Set(
       [item.shooter_profile_id, item.editor_profile_id, item.responsible_profile_id].filter(
@@ -212,7 +228,8 @@ Deno.serve(async (req) => {
     )]
 
     if (taggedProfileIds.length === 0) {
-      if (await alreadySentToday({ related_content_plan_item_id: item.id }, 'no_assignee')) continue
+      const noAssigneeType = `${type}_no_assignee`
+      if (await alreadySentToday({ related_content_plan_item_id: item.id }, noAssigneeType)) continue
 
       const recipients = [...new Set([...ceoChatIds, ...(await getPmChatIds(item.project_id))])]
       if (recipients.length === 0) continue
@@ -226,7 +243,7 @@ Deno.serve(async (req) => {
         sent += 1
         await admin.from('notification_log').insert({
           channel: 'telegram',
-          type: 'no_assignee',
+          type: noAssigneeType,
           related_content_plan_item_id: item.id,
           payload_json: { text },
         })
@@ -235,8 +252,9 @@ Deno.serve(async (req) => {
     }
 
     for (const profileId of taggedProfileIds) {
-      // Dedup per (item, type) covers all tagged people together — a single
-      // insert marks it sent, matching the once-per-day intent used for tasks.
+      // Dedup per (item, type, profile) covers each tagged person
+      // independently -- matches the once-per-(item,type) intent used for
+      // tasks, just scoped per profile since several people can be tagged.
       const { data: already } = await admin
         .from('notification_log')
         .select('id')
@@ -250,7 +268,7 @@ Deno.serve(async (req) => {
       const dateStr = new Date(item.publish_date!).toLocaleDateString('uz-Latn-UZ')
       const itemTopic = escapeHtml(item.topic)
       const text =
-        type === 'due_tomorrow'
+        type === 'pub_tomorrow_noon'
           ? `⏰ Ertaga chiqish sanasi: <b>${itemTopic}</b> — ${dateStr}`
           : `⏰ Bugun chiqish sanasi: <b>${itemTopic}</b> — ${dateStr}`
 
