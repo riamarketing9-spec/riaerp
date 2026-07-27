@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
+import { useAutosave } from '@/hooks/useAutosave'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -83,6 +84,7 @@ export function DocumentDialog({
   useEffect(() => {
     if (open && !isEdit) {
       reset({ is_org_wide: true })
+      setDraftId(null)
     }
   }, [open, isEdit, reset])
 
@@ -97,34 +99,51 @@ export function DocumentDialog({
     }
   }, [existing, reset])
 
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const effectiveId = documentId ?? draftId
+
+  async function performSave(values: FormValues) {
+    const payload = {
+      title: values.title,
+      storage_path: values.storage_path,
+      category_id: values.category_id || null,
+      is_org_wide: values.is_org_wide,
+    }
+    if (effectiveId) {
+      const { error } = await supabase.from('documents').update(payload).eq('id', effectiveId)
+      if (error) throw error
+    } else {
+      const { data, error } = await supabase
+        .from('documents')
+        .insert({ ...payload, uploaded_by: profile?.id ?? null })
+        .select('id')
+        .single()
+      if (error) throw error
+      setDraftId(data.id)
+    }
+    queryClient.invalidateQueries({ queryKey: ['documents'] })
+    queryClient.invalidateQueries({ queryKey: ['document-detail', effectiveId] })
+  }
+
   const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const payload = {
-        title: values.title,
-        storage_path: values.storage_path,
-        category_id: values.category_id || null,
-        is_org_wide: values.is_org_wide,
-      }
-      if (isEdit) {
-        const { error } = await supabase.from('documents').update(payload).eq('id', documentId!)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('documents').insert({
-          ...payload,
-          uploaded_by: profile?.id ?? null,
-        })
-        if (error) throw error
-      }
-    },
+    mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Документ добавлен')
-      queryClient.invalidateQueries({ queryKey: ['documents'] })
-      queryClient.invalidateQueries({ queryKey: ['document-detail', documentId] })
-      reset()
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const watched = watch()
+  const canAutosave = !!(watched.title && watched.storage_path)
+  const autosaveStatus = useAutosave(
+    watched,
+    async (values) => {
+      if (!canAutosave) return
+      await performSave(values)
+    },
+    { enabled: open, resetKey: documentId }
+  )
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -148,6 +167,13 @@ export function DocumentDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? t('common.edit') : t('docs.newDocument')}</DialogTitle>
+          {autosaveStatus !== 'idle' && (
+            <p className="text-xs text-muted-foreground">
+              {autosaveStatus === 'saving' && t('common.saving')}
+              {autosaveStatus === 'saved' && t('common.saved')}
+              {autosaveStatus === 'error' && t('common.saveError')}
+            </p>
+          )}
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -215,7 +241,7 @@ export function DocumentDialog({
               </Button>
             )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {isEdit ? t('common.save') : t('common.create')}
+              {effectiveId ? t('common.done') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>

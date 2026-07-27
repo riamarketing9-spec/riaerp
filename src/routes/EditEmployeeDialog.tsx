@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
+import { useAutosave } from '@/hooks/useAutosave'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -177,79 +178,106 @@ export function EditEmployeeDialog({
     })
   }
 
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const { error: profileErr } = await supabase
-        .from('profiles')
-        .update({
-          role_id: roleId,
-          department_id: departmentId || null,
-          staff_status_id: staffStatusId || null,
+  async function performSave() {
+    const { error: profileErr } = await supabase
+      .from('profiles')
+      .update({
+        role_id: roleId,
+        department_id: departmentId || null,
+        staff_status_id: staffStatusId || null,
+      })
+      .eq('id', profileId!)
+    if (profileErr) throw profileErr
+
+    const defaults = roleDefaults ?? new Set<string>()
+    const toUpsert: { profile_id: string; capability: string; granted: boolean; granted_by: string | null }[] = []
+    const toDelete: string[] = []
+
+    for (const cap of CAPABILITIES) {
+      const isEffective = effectiveCaps.has(cap.slug)
+      const isDefault = defaults.has(cap.slug)
+      if (isEffective === isDefault) {
+        toDelete.push(cap.slug)
+      } else {
+        toUpsert.push({
+          profile_id: profileId!,
+          capability: cap.slug,
+          granted: isEffective,
+          granted_by: currentProfile?.id ?? null,
         })
-        .eq('id', profileId!)
-      if (profileErr) throw profileErr
-
-      const defaults = roleDefaults ?? new Set<string>()
-      const toUpsert: { profile_id: string; capability: string; granted: boolean; granted_by: string | null }[] = []
-      const toDelete: string[] = []
-
-      for (const cap of CAPABILITIES) {
-        const isEffective = effectiveCaps.has(cap.slug)
-        const isDefault = defaults.has(cap.slug)
-        if (isEffective === isDefault) {
-          toDelete.push(cap.slug)
-        } else {
-          toUpsert.push({
-            profile_id: profileId!,
-            capability: cap.slug,
-            granted: isEffective,
-            granted_by: currentProfile?.id ?? null,
-          })
-        }
       }
+    }
 
-      if (toDelete.length) {
-        await supabase
-          .from('profile_capability_overrides')
-          .delete()
-          .eq('profile_id', profileId!)
-          .in('capability', toDelete)
-      }
-      if (toUpsert.length) {
-        const { error: upsertErr } = await supabase
-          .from('profile_capability_overrides')
-          .upsert(toUpsert, { onConflict: 'profile_id,capability' })
-        if (upsertErr) throw upsertErr
-      }
+    if (toDelete.length) {
+      await supabase
+        .from('profile_capability_overrides')
+        .delete()
+        .eq('profile_id', profileId!)
+        .in('capability', toDelete)
+    }
+    if (toUpsert.length) {
+      const { error: upsertErr } = await supabase
+        .from('profile_capability_overrides')
+        .upsert(toUpsert, { onConflict: 'profile_id,capability' })
+      if (upsertErr) throw upsertErr
+    }
 
-      const currentSecondary = new Set((employeeRoles ?? []).map((r) => r.role_id))
-      const toAddRoles = [...secondaryRoleIds].filter((id) => !currentSecondary.has(id))
-      const toRemoveRoles = [...currentSecondary].filter((id) => !secondaryRoleIds.has(id))
+    const currentSecondary = new Set((employeeRoles ?? []).map((r) => r.role_id))
+    const toAddRoles = [...secondaryRoleIds].filter((id) => !currentSecondary.has(id))
+    const toRemoveRoles = [...currentSecondary].filter((id) => !secondaryRoleIds.has(id))
 
-      if (toRemoveRoles.length) {
-        await supabase
-          .from('employee_roles')
-          .delete()
-          .eq('profile_id', profileId!)
-          .in('role_id', toRemoveRoles)
-      }
-      if (toAddRoles.length) {
-        const { error: rolesErr } = await supabase
-          .from('employee_roles')
-          .insert(toAddRoles.map((role_id) => ({ profile_id: profileId!, role_id })))
-        if (rolesErr) throw rolesErr
-      }
-    },
+    if (toRemoveRoles.length) {
+      await supabase
+        .from('employee_roles')
+        .delete()
+        .eq('profile_id', profileId!)
+        .in('role_id', toRemoveRoles)
+    }
+    if (toAddRoles.length) {
+      const { error: rolesErr } = await supabase
+        .from('employee_roles')
+        .insert(toAddRoles.map((role_id) => ({ profile_id: profileId!, role_id })))
+      if (rolesErr) throw rolesErr
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['team-profiles'] })
+    queryClient.invalidateQueries({ queryKey: ['employee-detail', profileId] })
+    queryClient.invalidateQueries({ queryKey: ['profile_capability_overrides', profileId] })
+    queryClient.invalidateQueries({ queryKey: ['employee_roles', profileId] })
+  }
+
+  const mutation = useMutation({
+    mutationFn: performSave,
     onSuccess: () => {
       toast.success(t('team.saved'))
-      queryClient.invalidateQueries({ queryKey: ['team-profiles'] })
-      queryClient.invalidateQueries({ queryKey: ['employee-detail', profileId] })
-      queryClient.invalidateQueries({ queryKey: ['profile_capability_overrides', profileId] })
-      queryClient.invalidateQueries({ queryKey: ['employee_roles', profileId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  // Every underlying query (profile, this role's defaults, overrides,
+  // secondary roles) has to have loaded before autosave is allowed to run --
+  // otherwise the first tick would fire against still-empty state (e.g.
+  // effectiveCaps before roleDefaults arrives) and briefly wipe a real
+  // employee's permissions. resetKey flips from a constant sentinel to the
+  // profileId only once everything is hydrated, so the baseline is captured
+  // against the fully-loaded values, not the initial empty ones.
+  const allLoaded = !!profileRow && !!roleDefaults && !!overrides && !!employeeRoles
+  const autosaveValues = {
+    roleId,
+    departmentId,
+    staffStatusId,
+    effectiveCaps: [...effectiveCaps].sort(),
+    secondaryRoleIds: [...secondaryRoleIds].sort(),
+  }
+  const autosaveStatus = useAutosave(
+    autosaveValues,
+    async () => {
+      if (!profileId) return
+      await performSave()
+    },
+    { enabled: open && allLoaded, resetKey: allLoaded ? profileId : 'pending' }
+  )
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -287,6 +315,13 @@ export function EditEmployeeDialog({
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{profileRow?.full_name ?? t('team.editEmployee')}</DialogTitle>
+          {autosaveStatus !== 'idle' && (
+            <p className="text-xs text-muted-foreground">
+              {autosaveStatus === 'saving' && t('common.saving')}
+              {autosaveStatus === 'saved' && t('common.saved')}
+              {autosaveStatus === 'error' && t('common.saveError')}
+            </p>
+          )}
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -410,7 +445,7 @@ export function EditEmployeeDialog({
             {t('common.delete')}
           </Button>
           <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {t('common.save')}
+            {t('common.done')}
           </Button>
         </DialogFooter>
       </DialogContent>

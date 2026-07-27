@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
+import { useAutosave } from '@/hooks/useAutosave'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -161,6 +162,7 @@ export function ContentItemSheet({
     if (open && !isEdit) {
       reset({ project_id: defaultProjectId ?? '', publish_date: defaultPublishDate ?? '' })
       setValue('_platforms' as never, [] as never)
+      setDraftId(null)
     }
   }, [open, isEdit, defaultProjectId, defaultPublishDate, reset, setValue])
 
@@ -200,57 +202,78 @@ export function ContentItemSheet({
     )
   }
 
+  // Local id for a record created by autosave before the parent ever passed
+  // an itemId down -- the prop stays null until the dialog is reopened, so
+  // this is what turns later autosave ticks into updates instead of re-inserts.
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const effectiveId = itemId ?? draftId
+
+  async function performSave(values: FormValues) {
+    const payload = {
+      project_id: values.project_id,
+      topic: values.topic,
+      format_id: values.format_id,
+      status_id: values.status_id,
+      deliverable_type_id: values.deliverable_type_id || null,
+      shooter_profile_id: values.shooter_profile_id || null,
+      editor_profile_id: values.editor_profile_id || null,
+      responsible_profile_id: values.responsible_profile_id || null,
+      shoot_date: values.shoot_date || null,
+      publish_date: values.publish_date || null,
+      script: values.script || null,
+      tor_text: values.tor_text || null,
+      rubric_id: values.rubric_id || null,
+      video_goal: values.video_goal || null,
+      reference_url: values.reference_url || null,
+    }
+
+    let id = effectiveId
+    if (id) {
+      const { error } = await supabase.from('content_plan_items').update(payload).eq('id', id)
+      if (error) throw error
+    } else {
+      const { data, error } = await supabase
+        .from('content_plan_items')
+        .insert(payload)
+        .select('id')
+        .single()
+      if (error) throw error
+      id = data.id
+      setDraftId(id)
+    }
+
+    await supabase.from('content_plan_platforms').delete().eq('content_plan_item_id', id)
+    const platformIds = selectedPlatforms ?? []
+    if (platformIds.length > 0) {
+      await supabase.from('content_plan_platforms').insert(
+        platformIds.map((platform_id) => ({ content_plan_item_id: id!, platform_id }))
+      )
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', id] })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_platforms-all'] })
+  }
+
   const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const payload = {
-        project_id: values.project_id,
-        topic: values.topic,
-        format_id: values.format_id,
-        status_id: values.status_id,
-        deliverable_type_id: values.deliverable_type_id || null,
-        shooter_profile_id: values.shooter_profile_id || null,
-        editor_profile_id: values.editor_profile_id || null,
-        responsible_profile_id: values.responsible_profile_id || null,
-        shoot_date: values.shoot_date || null,
-        publish_date: values.publish_date || null,
-        script: values.script || null,
-        tor_text: values.tor_text || null,
-        rubric_id: values.rubric_id || null,
-        video_goal: values.video_goal || null,
-        reference_url: values.reference_url || null,
-      }
-
-      let id = itemId
-      if (isEdit) {
-        const { error } = await supabase.from('content_plan_items').update(payload).eq('id', itemId!)
-        if (error) throw error
-      } else {
-        const { data, error } = await supabase
-          .from('content_plan_items')
-          .insert(payload)
-          .select('id')
-          .single()
-        if (error) throw error
-        id = data.id
-      }
-
-      await supabase.from('content_plan_platforms').delete().eq('content_plan_item_id', id!)
-      const platformIds = selectedPlatforms ?? []
-      if (platformIds.length > 0) {
-        await supabase.from('content_plan_platforms').insert(
-          platformIds.map((platform_id) => ({ content_plan_item_id: id!, platform_id }))
-        )
-      }
-    },
+    mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? 'Сохранено' : 'Добавлено в контент-план')
-      queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
-      queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', itemId] })
-      queryClient.invalidateQueries({ queryKey: ['content_plan_platforms-all'] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const watched = watch()
+  const canAutosave = !!(watched.project_id && watched.topic && watched.format_id && watched.status_id)
+  const autosaveStatus = useAutosave(
+    watched,
+    async (values) => {
+      if (!canAutosave) return
+      await performSave(values)
+    },
+    { enabled: open, resetKey: itemId ?? existing?.updated_at ?? null }
+  )
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -274,6 +297,13 @@ export function ContentItemSheet({
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? t('contentPlan.details') : t('contentPlan.newItem')}</DialogTitle>
+          {autosaveStatus !== 'idle' && (
+            <p className="text-xs text-muted-foreground">
+              {autosaveStatus === 'saving' && t('common.saving')}
+              {autosaveStatus === 'saved' && t('common.saved')}
+              {autosaveStatus === 'error' && t('common.saveError')}
+            </p>
+          )}
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -453,7 +483,7 @@ export function ContentItemSheet({
               </Button>
             )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {isEdit ? t('contentPlan.save') : t('common.create')}
+              {effectiveId ? t('common.done') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>

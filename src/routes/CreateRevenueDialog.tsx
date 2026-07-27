@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
+import { useAutosave } from '@/hooks/useAutosave'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -81,6 +82,7 @@ export function RevenueDialog({
   useEffect(() => {
     if (open && !isEdit) {
       reset({})
+      setDraftId(null)
     }
   }, [open, isEdit, reset])
 
@@ -94,36 +96,56 @@ export function RevenueDialog({
     }
   }, [existing, reset])
 
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const effectiveId = revenueId ?? draftId
+
+  async function performSave(values: FormValues) {
+    const monthDate = `${values.month}-01`
+    const payload = {
+      project_id: values.project_id,
+      month: monthDate,
+      amount: Number(values.amount),
+    }
+    if (effectiveId) {
+      const { error } = await supabase
+        .from('finance_project_revenue')
+        .update(payload)
+        .eq('id', effectiveId)
+      if (error) throw error
+    } else {
+      const { data, error } = await supabase
+        .from('finance_project_revenue')
+        .insert(payload)
+        .select('id')
+        .single()
+      if (error) throw error
+      setDraftId(data.id)
+    }
+    queryClient.invalidateQueries({ queryKey: ['finance_project_revenue'] })
+    queryClient.invalidateQueries({ queryKey: ['finance-revenue-detail', effectiveId] })
+    queryClient.invalidateQueries({ queryKey: ['v_project_profit'] })
+    queryClient.invalidateQueries({ queryKey: ['v_ceo_dashboard'] })
+  }
+
   const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const monthDate = `${values.month}-01`
-      const payload = {
-        project_id: values.project_id,
-        month: monthDate,
-        amount: Number(values.amount),
-      }
-      if (isEdit) {
-        const { error } = await supabase
-          .from('finance_project_revenue')
-          .update(payload)
-          .eq('id', revenueId!)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('finance_project_revenue').insert(payload)
-        if (error) throw error
-      }
-    },
+    mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Доход добавлен')
-      queryClient.invalidateQueries({ queryKey: ['finance_project_revenue'] })
-      queryClient.invalidateQueries({ queryKey: ['finance-revenue-detail', revenueId] })
-      queryClient.invalidateQueries({ queryKey: ['v_project_profit'] })
-      queryClient.invalidateQueries({ queryKey: ['v_ceo_dashboard'] })
-      reset()
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const watched = watch()
+  const canAutosave = !!(watched.project_id && watched.month && watched.amount)
+  const autosaveStatus = useAutosave(
+    watched,
+    async (values) => {
+      if (!canAutosave) return
+      await performSave(values)
+    },
+    { enabled: open, resetKey: revenueId }
+  )
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -152,6 +174,13 @@ export function RevenueDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? t('common.edit') : t('finance.newRevenue')}</DialogTitle>
+          {autosaveStatus !== 'idle' && (
+            <p className="text-xs text-muted-foreground">
+              {autosaveStatus === 'saving' && t('common.saving')}
+              {autosaveStatus === 'saved' && t('common.saved')}
+              {autosaveStatus === 'error' && t('common.saveError')}
+            </p>
+          )}
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -208,7 +237,7 @@ export function RevenueDialog({
               </Button>
             )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {isEdit ? t('common.save') : t('common.create')}
+              {effectiveId ? t('common.done') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>

@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
+import { useAutosave } from '@/hooks/useAutosave'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -171,6 +172,7 @@ export function ProjectDialog({
     if (open && !isEdit) {
       reset({})
       setAssistantPmIds(new Set())
+      setDraftId(null)
     }
   }, [open, isEdit, reset])
 
@@ -199,81 +201,102 @@ export function ProjectDialog({
     }
   }, [existingAssistants])
 
-  const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const payload = {
-        name: values.name,
-        project_type_id: values.project_type_id,
-        status_id: values.status_id,
-        pm_profile_id: values.pm_profile_id,
-        client_id: values.client_id || null,
-        goal: values.goal || null,
-        deliverables_text: values.deliverables_text || null,
-        target_audience: values.target_audience || null,
-        target_audience_voice_url: values.target_audience_voice_url || null,
-        target_audience_file_url: values.target_audience_file_url || null,
-        logo_url: values.logo_url || null,
-        billing_day: values.billing_day ? Number(values.billing_day) : null,
-      }
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const effectiveId = projectId ?? draftId
 
-      let currentProjectId = projectId
-      if (isEdit) {
-        const { error } = await supabase.from('projects').update(payload).eq('id', projectId!)
-        if (error) throw error
+  async function performSave(values: FormValues) {
+    const payload = {
+      name: values.name,
+      project_type_id: values.project_type_id,
+      status_id: values.status_id,
+      pm_profile_id: values.pm_profile_id,
+      client_id: values.client_id || null,
+      goal: values.goal || null,
+      deliverables_text: values.deliverables_text || null,
+      target_audience: values.target_audience || null,
+      target_audience_voice_url: values.target_audience_voice_url || null,
+      target_audience_file_url: values.target_audience_file_url || null,
+      logo_url: values.logo_url || null,
+      billing_day: values.billing_day ? Number(values.billing_day) : null,
+    }
+
+    let currentProjectId = effectiveId
+    if (currentProjectId) {
+      const { error } = await supabase.from('projects').update(payload).eq('id', currentProjectId)
+      if (error) throw error
+    } else {
+      const { data: project, error } = await supabase.from('projects').insert(payload).select('id').single()
+      if (error) throw error
+      currentProjectId = project.id
+      setDraftId(currentProjectId)
+    }
+
+    await supabase.from('project_members').delete().eq('project_id', currentProjectId).eq('role_on_project', 'assistant_pm')
+    if (assistantPmIds.size > 0) {
+      await supabase.from('project_members').insert(
+        [...assistantPmIds].map((profile_id) => ({
+          project_id: currentProjectId!,
+          profile_id,
+          role_on_project: 'assistant_pm',
+        }))
+      )
+    }
+
+    if (isCeo && values.contract_url && values.client_id) {
+      if (existingContract) {
+        const { error: contractError } = await supabase
+          .from('contracts')
+          .update({ storage_path: values.contract_url })
+          .eq('id', existingContract.id)
+        if (contractError) throw contractError
       } else {
-        const { data: project, error } = await supabase.from('projects').insert(payload).select('id').single()
-        if (error) throw error
-        currentProjectId = project.id
-      }
-
-      await supabase.from('project_members').delete().eq('project_id', currentProjectId!).eq('role_on_project', 'assistant_pm')
-      if (assistantPmIds.size > 0) {
-        await supabase.from('project_members').insert(
-          [...assistantPmIds].map((profile_id) => ({
-            project_id: currentProjectId!,
-            profile_id,
-            role_on_project: 'assistant_pm',
-          }))
-        )
-      }
-
-      if (isCeo && values.contract_url && values.client_id) {
-        if (existingContract) {
-          const { error: contractError } = await supabase
-            .from('contracts')
-            .update({ storage_path: values.contract_url })
-            .eq('id', existingContract.id)
+        const { data: contractType } = await supabase
+          .from('contract_types')
+          .select('id')
+          .limit(1)
+          .maybeSingle()
+        if (contractType) {
+          const { error: contractError } = await supabase.from('contracts').insert({
+            contract_type_id: contractType.id,
+            party_client_id: values.client_id,
+            storage_path: values.contract_url,
+          })
           if (contractError) throw contractError
-        } else {
-          const { data: contractType } = await supabase
-            .from('contract_types')
-            .select('id')
-            .limit(1)
-            .maybeSingle()
-          if (contractType) {
-            const { error: contractError } = await supabase.from('contracts').insert({
-              contract_type_id: contractType.id,
-              party_client_id: values.client_id,
-              storage_path: values.contract_url,
-            })
-            if (contractError) throw contractError
-          }
         }
       }
-    },
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['projects'] })
+    queryClient.invalidateQueries({ queryKey: ['project-detail', currentProjectId] })
+    queryClient.invalidateQueries({ queryKey: ['project_members-assistants', currentProjectId] })
+    queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId] })
+    queryClient.invalidateQueries({ queryKey: ['contracts-client-ids'] })
+  }
+
+  const mutation = useMutation({
+    mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('team.saved') : t('projects.newProject'))
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
-      queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['project_members-assistants', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId] })
-      queryClient.invalidateQueries({ queryKey: ['contracts-client-ids'] })
-      reset()
-      setAssistantPmIds(new Set())
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const watchedProject = watch()
+  const canAutosave = !!(
+    watchedProject.name &&
+    watchedProject.project_type_id &&
+    watchedProject.status_id &&
+    watchedProject.pm_profile_id
+  )
+  const autosaveStatus = useAutosave(
+    watchedProject,
+    async (values) => {
+      if (!canAutosave) return
+      await performSave(values)
+    },
+    { enabled: open, resetKey: projectId ?? existing?.updated_at ?? null }
+  )
 
   const deleteContractMutation = useMutation({
     mutationFn: async () => {
@@ -299,6 +322,13 @@ export function ProjectDialog({
       <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? existing?.name ?? t('projects.title') : t('projects.newProject')}</DialogTitle>
+          {autosaveStatus !== 'idle' && (
+            <p className="text-xs text-muted-foreground">
+              {autosaveStatus === 'saving' && t('common.saving')}
+              {autosaveStatus === 'saved' && t('common.saved')}
+              {autosaveStatus === 'error' && t('common.saveError')}
+            </p>
+          )}
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -487,7 +517,7 @@ export function ProjectDialog({
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {isEdit ? t('tasks.save') : t('common.create')}
+              {effectiveId ? t('common.done') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>

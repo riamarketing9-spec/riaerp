@@ -5,7 +5,7 @@ export type TaskStatusBucket = {
   label: string
   count: number
   color: string
-  tasks: { id: string; title: string; deadline: string | null }[]
+  tasks: { id: string; title: string; deadline: string | null; subtitle?: string | null }[]
 }
 
 const WIDTH = 320
@@ -56,7 +56,10 @@ export function TaskStatusChart({ buckets }: { buckets: TaskStatusBucket[] }) {
             ) : (
               b.tasks.map((task) => (
                 <div key={task.id} className="flex items-center justify-between gap-2 px-1 text-xs">
-                  <span className="truncate font-medium">{task.title}</span>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate font-medium">{task.title}</span>
+                    {task.subtitle && <span className="truncate text-muted-foreground">{task.subtitle}</span>}
+                  </span>
                   <span className="shrink-0 text-muted-foreground">
                     {task.deadline ? new Date(task.deadline).toLocaleDateString() : '—'}
                   </span>

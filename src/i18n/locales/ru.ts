@@ -9,6 +9,10 @@ export const ru = {
     delete: 'Удалить',
     search: 'Поиск',
     toggleTheme: 'Светлая/тёмная тема',
+    saving: 'Сохраняем…',
+    saved: 'Сохранено',
+    saveError: 'Не сохранено — ошибка',
+    done: 'Готово',
   },
   auth: {
     signInTitle: 'Вход в систему',
@@ -82,6 +86,9 @@ export const ru = {
     taskStatusChartTeam: 'Задачи команды',
     byProjectChart: 'По проектам',
     showTable: 'Таблица',
+    contentPlanChart: 'Мой контент-план',
+    contentPlanChartTeam: 'Контент-план команды',
+    total: 'Всего',
   },
   audit: {
     title: 'Журнал действий',

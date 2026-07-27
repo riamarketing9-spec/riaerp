@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
+import { useAutosave } from '@/hooks/useAutosave'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -92,6 +93,7 @@ export function RateDialog({
   useEffect(() => {
     if (open && !isEdit) {
       reset({})
+      setDraftId(null)
     }
   }, [open, isEdit, reset])
 
@@ -106,31 +108,56 @@ export function RateDialog({
     }
   }, [existing, reset])
 
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const effectiveId = rateId ?? draftId
+
+  async function performSave(values: FormValues) {
+    const payload = {
+      profile_id: values.profile_id,
+      deliverable_type_id: values.deliverable_type_id,
+      rate: Number(values.rate),
+      effective_from: values.effective_from,
+    }
+    if (effectiveId) {
+      const { error } = await supabase.from('payroll_rate_table').update(payload).eq('id', effectiveId)
+      if (error) throw error
+    } else {
+      const { data, error } = await supabase
+        .from('payroll_rate_table')
+        .insert(payload)
+        .select('id')
+        .single()
+      if (error) throw error
+      setDraftId(data.id)
+    }
+    queryClient.invalidateQueries({ queryKey: ['payroll_rate_table'] })
+    queryClient.invalidateQueries({ queryKey: ['payroll-rate-detail', effectiveId] })
+  }
+
   const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const payload = {
-        profile_id: values.profile_id,
-        deliverable_type_id: values.deliverable_type_id,
-        rate: Number(values.rate),
-        effective_from: values.effective_from,
-      }
-      if (isEdit) {
-        const { error } = await supabase.from('payroll_rate_table').update(payload).eq('id', rateId!)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('payroll_rate_table').insert(payload)
-        if (error) throw error
-      }
-    },
+    mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Ставка добавлена')
-      queryClient.invalidateQueries({ queryKey: ['payroll_rate_table'] })
-      queryClient.invalidateQueries({ queryKey: ['payroll-rate-detail', rateId] })
-      reset()
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const watched = watch()
+  const canAutosave = !!(
+    watched.profile_id &&
+    watched.deliverable_type_id &&
+    watched.rate &&
+    watched.effective_from
+  )
+  const autosaveStatus = useAutosave(
+    watched,
+    async (values) => {
+      if (!canAutosave) return
+      await performSave(values)
+    },
+    { enabled: open, resetKey: rateId }
+  )
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -154,6 +181,13 @@ export function RateDialog({
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{isEdit ? t('common.edit') : t('payroll.newRate')}</DialogTitle>
+          {autosaveStatus !== 'idle' && (
+            <p className="text-xs text-muted-foreground">
+              {autosaveStatus === 'saving' && t('common.saving')}
+              {autosaveStatus === 'saved' && t('common.saved')}
+              {autosaveStatus === 'error' && t('common.saveError')}
+            </p>
+          )}
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -234,7 +268,7 @@ export function RateDialog({
               </Button>
             )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {isEdit ? t('common.save') : t('common.create')}
+              {effectiveId ? t('common.done') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>

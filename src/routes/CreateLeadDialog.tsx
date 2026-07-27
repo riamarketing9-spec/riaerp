@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
+import { useAutosave } from '@/hooks/useAutosave'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -95,6 +96,7 @@ export function LeadDialog({
   useEffect(() => {
     if (open && !isEdit) {
       reset({})
+      setDraftId(null)
     }
   }, [open, isEdit, reset])
 
@@ -110,35 +112,52 @@ export function LeadDialog({
     }
   }, [existing, reset])
 
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const effectiveId = leadId ?? draftId
+
+  async function performSave(values: FormValues) {
+    const payload = {
+      client_id: values.client_id,
+      stage_id: values.stage_id,
+      expected_value: values.expected_value ? Number(values.expected_value) : null,
+      next_action_date: values.next_action_date || null,
+      notes: values.notes || null,
+    }
+    if (effectiveId) {
+      const { error } = await supabase.from('leads').update(payload).eq('id', effectiveId)
+      if (error) throw error
+    } else {
+      const { data, error } = await supabase
+        .from('leads')
+        .insert({ ...payload, owner_profile_id: profile?.id ?? null })
+        .select('id')
+        .single()
+      if (error) throw error
+      setDraftId(data.id)
+    }
+    queryClient.invalidateQueries({ queryKey: ['leads'] })
+    queryClient.invalidateQueries({ queryKey: ['lead-detail', effectiveId] })
+  }
+
   const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const payload = {
-        client_id: values.client_id,
-        stage_id: values.stage_id,
-        expected_value: values.expected_value ? Number(values.expected_value) : null,
-        next_action_date: values.next_action_date || null,
-        notes: values.notes || null,
-      }
-      if (isEdit) {
-        const { error } = await supabase.from('leads').update(payload).eq('id', leadId!)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('leads').insert({
-          ...payload,
-          owner_profile_id: profile?.id ?? null,
-        })
-        if (error) throw error
-      }
-    },
+    mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Лид создан')
-      queryClient.invalidateQueries({ queryKey: ['leads'] })
-      queryClient.invalidateQueries({ queryKey: ['lead-detail', leadId] })
-      reset()
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const watched = watch()
+  const canAutosave = !!(watched.client_id && watched.stage_id)
+  const autosaveStatus = useAutosave(
+    watched,
+    async (values) => {
+      if (!canAutosave) return
+      await performSave(values)
+    },
+    { enabled: open, resetKey: leadId ?? existing?.updated_at ?? null }
+  )
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -162,6 +181,13 @@ export function LeadDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? t('common.edit') : t('leads.newLead')}</DialogTitle>
+          {autosaveStatus !== 'idle' && (
+            <p className="text-xs text-muted-foreground">
+              {autosaveStatus === 'saving' && t('common.saving')}
+              {autosaveStatus === 'saved' && t('common.saved')}
+              {autosaveStatus === 'error' && t('common.saveError')}
+            </p>
+          )}
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -243,7 +269,7 @@ export function LeadDialog({
               </Button>
             )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {isEdit ? t('common.save') : t('common.create')}
+              {effectiveId ? t('common.done') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>

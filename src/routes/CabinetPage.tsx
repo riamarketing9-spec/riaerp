@@ -15,6 +15,8 @@ import { telegramDeepLink } from '@/lib/telegram'
 import { TimeTrackerWidget } from '@/components/TimeTrackerWidget'
 import { TaskStatusChart, type TaskStatusBucket } from '@/components/charts/TaskStatusChart'
 import { ProjectTasksChart, type ProjectTaskBar } from '@/components/charts/ProjectTasksChart'
+import { ProjectDonutChart } from '@/components/charts/ProjectDonutChart'
+import { ProjectProfitChart } from '@/components/charts/ProjectProfitChart'
 import { RevenueProfitChart } from '@/components/charts/RevenueProfitChart'
 import { ExpenseDonutChart } from '@/components/charts/ExpenseDonutChart'
 import { BackupExportButton } from './BackupExportButton'
@@ -196,13 +198,60 @@ function TaskChartsSection() {
     },
   })
 
+  const { data: profiles } = useQuery({
+    queryKey: ['profiles-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('id, full_name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: contentStatuses } = useQuery({
+    queryKey: ['content_statuses-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('content_statuses').select('id, slug')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const publishedStatusId = contentStatuses?.find((s) => s.slug === 'published')?.id
+
+  const { data: contentItems } = useQuery({
+    queryKey: ['dashboard-content-charts', seesTeamAggregate, profile?.id, publishedStatusId],
+    enabled: !!profile && !!publishedStatusId,
+    queryFn: async () => {
+      let query = supabase
+        .from('content_plan_items')
+        .select('id, topic, project_id, publish_date, status_id, shooter_profile_id, editor_profile_id')
+        .neq('status_id', publishedStatusId!)
+      if (!seesTeamAggregate) {
+        query = query.or(`shooter_profile_id.eq.${profile!.id},editor_profile_id.eq.${profile!.id}`)
+      }
+      const { data, error } = await query
+      if (error) throw error
+      return data
+    },
+  })
+
   const doneId = statuses?.find((s) => s.slug === 'done')?.id
   const backlogId = statuses?.find((s) => s.slug === 'backlog')?.id
   const now = Date.now()
   const soon = now + 3 * 24 * 60 * 60 * 1000
 
+  const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name ?? null
+  const projectName = (id: string | null) => projects?.find((p) => p.id === id)?.name ?? null
+
   const toBucketTasks = (list: NonNullable<typeof tasks>) =>
-    list.slice(0, 20).map((tsk) => ({ id: tsk.id, title: tsk.title, deadline: tsk.deadline }))
+    list.slice(0, 20).map((tsk) => ({
+      id: tsk.id,
+      title: tsk.title,
+      deadline: tsk.deadline,
+      subtitle: seesTeamAggregate
+        ? [assigneeName(tsk.assignee_profile_id), projectName(tsk.project_id)].filter(Boolean).join(' · ') || null
+        : null,
+    }))
 
   const openTasks = (tasks ?? []).filter((tsk) => tsk.status_id !== doneId && tsk.status_id !== backlogId)
   const overdueTasks = openTasks.filter((tsk) => tsk.deadline && new Date(tsk.deadline).getTime() < now)
@@ -210,10 +259,14 @@ function TaskChartsSection() {
     (tsk) => tsk.deadline && new Date(tsk.deadline).getTime() >= now && new Date(tsk.deadline).getTime() <= soon
   )
 
+  // Monochrome brand-green ramp instead of blue/red/amber: dark green reads
+  // as the healthy state (in progress), pale green flags what needs
+  // attention (overdue) -- matches the ERP's own palette rather than a
+  // generic traffic-light scheme.
   const buckets: TaskStatusBucket[] = [
-    { key: 'in_progress', label: t('dashboard.inProgress'), count: openTasks.length, color: '#2a78d6', tasks: toBucketTasks(openTasks) },
-    { key: 'overdue', label: t('dashboard.overdue'), count: overdueTasks.length, color: 'var(--destructive)', tasks: toBucketTasks(overdueTasks) },
-    { key: 'due_soon', label: t('dashboard.dueSoon'), count: dueSoonTasks.length, color: '#eda100', tasks: toBucketTasks(dueSoonTasks) },
+    { key: 'in_progress', label: t('dashboard.inProgress'), count: openTasks.length, color: '#0a4235', tasks: toBucketTasks(openTasks) },
+    { key: 'due_soon', label: t('dashboard.dueSoon'), count: dueSoonTasks.length, color: '#468f76', tasks: toBucketTasks(dueSoonTasks) },
+    { key: 'overdue', label: t('dashboard.overdue'), count: overdueTasks.length, color: '#a3c9bc', tasks: toBucketTasks(overdueTasks) },
   ]
 
   const projectBars: ProjectTaskBar[] = useMemo(() => {
@@ -235,8 +288,40 @@ function TaskChartsSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openTasks, projects])
 
+  const contentSubtitle = (item: NonNullable<typeof contentItems>[number]) => {
+    const parts: string[] = []
+    const shooter = assigneeName(item.shooter_profile_id)
+    const editor = assigneeName(item.editor_profile_id)
+    if (shooter) parts.push(`${t('contentPlan.shooter')}: ${shooter}`)
+    if (editor) parts.push(`${t('contentPlan.editor')}: ${editor}`)
+    return parts.join(' · ') || null
+  }
+
+  const contentBars: ProjectTaskBar[] = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof contentItems>>()
+    for (const item of contentItems ?? []) {
+      const list = map.get(item.project_id) ?? []
+      list.push(item)
+      map.set(item.project_id, list)
+    }
+    return [...map.entries()]
+      .map(([projectId, list]) => ({
+        projectId,
+        projectName: projects?.find((p) => p.id === projectId)?.name ?? '—',
+        count: list.length,
+        tasks: list.slice(0, 20).map((item) => ({
+          id: item.id,
+          title: item.topic,
+          deadline: item.publish_date,
+          subtitle: contentSubtitle(item),
+        })),
+      }))
+      .sort((a, b) => b.count - a.count)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentItems, projects])
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-medium">
@@ -253,6 +338,16 @@ function TaskChartsSection() {
         </CardHeader>
         <CardContent>
           <ProjectTasksChart bars={projectBars} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-medium">
+            {seesTeamAggregate ? t('dashboard.contentPlanChartTeam') : t('dashboard.contentPlanChart')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ProjectDonutChart bars={contentBars} totalLabel={t('dashboard.total')} />
         </CardContent>
       </Card>
     </div>
@@ -412,7 +507,7 @@ function FinanceSection() {
         {t('kpi.overloadedEmployees')}: <span className="font-medium text-foreground">{dashboard?.overloaded_employees ?? 0}</span>
       </p>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-medium">{t('kpi.revenueProfitTrend')}</CardTitle>
@@ -438,20 +533,20 @@ function FinanceSection() {
             )}
           </CardContent>
         </Card>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold">{t('kpi.projectProfit')}</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {profit?.map((p) => (
-            <Card key={p.project_id}>
-              <CardContent className="py-4">
-                <p className="text-sm font-medium">{p.name}</p>
-                <p className="mt-1 text-sm text-brand-700 dark:text-brand-300">{formatMoney(p.profit)}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium">{t('kpi.projectProfit')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(profit?.length ?? 0) === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('kpi.expenseBreakdownEmpty')}</p>
+            ) : (
+              <ProjectProfitChart
+                data={(profit ?? []).map((p) => ({ projectId: p.project_id, name: p.name, profit: p.profit }))}
+              />
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
@@ -630,6 +725,8 @@ export function CabinetPage() {
 
       <TaskChartsSection />
 
+      {canSeeFinance && <FinanceSection />}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <TimeTrackerWidget />
         <TelegramConnectCard />
@@ -666,8 +763,6 @@ export function CabinetPage() {
       </Card>
 
       {isPm && <TeamTasksWidget onOpen={setOpenTaskId} />}
-
-      {canSeeFinance && <FinanceSection />}
 
       <TaskSheet
         open={!!openTaskId}

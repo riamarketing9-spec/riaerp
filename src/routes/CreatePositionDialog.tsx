@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
+import { useAutosave } from '@/hooks/useAutosave'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -86,6 +87,7 @@ export function PositionDialog({
   useEffect(() => {
     if (open && !isEdit) {
       reset({ title: '', parent_position_id: '', profile_id: '' })
+      setDraftId(null)
     }
   }, [open, isEdit, reset])
 
@@ -99,31 +101,47 @@ export function PositionDialog({
     }
   }, [existing, reset])
 
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const effectiveId = positionId ?? draftId
+
+  async function performSave(values: FormValues) {
+    const payload = {
+      title: values.title,
+      parent_position_id: values.parent_position_id || null,
+      profile_id: values.profile_id || null,
+    }
+    if (effectiveId) {
+      const { error } = await supabase.from('org_positions').update(payload).eq('id', effectiveId)
+      if (error) throw error
+    } else {
+      const { data, error } = await supabase.from('org_positions').insert(payload).select('id').single()
+      if (error) throw error
+      setDraftId(data.id)
+    }
+    queryClient.invalidateQueries({ queryKey: ['org_positions'] })
+    queryClient.invalidateQueries({ queryKey: ['org_positions_lookup'] })
+    queryClient.invalidateQueries({ queryKey: ['org-position-detail', effectiveId] })
+  }
+
   const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const payload = {
-        title: values.title,
-        parent_position_id: values.parent_position_id || null,
-        profile_id: values.profile_id || null,
-      }
-      if (isEdit) {
-        const { error } = await supabase.from('org_positions').update(payload).eq('id', positionId!)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('org_positions').insert(payload)
-        if (error) throw error
-      }
-    },
+    mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : t('org.newPosition'))
-      queryClient.invalidateQueries({ queryKey: ['org_positions'] })
-      queryClient.invalidateQueries({ queryKey: ['org_positions_lookup'] })
-      queryClient.invalidateQueries({ queryKey: ['org-position-detail', positionId] })
-      reset()
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const watched = watch()
+  const canAutosave = !!watched.title
+  const autosaveStatus = useAutosave(
+    watched,
+    async (values) => {
+      if (!canAutosave) return
+      await performSave(values)
+    },
+    { enabled: open, resetKey: positionId }
+  )
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -150,6 +168,13 @@ export function PositionDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? t('common.edit') : t('org.newPosition')}</DialogTitle>
+          {autosaveStatus !== 'idle' && (
+            <p className="text-xs text-muted-foreground">
+              {autosaveStatus === 'saving' && t('common.saving')}
+              {autosaveStatus === 'saved' && t('common.saved')}
+              {autosaveStatus === 'error' && t('common.saveError')}
+            </p>
+          )}
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -215,7 +240,7 @@ export function PositionDialog({
               </Button>
             )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {isEdit ? t('common.save') : t('common.create')}
+              {effectiveId ? t('common.done') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>

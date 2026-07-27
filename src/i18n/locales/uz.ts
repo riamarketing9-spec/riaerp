@@ -9,6 +9,10 @@ export const uz = {
     delete: "O'chirish",
     search: 'Qidiruv',
     toggleTheme: "Yorug'/qorong'i mavzu",
+    saving: 'Saqlanmoqda…',
+    saved: 'Saqlandi',
+    saveError: 'Saqlanmadi — xatolik',
+    done: 'Tayyor',
   },
   auth: {
     signInTitle: 'Tizimga kirish',
@@ -82,6 +86,9 @@ export const uz = {
     taskStatusChartTeam: 'Jamoa vazifalari',
     byProjectChart: "Loyihalar bo'yicha",
     showTable: 'Jadval',
+    contentPlanChart: 'Mening kontent-rejam',
+    contentPlanChartTeam: 'Jamoa kontent-rejasi',
+    total: 'Jami',
   },
   audit: {
     title: 'Amallar jurnali',

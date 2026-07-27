@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
+import { useAutosave } from '@/hooks/useAutosave'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -74,6 +75,10 @@ export function TaskSheet({
   const [newSubtask, setNewSubtask] = useState('')
   const [newComment, setNewComment] = useState('')
   const [selectedDeliverableTypes, setSelectedDeliverableTypes] = useState<Set<string>>(new Set())
+  // Local id for a task created by autosave before the parent ever passed a
+  // taskId down -- mirrors the same pattern used in ContentItemSheet.
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const effectiveId = taskId ?? draftId
 
   const { data: statuses } = useQuery({
     queryKey: ['task_statuses'],
@@ -226,6 +231,7 @@ export function TaskSheet({
     if (open && !isEdit) {
       reset({ project_id: defaultProjectId ?? '' })
       setSelectedDeliverableTypes(new Set())
+      setDraftId(null)
     }
   }, [open, isEdit, defaultProjectId, reset])
 
@@ -260,56 +266,81 @@ export function TaskSheet({
     })
   }
 
+  async function performSave(values: FormValues) {
+    const payload = {
+      title: values.title,
+      project_id: values.project_id || null,
+      assignee_profile_id: values.assignee_profile_id || null,
+      status_id: values.status_id,
+      deadline: values.deadline ? new Date(values.deadline).toISOString() : null,
+      starts_at: values.starts_at ? new Date(values.starts_at).toISOString() : null,
+      deliverable_text: values.deliverable_text || null,
+      term_type_id: values.term_type_id || null,
+      quadrant_id: values.quadrant_id || null,
+    }
+
+    let currentTaskId = effectiveId
+    if (currentTaskId) {
+      const { error } = await supabase.from('tasks').update(payload).eq('id', currentTaskId)
+      if (error) throw error
+    } else {
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert({ ...payload, created_by: profile?.id ?? null })
+        .select('id')
+        .single()
+      if (error) throw error
+      currentTaskId = data.id
+      setDraftId(currentTaskId)
+    }
+
+    await supabase.from('task_deliverable_types').delete().eq('task_id', currentTaskId)
+    if (selectedDeliverableTypes.size > 0) {
+      await supabase.from('task_deliverable_types').insert(
+        [...selectedDeliverableTypes].map((deliverable_type_id) => ({
+          task_id: currentTaskId!,
+          deliverable_type_id,
+        }))
+      )
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
+    queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
+    queryClient.invalidateQueries({ queryKey: ['workload'] })
+    queryClient.invalidateQueries({ queryKey: ['task-detail', currentTaskId] })
+    queryClient.invalidateQueries({ queryKey: ['task_deliverable_types', currentTaskId] })
+  }
+
   const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const payload = {
-        title: values.title,
-        project_id: values.project_id || null,
-        assignee_profile_id: values.assignee_profile_id || null,
-        status_id: values.status_id,
-        deadline: values.deadline ? new Date(values.deadline).toISOString() : null,
-        starts_at: values.starts_at ? new Date(values.starts_at).toISOString() : null,
-        deliverable_text: values.deliverable_text || null,
-        term_type_id: values.term_type_id || null,
-        quadrant_id: values.quadrant_id || null,
-      }
-
-      let currentTaskId = taskId
-      if (isEdit) {
-        const { error } = await supabase.from('tasks').update(payload).eq('id', taskId!)
-        if (error) throw error
-      } else {
-        const { data, error } = await supabase
-          .from('tasks')
-          .insert({ ...payload, created_by: profile?.id ?? null })
-          .select('id')
-          .single()
-        if (error) throw error
-        currentTaskId = data.id
-      }
-
-      await supabase.from('task_deliverable_types').delete().eq('task_id', currentTaskId!)
-      if (selectedDeliverableTypes.size > 0) {
-        await supabase.from('task_deliverable_types').insert(
-          [...selectedDeliverableTypes].map((deliverable_type_id) => ({
-            task_id: currentTaskId!,
-            deliverable_type_id,
-          }))
-        )
-      }
-    },
+    mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('team.saved') : 'Задача создана')
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
-      queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
-      queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
-      queryClient.invalidateQueries({ queryKey: ['workload'] })
-      queryClient.invalidateQueries({ queryKey: ['task-detail', taskId] })
-      queryClient.invalidateQueries({ queryKey: ['task_deliverable_types', taskId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const watchedTask = watch()
+  // project_id is only required here for the create path -- RLS on insert
+  // rejects a project-less task from anyone without CEO/projects.manage, but
+  // an existing task without a project can still autosave its other fields.
+  const canAutosaveTask = !!(
+    watchedTask.title &&
+    watchedTask.status_id &&
+    (effectiveId || watchedTask.project_id)
+  )
+  const autosaveStatus = useAutosave(
+    watchedTask,
+    async (values) => {
+      // A plain assignee's disabled fields are sent back unchanged, same as
+      // the manual save path today -- the DB trigger only rejects an actual
+      // change to those columns, so this is no riskier than clicking Save.
+      if (!canAutosaveTask) return
+      await performSave(values)
+    },
+    { enabled: open, resetKey: taskId ?? existing?.updated_at ?? null }
+  )
 
   const addSubtask = useMutation({
     mutationFn: async () => {
@@ -372,6 +403,13 @@ export function TaskSheet({
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? t('tasks.details') : t('tasks.newTask')}</DialogTitle>
+          {autosaveStatus !== 'idle' && (
+            <p className="text-xs text-muted-foreground">
+              {autosaveStatus === 'saving' && t('common.saving')}
+              {autosaveStatus === 'saved' && t('common.saved')}
+              {autosaveStatus === 'error' && t('common.saveError')}
+            </p>
+          )}
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -611,7 +649,7 @@ export function TaskSheet({
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {isEdit ? t('tasks.save') : t('common.create')}
+              {effectiveId ? t('common.done') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>

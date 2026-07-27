@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
+import { useAutosave } from '@/hooks/useAutosave'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -81,6 +82,7 @@ export function ClientDialog({
   useEffect(() => {
     if (open && !isEdit) {
       reset({})
+      setDraftId(null)
     }
   }, [open, isEdit, reset])
 
@@ -97,33 +99,49 @@ export function ClientDialog({
     }
   }, [existing, reset])
 
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const effectiveId = clientId ?? draftId
+
+  async function performSave(values: FormValues) {
+    const payload = {
+      name: values.name,
+      status_id: values.status_id,
+      contact_name: values.contact_name || null,
+      contact_phone: values.contact_phone || null,
+      contact_telegram: values.contact_telegram || null,
+      industry_text: values.industry_text || null,
+    }
+    if (effectiveId) {
+      const { error } = await supabase.from('clients').update(payload).eq('id', effectiveId)
+      if (error) throw error
+    } else {
+      const { data, error } = await supabase.from('clients').insert(payload).select('id').single()
+      if (error) throw error
+      setDraftId(data.id)
+    }
+    queryClient.invalidateQueries({ queryKey: ['clients'] })
+    queryClient.invalidateQueries({ queryKey: ['client-detail', effectiveId] })
+  }
+
   const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const payload = {
-        name: values.name,
-        status_id: values.status_id,
-        contact_name: values.contact_name || null,
-        contact_phone: values.contact_phone || null,
-        contact_telegram: values.contact_telegram || null,
-        industry_text: values.industry_text || null,
-      }
-      if (isEdit) {
-        const { error } = await supabase.from('clients').update(payload).eq('id', clientId!)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('clients').insert(payload)
-        if (error) throw error
-      }
-    },
+    mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Клиент добавлен')
-      queryClient.invalidateQueries({ queryKey: ['clients'] })
-      queryClient.invalidateQueries({ queryKey: ['client-detail', clientId] })
-      reset()
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const watched = watch()
+  const canAutosave = !!(watched.name && watched.status_id)
+  const autosaveStatus = useAutosave(
+    watched,
+    async (values) => {
+      if (!canAutosave) return
+      await performSave(values)
+    },
+    { enabled: open, resetKey: clientId ?? existing?.updated_at ?? null }
+  )
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -147,6 +165,13 @@ export function ClientDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? t('common.edit') : t('clients.newClient')}</DialogTitle>
+          {autosaveStatus !== 'idle' && (
+            <p className="text-xs text-muted-foreground">
+              {autosaveStatus === 'saving' && t('common.saving')}
+              {autosaveStatus === 'saved' && t('common.saved')}
+              {autosaveStatus === 'error' && t('common.saveError')}
+            </p>
+          )}
         </DialogHeader>
         <form
           onSubmit={handleSubmit((values) => mutation.mutate(values))}
@@ -216,7 +241,7 @@ export function ClientDialog({
               </Button>
             )}
             <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {isEdit ? t('common.save') : t('common.create')}
+              {effectiveId ? t('common.done') : t('common.create')}
             </Button>
           </DialogFooter>
         </form>

@@ -66,7 +66,7 @@ export function RevenueProfitChart({
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="w-full cursor-pointer"
-        style={{ ['--chart-revenue' as string]: '#2a78d6', ['--chart-profit' as string]: '#1baf7a' }}
+        style={{ ['--chart-revenue' as string]: '#0a4235', ['--chart-profit' as string]: '#74ad99' }}
         onMouseLeave={() => setHoverIndex(null)}
         onClick={() => setTableOpen((v) => !v)}
         role="button"
