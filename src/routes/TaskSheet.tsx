@@ -348,16 +348,11 @@ export function TaskSheet({
   // notify, silently (no toast/spinner) since it's not a user-initiated
   // "save" action from their point of view.
   function handleDialogOpenChange(nextOpen: boolean) {
-    console.log('[TaskSheet] onOpenChange', { nextOpen, open, canAutosaveTask })
     if (!nextOpen && open && canAutosaveTask) {
       const values = watch()
-      console.log('[TaskSheet] closing -> flushing save + notify, assignee=', values.assignee_profile_id)
       performSave(values)
-        .then((currentTaskId) => {
-          console.log('[TaskSheet] flush save done, id=', currentTaskId, '-> calling notify')
-          notifyAssignee(currentTaskId, values)
-        })
-        .catch((err) => console.error('[TaskSheet] flush-on-close save failed', err))
+        .then((currentTaskId) => notifyAssignee(currentTaskId, values))
+        .catch((err) => console.error('flush-on-close save failed', err))
     }
     onOpenChange(nextOpen)
   }
