@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -227,11 +227,18 @@ export function TaskSheet({
     resolver: zodResolver(schema),
   })
 
+  // Tracks the assignee as of when the sheet was opened, so the explicit
+  // save handler can tell "genuinely (re)assigned" apart from "opened and
+  // closed an already-assigned task without touching this field" -- only
+  // the former should DM the assignee.
+  const originalAssigneeRef = useRef<string | null>(null)
+
   useEffect(() => {
     if (open && !isEdit) {
       reset({ project_id: defaultProjectId ?? '' })
       setSelectedDeliverableTypes(new Set())
       setDraftId(null)
+      originalAssigneeRef.current = null
     }
   }, [open, isEdit, defaultProjectId, reset])
 
@@ -248,6 +255,7 @@ export function TaskSheet({
         term_type_id: existing.term_type_id ?? '',
         quadrant_id: existing.quadrant_id ?? '',
       })
+      originalAssigneeRef.current = existing.assignee_profile_id ?? null
     }
   }, [existing, reset])
 
@@ -315,14 +323,29 @@ export function TaskSheet({
     queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
     queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
     queryClient.invalidateQueries({ queryKey: ['workload'] })
+
+    return currentTaskId
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
-    onSuccess: () => {
+    onSuccess: (currentTaskId, values) => {
       toast.success(isEdit ? t('team.saved') : 'Задача создана')
       queryClient.invalidateQueries({ queryKey: ['task-detail', taskId] })
       queryClient.invalidateQueries({ queryKey: ['task_deliverable_types', taskId] })
+
+      // DM the assignee only from this explicit save/close, never from a
+      // background autosave tick, and only when the assignee actually
+      // changed -- not on every reopen-and-close of an already-assigned
+      // task. The DB function itself holds the notify-endpoint secret; the
+      // client only ever calls it by name.
+      const newAssignee = values.assignee_profile_id || null
+      if (newAssignee && newAssignee !== originalAssigneeRef.current) {
+        supabase.rpc('notify_task_assigned_now', { p_task_id: currentTaskId }).then(({ error }) => {
+          if (error) console.error('notify_task_assigned_now failed', error)
+        })
+      }
+
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

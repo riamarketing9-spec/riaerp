@@ -509,7 +509,9 @@ export type Database = {
       v_ceo_dashboard: { Row: CeoDashboardViewRow; Relationships: [] }
       v_employee_kpi: { Row: EmployeeKpiViewRow; Relationships: [] }
     }
-    Functions: Record<string, never>
+    Functions: {
+      notify_task_assigned_now: { Args: { p_task_id: string }; Returns: void }
+    }
     Enums: Record<string, never>
   }
 }
