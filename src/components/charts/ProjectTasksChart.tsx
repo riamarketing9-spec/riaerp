@@ -11,7 +11,7 @@ export type ProjectTaskBar = {
 // project name, so categorical distinctness between bars isn't needed here.
 const BAR_COLOR = '#0d5142'
 
-export function ProjectTasksChart({ bars }: { bars: ProjectTaskBar[] }) {
+export function ProjectTasksChart({ bars, color = BAR_COLOR }: { bars: ProjectTaskBar[]; color?: string }) {
   const [openId, setOpenId] = useState<string | null>(null)
   const max = Math.max(1, ...bars.map((b) => b.count))
 
@@ -31,7 +31,7 @@ export function ProjectTasksChart({ bars }: { bars: ProjectTaskBar[] }) {
             <span className="h-4 flex-1 overflow-hidden rounded bg-muted">
               <span
                 className="block h-full rounded"
-                style={{ width: `${(b.count / max) * 100}%`, background: BAR_COLOR }}
+                style={{ width: `${(b.count / max) * 100}%`, background: color }}
               />
             </span>
             <span className="w-6 shrink-0 text-right text-xs font-medium text-foreground">{b.count}</span>

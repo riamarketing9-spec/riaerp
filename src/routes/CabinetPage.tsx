@@ -15,7 +15,6 @@ import { telegramDeepLink } from '@/lib/telegram'
 import { TimeTrackerWidget } from '@/components/TimeTrackerWidget'
 import { TaskStatusChart, type TaskStatusBucket } from '@/components/charts/TaskStatusChart'
 import { ProjectTasksChart, type ProjectTaskBar } from '@/components/charts/ProjectTasksChart'
-import { ProjectDonutChart } from '@/components/charts/ProjectDonutChart'
 import { ProjectProfitChart } from '@/components/charts/ProjectProfitChart'
 import { RevenueProfitChart } from '@/components/charts/RevenueProfitChart'
 import { ExpenseDonutChart } from '@/components/charts/ExpenseDonutChart'
@@ -347,7 +346,10 @@ function TaskChartsSection() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ProjectDonutChart bars={contentBars} totalLabel={t('dashboard.total')} />
+          {/* Same bar-list type as "по проектам" but a different shade -- a
+              donut/pie stops being readable once there are more than a
+              handful of projects, since every slice needs its own hue. */}
+          <ProjectTasksChart bars={contentBars} color="#468f76" />
         </CardContent>
       </Card>
     </div>
