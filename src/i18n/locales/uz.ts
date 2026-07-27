@@ -264,6 +264,11 @@ export const uz = {
     onTime: "O'z vaqtida",
     avgPercent: "O'rtacha bajarilish",
     overloadedEmployees: 'Ortiqcha yuklangan xodimlar',
+    revenueProfitTrend: "6 oylik daromad va foyda",
+    expenseBreakdown: "Xarajatlar tarkibi (shu oy)",
+    expenseBreakdownEmpty: "Bu oyda hozircha xarajat yo'q",
+    totalExpenses: 'Jami xarajatlar',
+    otherCategory: 'Boshqa',
   },
   contentPlan: {
     title: 'Kontent reja',

@@ -264,6 +264,11 @@ export const ru = {
     onTime: 'Вовремя',
     avgPercent: 'Средняя готовность',
     overloadedEmployees: 'Перегруженных сотрудников',
+    revenueProfitTrend: 'Доход и прибыль за 6 месяцев',
+    expenseBreakdown: 'Структура расходов (этот месяц)',
+    expenseBreakdownEmpty: 'Расходов в этом месяце пока нет',
+    totalExpenses: 'Всего расходов',
+    otherCategory: 'Другое',
   },
   contentPlan: {
     title: 'Контент-план',
