@@ -287,13 +287,13 @@ function TaskChartsSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openTasks, projects])
 
+  // Always show both roles, even unassigned ("—") -- silently omitting the
+  // line when shooter/editor are empty looked like the feature was missing
+  // rather than the item just not having anyone assigned yet.
   const contentSubtitle = (item: NonNullable<typeof contentItems>[number]) => {
-    const parts: string[] = []
-    const shooter = assigneeName(item.shooter_profile_id)
-    const editor = assigneeName(item.editor_profile_id)
-    if (shooter) parts.push(`${t('contentPlan.shooter')}: ${shooter}`)
-    if (editor) parts.push(`${t('contentPlan.editor')}: ${editor}`)
-    return parts.join(' · ') || null
+    const shooter = assigneeName(item.shooter_profile_id) ?? '—'
+    const editor = assigneeName(item.editor_profile_id) ?? '—'
+    return `${t('contentPlan.shooter')}: ${shooter} · ${t('contentPlan.editor')}: ${editor}`
   }
 
   const contentBars: ProjectTaskBar[] = useMemo(() => {

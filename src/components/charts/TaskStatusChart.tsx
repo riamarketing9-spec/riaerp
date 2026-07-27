@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { DeadlineBadge } from './DeadlineBadge'
 
 export type TaskStatusBucket = {
   key: string
@@ -60,9 +61,7 @@ export function TaskStatusChart({ buckets }: { buckets: TaskStatusBucket[] }) {
                     <span className="truncate font-medium">{task.title}</span>
                     {task.subtitle && <span className="truncate text-muted-foreground">{task.subtitle}</span>}
                   </span>
-                  <span className="shrink-0 text-muted-foreground">
-                    {task.deadline ? new Date(task.deadline).toLocaleDateString() : '—'}
-                  </span>
+                  <DeadlineBadge deadline={task.deadline} />
                 </div>
               ))
             )}
