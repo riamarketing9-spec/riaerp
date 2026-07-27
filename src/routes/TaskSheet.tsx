@@ -327,29 +327,47 @@ export function TaskSheet({
     return currentTaskId
   }
 
+  // DM the assignee only once we're actually closing (explicit button, X,
+  // Escape, or backdrop click all count -- autosave alone never should),
+  // and only when the assignee actually changed from what it was when the
+  // sheet opened, not on every reopen-and-close of an already-assigned
+  // task. The DB function itself holds the notify-endpoint secret; the
+  // client only ever calls it by name.
+  function notifyIfAssigneeChanged(savedTaskId: string, values: FormValues) {
+    const newAssignee = values.assignee_profile_id || null
+    if (newAssignee && newAssignee !== originalAssigneeRef.current) {
+      supabase.rpc('notify_task_assigned_now', { p_task_id: savedTaskId }).then(({ error }) => {
+        if (error) console.error('notify_task_assigned_now failed', error)
+      })
+    }
+  }
+
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: (currentTaskId, values) => {
       toast.success(isEdit ? t('team.saved') : 'Задача создана')
       queryClient.invalidateQueries({ queryKey: ['task-detail', taskId] })
       queryClient.invalidateQueries({ queryKey: ['task_deliverable_types', taskId] })
-
-      // DM the assignee only from this explicit save/close, never from a
-      // background autosave tick, and only when the assignee actually
-      // changed -- not on every reopen-and-close of an already-assigned
-      // task. The DB function itself holds the notify-endpoint secret; the
-      // client only ever calls it by name.
-      const newAssignee = values.assignee_profile_id || null
-      if (newAssignee && newAssignee !== originalAssigneeRef.current) {
-        supabase.rpc('notify_task_assigned_now', { p_task_id: currentTaskId }).then(({ error }) => {
-          if (error) console.error('notify_task_assigned_now failed', error)
-        })
-      }
-
+      notifyIfAssigneeChanged(currentTaskId, values)
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
+
+  // Closing via X / Escape / backdrop click skips the submit button (and
+  // its zod validation) entirely -- but the task is already saved by
+  // autosave, so this just flushes the latest values and fires the same
+  // notify check, silently (no toast/spinner) since it's not a user-
+  // initiated "save" action from their point of view.
+  function handleDialogOpenChange(nextOpen: boolean) {
+    if (!nextOpen && open && canAutosaveTask) {
+      const values = watch()
+      performSave(values)
+        .then((currentTaskId) => notifyIfAssigneeChanged(currentTaskId, values))
+        .catch((err) => console.error('flush-on-close save failed', err))
+    }
+    onOpenChange(nextOpen)
+  }
 
   const watchedTask = watch()
   // project_id is only required here for the create path -- RLS on insert
@@ -429,7 +447,7 @@ export function TaskSheet({
   })
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? t('tasks.details') : t('tasks.newTask')}</DialogTitle>
