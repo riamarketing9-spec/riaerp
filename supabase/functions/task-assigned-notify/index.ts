@@ -59,15 +59,15 @@ Deno.serve(async (req) => {
     : 'muddatsiz'
 
   const lines = [
-    '📌 Sizga yangi vazifa tayinlandi',
+    '🔔 Sizga yangi vazifa tayinlandi',
     '',
-    `<b>${escapeHtml(title)}</b>`,
-    project?.name ? `Loyiha: ${escapeHtml(project.name)}` : null,
-    `Muddat: ${deadlineText}`,
-    deliverableText ? `Ish turi: ${escapeHtml(deliverableText)}` : null,
-    creator?.full_name ? `Tayinladi: ${escapeHtml(creator.full_name)}` : null,
+    `📌 Nomi: <b>${escapeHtml(title)}</b>`,
+    `📁 Loyiha: ${project?.name ? escapeHtml(project.name) : 'Loyihasiz'}`,
+    `📅 Muddat: ${deadlineText}`,
+    deliverableText ? `🛠 Ish turi: ${escapeHtml(deliverableText)}` : null,
+    `👤 Tayinladi: ${creator?.full_name ? escapeHtml(creator.full_name) : '—'}`,
     '',
-    'Tizimga kirib tekshiring.',
+    '✅ Tizimga kirib tekshiring.',
   ].filter((line): line is string => line !== null)
 
   const text = lines.join('\n')
