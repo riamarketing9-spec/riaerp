@@ -120,13 +120,13 @@ export function PositionDialog({
     }
     queryClient.invalidateQueries({ queryKey: ['org_positions'] })
     queryClient.invalidateQueries({ queryKey: ['org_positions_lookup'] })
-    queryClient.invalidateQueries({ queryKey: ['org-position-detail', effectiveId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : t('org.newPosition'))
+      queryClient.invalidateQueries({ queryKey: ['org-position-detail', positionId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

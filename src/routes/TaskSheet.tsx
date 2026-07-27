@@ -304,18 +304,25 @@ export function TaskSheet({
       )
     }
 
+    // List queries only here -- other views (kanban, cabinet, workload) can
+    // refresh live. NOT this sheet's own ['task-detail', id] / deliverable
+    // types query: invalidating those while the sheet is still open would
+    // refetch mid-edit and re-trigger the populate-from-server effects
+    // below, reverting whatever the user just clicked (quadrant, ish turi)
+    // before it even got saved. Those two are invalidated only in
+    // mutation.onSuccess, once the sheet is actually closing.
     queryClient.invalidateQueries({ queryKey: ['tasks'] })
     queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
     queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
     queryClient.invalidateQueries({ queryKey: ['workload'] })
-    queryClient.invalidateQueries({ queryKey: ['task-detail', currentTaskId] })
-    queryClient.invalidateQueries({ queryKey: ['task_deliverable_types', currentTaskId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('team.saved') : 'Задача создана')
+      queryClient.invalidateQueries({ queryKey: ['task-detail', taskId] })
+      queryClient.invalidateQueries({ queryKey: ['task_deliverable_types', taskId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

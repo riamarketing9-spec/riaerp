@@ -122,13 +122,13 @@ export function DocumentDialog({
       setDraftId(data.id)
     }
     queryClient.invalidateQueries({ queryKey: ['documents'] })
-    queryClient.invalidateQueries({ queryKey: ['document-detail', effectiveId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Документ добавлен')
+      queryClient.invalidateQueries({ queryKey: ['document-detail', documentId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

@@ -240,16 +240,20 @@ export function EditEmployeeDialog({
       if (rolesErr) throw rolesErr
     }
 
+    // Not the profile/overrides/roles detail queries here -- refetching
+    // them while the sheet is open would re-trigger the populate-from-server
+    // effects and revert a permission toggle the user just made but hasn't
+    // finished editing yet. Invalidated only in mutation.onSuccess.
     queryClient.invalidateQueries({ queryKey: ['team-profiles'] })
-    queryClient.invalidateQueries({ queryKey: ['employee-detail', profileId] })
-    queryClient.invalidateQueries({ queryKey: ['profile_capability_overrides', profileId] })
-    queryClient.invalidateQueries({ queryKey: ['employee_roles', profileId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(t('team.saved'))
+      queryClient.invalidateQueries({ queryKey: ['employee-detail', profileId] })
+      queryClient.invalidateQueries({ queryKey: ['profile_capability_overrides', profileId] })
+      queryClient.invalidateQueries({ queryKey: ['employee_roles', profileId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

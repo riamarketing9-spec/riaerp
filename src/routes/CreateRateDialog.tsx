@@ -131,13 +131,13 @@ export function RateDialog({
       setDraftId(data.id)
     }
     queryClient.invalidateQueries({ queryKey: ['payroll_rate_table'] })
-    queryClient.invalidateQueries({ queryKey: ['payroll-rate-detail', effectiveId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Ставка добавлена')
+      queryClient.invalidateQueries({ queryKey: ['payroll-rate-detail', rateId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

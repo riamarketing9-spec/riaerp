@@ -136,13 +136,13 @@ export function LeadDialog({
       setDraftId(data.id)
     }
     queryClient.invalidateQueries({ queryKey: ['leads'] })
-    queryClient.invalidateQueries({ queryKey: ['lead-detail', effectiveId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Лид создан')
+      queryClient.invalidateQueries({ queryKey: ['lead-detail', leadId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

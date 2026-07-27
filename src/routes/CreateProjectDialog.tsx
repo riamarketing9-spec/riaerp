@@ -266,17 +266,21 @@ export function ProjectDialog({
       }
     }
 
+    // Not this sheet's own ['project-detail', id] / assistants/contract
+    // queries here -- refetching them mid-edit would re-trigger the
+    // populate-from-server effects and revert an unsaved change. Those are
+    // invalidated only in mutation.onSuccess, once the sheet is closing.
     queryClient.invalidateQueries({ queryKey: ['projects'] })
-    queryClient.invalidateQueries({ queryKey: ['project-detail', currentProjectId] })
-    queryClient.invalidateQueries({ queryKey: ['project_members-assistants', currentProjectId] })
-    queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId] })
-    queryClient.invalidateQueries({ queryKey: ['contracts-client-ids'] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('team.saved') : t('projects.newProject'))
+      queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project_members-assistants', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId] })
+      queryClient.invalidateQueries({ queryKey: ['contracts-client-ids'] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

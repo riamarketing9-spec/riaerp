@@ -250,8 +250,11 @@ export function ContentItemSheet({
       )
     }
 
+    // Not this sheet's own ['content_plan_platforms', id] here -- refetching
+    // it while still open re-triggers the effect that populates the
+    // platform checkboxes, reverting whatever the user just toggled before
+    // it's saved. Invalidated in mutation.onSuccess instead, once closing.
     queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
-    queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', id] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_platforms-all'] })
   }
 
@@ -259,6 +262,7 @@ export function ContentItemSheet({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? 'Сохранено' : 'Добавлено в контент-план')
+      queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', itemId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

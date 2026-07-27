@@ -122,7 +122,6 @@ export function RevenueDialog({
       setDraftId(data.id)
     }
     queryClient.invalidateQueries({ queryKey: ['finance_project_revenue'] })
-    queryClient.invalidateQueries({ queryKey: ['finance-revenue-detail', effectiveId] })
     queryClient.invalidateQueries({ queryKey: ['v_project_profit'] })
     queryClient.invalidateQueries({ queryKey: ['v_ceo_dashboard'] })
   }
@@ -131,6 +130,7 @@ export function RevenueDialog({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Доход добавлен')
+      queryClient.invalidateQueries({ queryKey: ['finance-revenue-detail', revenueId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

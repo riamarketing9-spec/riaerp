@@ -121,13 +121,13 @@ export function FixedSalaryDialog({
       setDraftId(data.id)
     }
     queryClient.invalidateQueries({ queryKey: ['payroll_fixed_salary'] })
-    queryClient.invalidateQueries({ queryKey: ['payroll-fixed-salary-detail', effectiveId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Оклад добавлен')
+      queryClient.invalidateQueries({ queryKey: ['payroll-fixed-salary-detail', salaryId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

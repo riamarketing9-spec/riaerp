@@ -94,13 +94,13 @@ export function KbArticleDialog({
       setDraftId(data.id)
     }
     queryClient.invalidateQueries({ queryKey: ['kb_articles'] })
-    queryClient.invalidateQueries({ queryKey: ['kb-article-detail', effectiveId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Статья добавлена')
+      queryClient.invalidateQueries({ queryKey: ['kb-article-detail', articleId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
