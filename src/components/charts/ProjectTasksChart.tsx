@@ -12,7 +12,15 @@ export type ProjectTaskBar = {
 // project name, so categorical distinctness between bars isn't needed here.
 const BAR_COLOR = '#0d5142'
 
-export function ProjectTasksChart({ bars, color = BAR_COLOR }: { bars: ProjectTaskBar[]; color?: string }) {
+export function ProjectTasksChart({
+  bars,
+  color = BAR_COLOR,
+  onItemClick,
+}: {
+  bars: ProjectTaskBar[]
+  color?: string
+  onItemClick?: (id: string) => void
+}) {
   const [openId, setOpenId] = useState<string | null>(null)
   const max = Math.max(1, ...bars.map((b) => b.count))
 
@@ -43,13 +51,19 @@ export function ProjectTasksChart({ bars, color = BAR_COLOR }: { bars: ProjectTa
                 <p className="px-1 text-xs text-muted-foreground">—</p>
               ) : (
                 b.tasks.map((task) => (
-                  <div key={task.id} className="flex items-center justify-between gap-2 px-1 text-xs">
+                  <button
+                    key={task.id}
+                    type="button"
+                    disabled={!onItemClick}
+                    onClick={() => onItemClick?.(task.id)}
+                    className="flex items-center justify-between gap-2 rounded px-1 py-0.5 text-left text-xs enabled:hover:bg-muted"
+                  >
                     <span className="flex min-w-0 flex-col">
                       <span className="truncate font-medium">{task.title}</span>
                       {task.subtitle && <span className="truncate text-muted-foreground">{task.subtitle}</span>}
                     </span>
                     <DeadlineBadge deadline={task.deadline} />
-                  </div>
+                  </button>
                 ))
               )}
             </div>

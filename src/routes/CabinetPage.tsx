@@ -7,6 +7,7 @@ import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TaskSheet } from './TaskSheet'
+import { ContentItemSheet } from './ContentItemSheet'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
 import { formatLocalDate, pickLabel } from '@/lib/localizedLabel'
 import { Button } from '@/components/ui/button'
@@ -160,7 +161,13 @@ function TodayContentWidget() {
 // employee but switching to the team-wide aggregate for CEO/PM -- one view,
 // not both stacked. Clicking a bar/segment expands the matching task list
 // inline, which doubles as the accessible "table view" for the chart.
-function TaskChartsSection() {
+function TaskChartsSection({
+  onTaskClick,
+  onContentClick,
+}: {
+  onTaskClick: (id: string) => void
+  onContentClick: (id: string) => void
+}) {
   const { t } = useTranslation()
   const { profile, hasCapability } = useAuth()
   const seesTeamAggregate = hasCapability('cabinets.read_all') || hasCapability('projects.manage')
@@ -328,7 +335,7 @@ function TaskChartsSection() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <TaskStatusChart buckets={buckets} />
+          <TaskStatusChart buckets={buckets} onItemClick={onTaskClick} />
         </CardContent>
       </Card>
       <Card>
@@ -336,7 +343,7 @@ function TaskChartsSection() {
           <CardTitle className="text-base font-medium">{t('dashboard.byProjectChart')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <ProjectTasksChart bars={projectBars} />
+          <ProjectTasksChart bars={projectBars} onItemClick={onTaskClick} />
         </CardContent>
       </Card>
       <Card>
@@ -349,7 +356,7 @@ function TaskChartsSection() {
           {/* Same bar-list type as "по проектам" but a different shade -- a
               donut/pie stops being readable once there are more than a
               handful of projects, since every slice needs its own hue. */}
-          <ProjectTasksChart bars={contentBars} color="#468f76" />
+          <ProjectTasksChart bars={contentBars} color="#468f76" onItemClick={onContentClick} />
         </CardContent>
       </Card>
     </div>
@@ -699,6 +706,7 @@ export function CabinetPage() {
   const isPm = hasCapability('projects.manage')
   const canSeeFinance = hasCapability('finance.read') || hasCapability('finance.write')
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const [openContentItemId, setOpenContentItemId] = useState<string | null>(null)
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['cabinet-tasks', profile?.id],
@@ -725,7 +733,7 @@ export function CabinetPage() {
         <p className="text-sm text-muted-foreground">{profile?.full_name}</p>
       </div>
 
-      <TaskChartsSection />
+      <TaskChartsSection onTaskClick={setOpenTaskId} onContentClick={setOpenContentItemId} />
 
       {canSeeFinance && <FinanceSection />}
 
@@ -770,6 +778,11 @@ export function CabinetPage() {
         open={!!openTaskId}
         onOpenChange={(open) => !open && setOpenTaskId(null)}
         taskId={openTaskId}
+      />
+      <ContentItemSheet
+        open={!!openContentItemId}
+        onOpenChange={(open) => !open && setOpenContentItemId(null)}
+        itemId={openContentItemId}
       />
     </div>
   )

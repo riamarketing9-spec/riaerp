@@ -84,7 +84,7 @@ export const uz = {
     inProgress: 'Jarayonda',
     taskStatusChart: 'Vazifalar',
     taskStatusChartTeam: 'Jamoa vazifalari',
-    byProjectChart: "Loyihalar bo'yicha",
+    byProjectChart: "Loyihalar bo'yicha vazifalar",
     showTable: 'Jadval',
     contentPlanChart: 'Mening kontent-rejam',
     contentPlanChartTeam: 'Jamoa kontent-rejasi',

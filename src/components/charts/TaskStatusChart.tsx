@@ -16,7 +16,13 @@ const BAR_GAP = 24
 // A small status-colored bar chart (in progress / overdue / due soon) --
 // status colors, not categorical hues, per the dataviz skill: these are
 // states of the same underlying pool of tasks, not distinct identities.
-export function TaskStatusChart({ buckets }: { buckets: TaskStatusBucket[] }) {
+export function TaskStatusChart({
+  buckets,
+  onItemClick,
+}: {
+  buckets: TaskStatusBucket[]
+  onItemClick?: (id: string) => void
+}) {
   const [openKey, setOpenKey] = useState<string | null>(null)
   const max = Math.max(1, ...buckets.map((b) => b.count))
   const barW = (WIDTH - BAR_GAP * (buckets.length - 1)) / buckets.length
@@ -56,13 +62,19 @@ export function TaskStatusChart({ buckets }: { buckets: TaskStatusBucket[] }) {
               <p className="px-1 text-xs text-muted-foreground">—</p>
             ) : (
               b.tasks.map((task) => (
-                <div key={task.id} className="flex items-center justify-between gap-2 px-1 text-xs">
+                <button
+                  key={task.id}
+                  type="button"
+                  disabled={!onItemClick}
+                  onClick={() => onItemClick?.(task.id)}
+                  className="flex items-center justify-between gap-2 rounded px-1 py-0.5 text-left text-xs enabled:hover:bg-muted"
+                >
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate font-medium">{task.title}</span>
                     {task.subtitle && <span className="truncate text-muted-foreground">{task.subtitle}</span>}
                   </span>
                   <DeadlineBadge deadline={task.deadline} />
-                </div>
+                </button>
               ))
             )}
           </div>

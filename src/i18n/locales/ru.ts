@@ -84,7 +84,7 @@ export const ru = {
     inProgress: 'В процессе',
     taskStatusChart: 'Задачи',
     taskStatusChartTeam: 'Задачи команды',
-    byProjectChart: 'По проектам',
+    byProjectChart: 'Задачи по проектам',
     showTable: 'Таблица',
     contentPlanChart: 'Мой контент-план',
     contentPlanChartTeam: 'Контент-план команды',
