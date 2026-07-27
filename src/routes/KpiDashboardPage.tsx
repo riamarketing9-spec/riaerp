@@ -2,21 +2,11 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { Card, CardContent } from '@/components/ui/card'
+import { StatCard } from '@/components/StatCard'
 import { BackupExportButton } from './BackupExportButton'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
-}
-
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <Card>
-      <CardContent className="py-5">
-        <p className="text-4xl font-bold tracking-tight">{value}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{label}</p>
-      </CardContent>
-    </Card>
-  )
 }
 
 export function KpiDashboardPage() {

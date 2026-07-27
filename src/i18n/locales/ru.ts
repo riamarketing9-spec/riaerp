@@ -74,6 +74,9 @@ export const ru = {
     todayContentEmpty: 'Сегодня публикаций нет',
     teamTasks: 'Задачи команды',
     teamTasksEmpty: 'У команды пока нет задач',
+    myOpenTasks: 'Мои открытые задачи',
+    myOverdue: 'Просрочено у меня',
+    completedThisWeek: 'Выполнено за 7 дней',
   },
   audit: {
     title: 'Журнал действий',
@@ -260,6 +263,7 @@ export const ru = {
     tasksCompleted: 'Выполнено задач',
     onTime: 'Вовремя',
     avgPercent: 'Средняя готовность',
+    overloadedEmployees: 'Перегруженных сотрудников',
   },
   contentPlan: {
     title: 'Контент-план',

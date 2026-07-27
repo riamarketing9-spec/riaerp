@@ -74,6 +74,9 @@ export const uz = {
     todayContentEmpty: "Bugun nashr yo'q",
     teamTasks: 'Jamoa vazifalari',
     teamTasksEmpty: "Jamoada hozircha vazifalar yo'q",
+    myOpenTasks: 'Mening ochiq vazifalarim',
+    myOverdue: "Mening muddati o'tganlarim",
+    completedThisWeek: '7 kunda bajarilgan',
   },
   audit: {
     title: 'Amallar jurnali',
@@ -260,6 +263,7 @@ export const uz = {
     tasksCompleted: 'Bajarilgan vazifalar',
     onTime: "O'z vaqtida",
     avgPercent: "O'rtacha bajarilish",
+    overloadedEmployees: 'Ortiqcha yuklangan xodimlar',
   },
   contentPlan: {
     title: 'Kontent reja',

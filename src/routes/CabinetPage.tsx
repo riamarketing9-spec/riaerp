@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Trash2 } from 'lucide-react'
 import { telegramDeepLink } from '@/lib/telegram'
 import { TimeTrackerWidget } from '@/components/TimeTrackerWidget'
+import { StatCard } from '@/components/StatCard'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
@@ -117,7 +118,10 @@ function IdleTeamWidget() {
   )
 }
 
-function FinanceWidget() {
+// The management row (CEO/PM) -- reuses v_ceo_dashboard (same view the
+// dedicated /kpi page reads) so the two never drift apart, but surfaced
+// right on the daily-use Cabinet page instead of requiring a separate visit.
+function ManagementStatsRow({ canSeeFinance }: { canSeeFinance: boolean }) {
   const { t } = useTranslation()
   const { data: dashboard } = useQuery({
     queryKey: ['v_ceo_dashboard'],
@@ -129,6 +133,7 @@ function FinanceWidget() {
   })
   const { data: profit } = useQuery({
     queryKey: ['v_project_profit'],
+    enabled: canSeeFinance,
     queryFn: async () => {
       const { data, error } = await supabase.from('v_project_profit').select('profit')
       if (error) throw error
@@ -137,21 +142,64 @@ function FinanceWidget() {
   })
 
   const netProfit = (profit ?? []).reduce((sum, p) => sum + Number(p.profit), 0)
+  const overdueTasks = dashboard?.overdue_tasks ?? 0
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base font-medium">{t('dashboard.finance')}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-1">
-        <p className="text-sm text-muted-foreground">
-          {t('dashboard.expectedRevenue')}: <span className="font-medium text-foreground">{formatMoney(dashboard?.mrr ?? 0)}</span>
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {t('dashboard.netProfit')}: <span className="font-medium text-foreground">{formatMoney(netProfit)}</span>
-        </p>
-      </CardContent>
-    </Card>
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      {canSeeFinance && <StatCard label={t('dashboard.expectedRevenue')} value={formatMoney(dashboard?.mrr ?? 0)} />}
+      {canSeeFinance && <StatCard label={t('dashboard.netProfit')} value={formatMoney(netProfit)} />}
+      <StatCard label={t('kpi.activeProjects')} value={dashboard?.active_projects ?? 0} />
+      <StatCard label={t('kpi.overdueTasks')} value={overdueTasks} tone={overdueTasks > 0 ? 'destructive' : 'default'} />
+      <StatCard label={t('kpi.overloadedEmployees')} value={dashboard?.overloaded_employees ?? 0} />
+    </div>
+  )
+}
+
+// Everyone's own quick stats -- the thing missing that made Cabinet feel like
+// a bare task list instead of a dashboard: no numbers to glance at.
+function MyStatsRow() {
+  const { t } = useTranslation()
+  const { profile } = useAuth()
+
+  const { data: doneStatus } = useQuery({
+    queryKey: ['task_statuses-done'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_statuses').select('id').eq('slug', 'done').maybeSingle()
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: myTasks } = useQuery({
+    queryKey: ['dashboard-my-stats', profile?.id],
+    enabled: !!profile,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id, deadline, status_id, completed_at')
+        .eq('assignee_profile_id', profile!.id)
+      if (error) throw error
+      return data
+    },
+  })
+
+  const doneId = doneStatus?.id
+  const now = Date.now()
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000
+  const openCount = (myTasks ?? []).filter((task) => task.status_id !== doneId).length
+  const overdueCount = (myTasks ?? []).filter(
+    (task) => task.status_id !== doneId && task.deadline && new Date(task.deadline).getTime() < now
+  ).length
+  const completedThisWeek = (myTasks ?? []).filter(
+    (task) => task.status_id === doneId && task.completed_at && new Date(task.completed_at).getTime() >= weekAgo
+  ).length
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <StatCard label={t('dashboard.myOpenTasks')} value={openCount} />
+      <StatCard label={t('dashboard.myOverdue')} value={overdueCount} tone={overdueCount > 0 ? 'destructive' : 'default'} />
+      <StatCard label={t('dashboard.completedThisWeek')} value={completedThisWeek} />
+    </div>
   )
 }
 
@@ -358,18 +406,22 @@ export function CabinetPage() {
         <p className="text-sm text-muted-foreground">{profile?.full_name}</p>
       </div>
 
+      <MyStatsRow />
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <TimeTrackerWidget />
         <TelegramConnectCard />
       </div>
 
       {canSeeTeamWidgets && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <DeadlinesWidget />
-          <IdleTeamWidget />
-          {canSeeFinance && <FinanceWidget />}
-          <TodayContentWidget />
-        </div>
+        <>
+          <ManagementStatsRow canSeeFinance={canSeeFinance} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <DeadlinesWidget />
+            <IdleTeamWidget />
+            <TodayContentWidget />
+          </div>
+        </>
       )}
 
       <Card>

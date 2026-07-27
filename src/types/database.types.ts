@@ -372,6 +372,7 @@ type CeoDashboardViewRow = {
   mrr: number
   active_projects: number
   overdue_tasks: number
+  overloaded_employees: number
 }
 
 type ContentPlanPlatformRow = { content_plan_item_id: string; platform_id: string }
