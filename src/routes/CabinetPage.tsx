@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Avatar } from '@/components/Avatar'
 import { TaskSheet } from './TaskSheet'
 import { ContentItemSheet } from './ContentItemSheet'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
@@ -110,8 +111,13 @@ function DeadlinesWidget() {
   )
 }
 
+// Was a plain vertical Badge-per-name list -- grew tall the moment more than
+// a couple of people were free. A single filled bar (free / total, click to
+// reveal names as compact chips) says the same thing in a fraction of the
+// space and reads as a chart at a glance, not a list.
 function IdleTeamWidget() {
   const { t } = useTranslation()
+  const [showList, setShowList] = useState(false)
   const { data: workload } = useQuery({
     queryKey: ['workload'],
     queryFn: async () => {
@@ -121,20 +127,51 @@ function IdleTeamWidget() {
     },
   })
 
+  const total = workload?.length ?? 0
   const idle = (workload ?? []).filter((w) => w.open_task_count === 0)
+  const idlePct = total > 0 ? Math.round((idle.length / total) * 100) : 0
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base font-medium">{t('dashboard.idleTeam')}</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {idle.length === 0 && <p className="text-sm text-muted-foreground">{t('dashboard.idleTeamEmpty')}</p>}
-        {idle.map((w) => (
-          <Badge key={w.profile_id} variant="secondary" className="w-fit">
-            {w.full_name}
-          </Badge>
-        ))}
+      <CardContent className="flex flex-col gap-3">
+        <button
+          type="button"
+          className="flex w-full flex-col gap-1.5 text-left"
+          onClick={() => setShowList((v) => !v)}
+          aria-expanded={showList}
+        >
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {t('dashboard.idleTeamFree')}: <span className="font-medium text-foreground">{idle.length}</span>
+            </span>
+            <span>
+              {t('dashboard.idleTeamTotal')}: <span className="font-medium text-foreground">{total}</span>
+            </span>
+          </div>
+          <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-brand-500 transition-[width]" style={{ width: `${idlePct}%` }} />
+          </div>
+        </button>
+
+        {showList &&
+          (idle.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t('dashboard.idleTeamEmpty')}</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {idle.map((w) => (
+                <div
+                  key={w.profile_id}
+                  className="flex items-center gap-1.5 rounded-full bg-muted px-2 py-1 text-xs"
+                >
+                  <Avatar name={w.full_name} className="size-5 rounded-full text-[9px]" />
+                  {w.full_name}
+                </div>
+              ))}
+            </div>
+          ))}
       </CardContent>
     </Card>
   )
@@ -580,7 +617,16 @@ function FinanceSection() {
 function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
   const { t } = useTranslation()
   const { profile } = useAuth()
-  const { data: tasks } = useQuery({
+  const { data: statuses } = useQuery({
+    queryKey: ['task_statuses-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_statuses').select('id, slug')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: rawTasks } = useQuery({
     queryKey: ['dashboard-team-tasks', profile?.id],
     enabled: !!profile,
     queryFn: async () => {
@@ -605,11 +651,20 @@ function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
     },
   })
 
+  // Done/backlog tasks don't belong on a "keep an eye on the team" widget --
+  // and without a status filter, a finished task's now-irrelevant deadline
+  // rendered as permanently overdue (TaskCard needs statusSlug to know it's
+  // done, which this widget never passed).
+  const doneId = statuses?.find((s) => s.slug === 'done')?.id
+  const backlogId = statuses?.find((s) => s.slug === 'backlog')?.id
+  const tasks = rawTasks?.filter((tsk) => tsk.status_id !== doneId && tsk.status_id !== backlogId)
+
   const taskIds = useMemo(() => (tasks ?? []).map((t) => t.id), [tasks])
   const { data: subtasksByTask } = useSubtasksBatch(taskIds)
 
   const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name
   const assigneeAvatarUrl = (id: string | null) => profiles?.find((p) => p.id === id)?.avatar_url
+  const statusSlug = (id: string) => statuses?.find((s) => s.id === id)?.slug
 
   return (
     <Card>
@@ -622,6 +677,7 @@ function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
           <TaskCard
             key={task.id}
             title={task.title}
+            statusSlug={statusSlug(task.status_id)}
             deadline={task.deadline}
             percentComplete={task.percent_complete}
             assigneeName={assigneeName(task.assignee_profile_id)}
@@ -739,6 +795,16 @@ export function CabinetPage() {
     },
   })
 
+  const { data: myTaskStatuses } = useQuery({
+    queryKey: ['task_statuses-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_statuses').select('id, slug')
+      if (error) throw error
+      return data
+    },
+  })
+  const myTaskStatusSlug = (id: string) => myTaskStatuses?.find((s) => s.id === id)?.slug
+
   const taskIds = useMemo(() => (tasks ?? []).map((t) => t.id), [tasks])
   const { data: subtasksByTask } = useSubtasksBatch(taskIds)
 
@@ -779,6 +845,7 @@ export function CabinetPage() {
             <TaskCard
               key={task.id}
               title={task.title}
+              statusSlug={myTaskStatusSlug(task.status_id)}
               deadline={task.deadline}
               percentComplete={task.percent_complete}
               subtasks={subtasksByTask?.get(task.id)}

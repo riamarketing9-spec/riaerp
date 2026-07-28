@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Combobox } from '@/components/ui/combobox'
 import { NewTaskButton, TaskSheet } from './TaskSheet'
 import { TasksKanban } from './TasksKanban'
@@ -24,6 +25,8 @@ export function TasksPage() {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [scopeFilter, setScopeFilter] = useState<'mine' | 'team'>('mine')
   const [employeeFilter, setEmployeeFilter] = useState<string>('')
+  const [dateFrom, setDateFrom] = useState<string>('')
+  const [dateTo, setDateTo] = useState<string>('')
   const queryClient = useQueryClient()
 
   const { data: tasks, isLoading } = useQuery({
@@ -146,6 +149,8 @@ export function TasksPage() {
     return [...open, ...done]
   }, [tasks, doneStatusId])
 
+  const hasDateFilter = !!(dateFrom || dateTo)
+
   const filteredTasks = useMemo(() => {
     let list = sortedTasks ?? []
     if (seesOthersTasks && scopeFilter === 'mine') {
@@ -154,8 +159,23 @@ export function TasksPage() {
     if (seesOthersTasks && scopeFilter === 'team' && employeeFilter) {
       list = list.filter((t) => t.assignee_profile_id === employeeFilter)
     }
+    // Default view hides done tasks so the list stays about current work --
+    // but a date range is a deliberate "show me what happened in this
+    // period" request, so it overrides that and includes done tasks whose
+    // deadline falls in range (undated tasks can't match a date range).
+    if (hasDateFilter) {
+      list = list.filter((t) => {
+        if (!t.deadline) return false
+        const d = t.deadline.slice(0, 10)
+        if (dateFrom && d < dateFrom) return false
+        if (dateTo && d > dateTo) return false
+        return true
+      })
+    } else {
+      list = list.filter((t) => t.status_id !== doneStatusId)
+    }
     return list
-  }, [sortedTasks, seesOthersTasks, scopeFilter, employeeFilter, profile?.id])
+  }, [sortedTasks, seesOthersTasks, scopeFilter, employeeFilter, profile?.id, hasDateFilter, dateFrom, dateTo, doneStatusId])
 
   return (
     <div className="flex flex-col gap-8">
@@ -212,6 +232,39 @@ export function TasksPage() {
         </TabsList>
 
         <TabsContent value="list">
+          <div className="mb-4 flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">{t('tasks.dateFrom')}</label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="h-8 w-36"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">{t('tasks.dateTo')}</label>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="h-8 w-36"
+              />
+            </div>
+            {hasDateFilter && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setDateFrom('')
+                  setDateTo('')
+                }}
+              >
+                {t('tasks.resetDateFilter')}
+              </Button>
+            )}
+          </div>
+
           {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
           {!isLoading && filteredTasks.length === 0 && (
             <p className="text-sm text-muted-foreground">{t('tasks.empty')}</p>
