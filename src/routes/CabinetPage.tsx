@@ -49,12 +49,21 @@ function useSubtasksBatch(taskIds: string[]) {
 
 function DeadlinesWidget() {
   const { t, i18n } = useTranslation()
-  const { data: tasks } = useQuery({
+  const { data: statuses } = useQuery({
+    queryKey: ['task_statuses-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_statuses').select('id, slug')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: rawTasks } = useQuery({
     queryKey: ['dashboard-deadlines'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('v_task_queue')
-        .select('id, title, deadline, assignee_profile_id')
+        .select('id, title, deadline, assignee_profile_id, status_id')
         .not('deadline', 'is', null)
         .lte('deadline', new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString())
         .order('deadline', { ascending: true })
@@ -62,6 +71,13 @@ function DeadlinesWidget() {
       return data
     },
   })
+
+  // Done/backlog tasks keep their (now-irrelevant) past deadline forever --
+  // without this filter, a finished task sits in "overdue" permanently,
+  // which reads as "you're behind" on work that's actually done.
+  const doneId = statuses?.find((s) => s.slug === 'done')?.id
+  const backlogId = statuses?.find((s) => s.slug === 'backlog')?.id
+  const tasks = rawTasks?.filter((tsk) => tsk.status_id !== doneId && tsk.status_id !== backlogId)
 
   if (!tasks || tasks.length === 0) return null
 
