@@ -11,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Combobox } from '@/components/ui/combobox'
 import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
-import { cn } from '@/lib/utils'
+import { cn, normalizeUrl } from '@/lib/utils'
 import { ExternalLink } from 'lucide-react'
 
 type ContentItem = {
@@ -173,7 +173,7 @@ export function ContentTableView({
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   {item.reference_url ? (
                     <a
-                      href={item.reference_url}
+                      href={normalizeUrl(item.reference_url)}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-primary hover:underline"

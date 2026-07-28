@@ -28,8 +28,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Combobox } from '@/components/ui/combobox'
 import { pickLabel } from '@/lib/localizedLabel'
-import { cn } from '@/lib/utils'
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { cn, normalizeUrl } from '@/lib/utils'
+import { ChevronLeft, ChevronRight, ExternalLink, Plus } from 'lucide-react'
 
 type ContentItem = {
   id: string
@@ -38,6 +38,7 @@ type ContentItem = {
   status_id: string
   format_id?: string | null
   publish_date: string | null
+  reference_url?: string | null
 }
 
 type ProjectLookup = { id: string; name: string; logo_url?: string | null }
@@ -115,6 +116,17 @@ function CalendarItemCard({
           </span>
         )}
         <span className="truncate text-sm font-medium">{item.topic}</span>
+        {item.reference_url && (
+          <a
+            href={normalizeUrl(item.reference_url)}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="ml-auto shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <ExternalLink className="size-3.5" />
+          </a>
+        )}
       </div>
       <div className="flex flex-wrap gap-1">
         <Badge

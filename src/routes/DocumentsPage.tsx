@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CreateDocumentDialog, DocumentDialog } from './CreateDocumentDialog'
 import { GrantDocumentAccessDialog } from './GrantDocumentAccessDialog'
+import { normalizeUrl } from '@/lib/utils'
 
 export function DocumentsPage() {
   const { t } = useTranslation()
@@ -46,7 +47,7 @@ export function DocumentsPage() {
             <CardContent className="flex items-center justify-between py-3">
               <div>
                 <a
-                  href={doc.storage_path}
+                  href={normalizeUrl(doc.storage_path)}
                   target="_blank"
                   rel="noreferrer"
                   onClick={(e) => e.stopPropagation()}

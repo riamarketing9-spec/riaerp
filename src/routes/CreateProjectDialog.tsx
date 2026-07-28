@@ -29,6 +29,7 @@ import {
 import { Combobox } from '@/components/ui/combobox'
 import { Plus } from 'lucide-react'
 import { pickLabel } from '@/lib/localizedLabel'
+import { normalizeUrl } from '@/lib/utils'
 import { FileUpload } from '@/components/FileUpload'
 import { Checkbox } from '@/components/ui/checkbox'
 
@@ -492,7 +493,7 @@ export function ProjectDialog({
               {existingContract && (
                 <div className="flex items-center gap-2">
                   <a
-                    href={existingContract.storage_path}
+                    href={normalizeUrl(existingContract.storage_path)}
                     target="_blank"
                     rel="noreferrer"
                     className="text-xs text-brand-600 underline dark:text-brand-400"

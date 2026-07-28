@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CreateKbArticleDialog, KbArticleDialog } from './CreateKbArticleDialog'
 import { formatLocalDate } from '@/lib/localizedLabel'
+import { normalizeUrl } from '@/lib/utils'
 import { Check, Pencil } from 'lucide-react'
 
 export function KnowledgeBasePage() {
@@ -108,7 +109,7 @@ export function KnowledgeBasePage() {
               <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
                 {a.video_url && (
                   <a
-                    href={a.video_url}
+                    href={normalizeUrl(a.video_url)}
                     target="_blank"
                     rel="noreferrer"
                     className="text-brand-700 hover:underline dark:text-brand-300"

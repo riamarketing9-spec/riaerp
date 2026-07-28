@@ -22,6 +22,8 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Combobox } from '@/components/ui/combobox'
 import { pickLabel } from '@/lib/localizedLabel'
+import { normalizeUrl } from '@/lib/utils'
+import { ExternalLink } from 'lucide-react'
 
 const schema = z.object({
   project_id: z.string().min(1, 'Обязательное поле'),
@@ -336,7 +338,19 @@ export function ContentItemSheet({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="reference_url">{t('contentPlan.referenceUrl')}</Label>
-            <Input id="reference_url" placeholder="https://..." {...register('reference_url')} />
+            <div className="flex items-center gap-2">
+              <Input id="reference_url" placeholder="https://..." {...register('reference_url')} />
+              {watch('reference_url') && (
+                <a
+                  href={normalizeUrl(watch('reference_url')!)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                >
+                  <ExternalLink className="size-4" />
+                </a>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
