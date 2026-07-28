@@ -7,20 +7,6 @@ import { Avatar } from '@/components/Avatar'
 import { CreateProjectDialog, ProjectDialog } from './CreateProjectDialog'
 import { pickLabel } from '@/lib/localizedLabel'
 
-// Deterministic color per project so the no-logo placeholder is still
-// visually distinguishable from card to card, same idea as the content-plan
-// calendar's project dots.
-const PLACEHOLDER_COLORS = [
-  'bg-rose-500', 'bg-orange-500', 'bg-amber-500', 'bg-lime-500',
-  'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-blue-500',
-  'bg-violet-500', 'bg-fuchsia-500',
-]
-function placeholderColorFor(id: string) {
-  let hash = 0
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
-  return PLACEHOLDER_COLORS[hash % PLACEHOLDER_COLORS.length]
-}
-
 export function ProjectsPage() {
   const { t, i18n } = useTranslation()
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
@@ -111,15 +97,9 @@ export function ProjectsPage() {
               className="cursor-pointer overflow-hidden p-0 transition-colors hover:bg-muted/40"
               onClick={() => setOpenProjectId(project.id)}
             >
-              <div className="flex h-28 w-full items-center justify-center overflow-hidden bg-muted">
-                {project.logo_url ? (
-                  <img src={project.logo_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <div
-                    className={`flex h-full w-full items-center justify-center text-3xl font-bold text-white ${placeholderColorFor(project.id)}`}
-                  >
-                    {project.name[0]?.toUpperCase()}
-                  </div>
+              <div className="flex h-40 w-full items-center justify-center overflow-hidden bg-white p-4">
+                {project.logo_url && (
+                  <img src={project.logo_url} alt="" className="h-full w-full object-contain" />
                 )}
               </div>
               <div className="flex flex-col gap-2.5 p-4">
@@ -130,11 +110,14 @@ export function ProjectsPage() {
                   </p>
                 </div>
 
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="relative h-5 w-full overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-brand-600 transition-[width]"
                     style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
                   />
+                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
+                    {progress}%
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-end -space-x-2">
