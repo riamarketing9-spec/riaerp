@@ -73,12 +73,13 @@ function DeadlinesWidget() {
     },
   })
 
-  // Done/backlog tasks keep their (now-irrelevant) past deadline forever --
-  // without this filter, a finished task sits in "overdue" permanently,
-  // which reads as "you're behind" on work that's actually done.
+  // Done tasks keep their (now-irrelevant) past deadline forever -- without
+  // this filter, a finished task sits in "overdue" permanently, which reads
+  // as "you're behind" on work that's actually done. NOT excluding
+  // "backlog" here: in this org that slug is relabeled to mean "new task",
+  // not "someday/icebox", so filtering it out hid genuinely active work.
   const doneId = statuses?.find((s) => s.slug === 'done')?.id
-  const backlogId = statuses?.find((s) => s.slug === 'backlog')?.id
-  const tasks = rawTasks?.filter((tsk) => tsk.status_id !== doneId && tsk.status_id !== backlogId)
+  const tasks = rawTasks?.filter((tsk) => tsk.status_id !== doneId)
 
   if (!tasks || tasks.length === 0) return null
 
@@ -294,8 +295,10 @@ function TaskChartsSection({
     },
   })
 
+  // NOT excluding "backlog" here: in this org that status slug is relabeled
+  // to mean "new task" (Yangi vazifa), not "someday/icebox" -- filtering it
+  // out was hiding every freshly created task from these charts.
   const doneId = statuses?.find((s) => s.slug === 'done')?.id
-  const backlogId = statuses?.find((s) => s.slug === 'backlog')?.id
   const now = Date.now()
   const soon = now + 3 * 24 * 60 * 60 * 1000
 
@@ -312,7 +315,7 @@ function TaskChartsSection({
         : null,
     }))
 
-  const openTasks = (tasks ?? []).filter((tsk) => tsk.status_id !== doneId && tsk.status_id !== backlogId)
+  const openTasks = (tasks ?? []).filter((tsk) => tsk.status_id !== doneId)
   const overdueTasks = openTasks.filter((tsk) => tsk.deadline && new Date(tsk.deadline).getTime() < now)
   const dueSoonTasks = openTasks.filter(
     (tsk) => tsk.deadline && new Date(tsk.deadline).getTime() >= now && new Date(tsk.deadline).getTime() <= soon
@@ -614,6 +617,10 @@ function FinanceSection() {
   )
 }
 
+// Was a grid of full TaskCards -- for a PM skimming everyone else's load,
+// a per-employee bar (count of open team tasks, click to drill into the
+// list) reads faster than a wall of cards and matches the chart style used
+// elsewhere on this page.
 function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
   const { t } = useTranslation()
   const { profile } = useAuth()
@@ -634,7 +641,7 @@ function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
       // own projects — no client-side project filtering needed.
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, title, status_id, deadline, percent_complete, assignee_profile_id')
+        .select('id, title, status_id, deadline, assignee_profile_id, project_id')
         .neq('assignee_profile_id', profile!.id)
         .order('deadline', { ascending: true, nullsFirst: false })
       if (error) throw error
@@ -651,41 +658,59 @@ function TeamTasksWidget({ onOpen }: { onOpen: (id: string) => void }) {
     },
   })
 
-  // Done/backlog tasks don't belong on a "keep an eye on the team" widget --
-  // and without a status filter, a finished task's now-irrelevant deadline
-  // rendered as permanently overdue (TaskCard needs statusSlug to know it's
-  // done, which this widget never passed).
+  const { data: projects } = useQuery({
+    queryKey: ['projects-lookup-names'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('projects').select('id, name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  // Done tasks don't belong on a "keep an eye on the team" widget. NOT
+  // excluding "backlog" here: in this org that slug means "new task", not
+  // "someday/icebox" -- filtering it out hid genuinely active work.
   const doneId = statuses?.find((s) => s.slug === 'done')?.id
-  const backlogId = statuses?.find((s) => s.slug === 'backlog')?.id
-  const tasks = rawTasks?.filter((tsk) => tsk.status_id !== doneId && tsk.status_id !== backlogId)
+  const tasks = rawTasks?.filter((tsk) => tsk.status_id !== doneId)
 
-  const taskIds = useMemo(() => (tasks ?? []).map((t) => t.id), [tasks])
-  const { data: subtasksByTask } = useSubtasksBatch(taskIds)
+  const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name ?? '—'
+  const projectName = (id: string | null) => projects?.find((p) => p.id === id)?.name ?? null
 
-  const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name
-  const assigneeAvatarUrl = (id: string | null) => profiles?.find((p) => p.id === id)?.avatar_url
-  const statusSlug = (id: string) => statuses?.find((s) => s.id === id)?.slug
+  const bars: ProjectTaskBar[] = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof tasks>>()
+    for (const tsk of tasks ?? []) {
+      if (!tsk.assignee_profile_id) continue
+      const list = map.get(tsk.assignee_profile_id) ?? []
+      list.push(tsk)
+      map.set(tsk.assignee_profile_id, list)
+    }
+    return [...map.entries()]
+      .map(([assigneeId, list]) => ({
+        projectId: assigneeId,
+        projectName: assigneeName(assigneeId),
+        count: list.length,
+        tasks: list.slice(0, 20).map((tsk) => ({
+          id: tsk.id,
+          title: tsk.title,
+          deadline: tsk.deadline,
+          subtitle: projectName(tsk.project_id),
+        })),
+      }))
+      .sort((a, b) => b.count - a.count)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, profiles, projects])
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base font-medium">{t('dashboard.teamTasks')}</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {(tasks?.length ?? 0) === 0 && <p className="text-sm text-muted-foreground">{t('dashboard.teamTasksEmpty')}</p>}
-        {tasks?.map((task) => (
-          <TaskCard
-            key={task.id}
-            title={task.title}
-            statusSlug={statusSlug(task.status_id)}
-            deadline={task.deadline}
-            percentComplete={task.percent_complete}
-            assigneeName={assigneeName(task.assignee_profile_id)}
-            assigneeAvatarUrl={assigneeAvatarUrl(task.assignee_profile_id)}
-            subtasks={subtasksByTask?.get(task.id)}
-            onOpen={() => onOpen(task.id)}
-          />
-        ))}
+      <CardContent>
+        {bars.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('dashboard.teamTasksEmpty')}</p>
+        ) : (
+          <ProjectTasksChart bars={bars} onItemClick={onOpen} />
+        )}
       </CardContent>
     </Card>
   )
