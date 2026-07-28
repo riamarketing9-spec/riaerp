@@ -7,6 +7,20 @@ import { Avatar } from '@/components/Avatar'
 import { CreateProjectDialog, ProjectDialog } from './CreateProjectDialog'
 import { pickLabel } from '@/lib/localizedLabel'
 
+// Which "ish turi" (deliverable type) labels count toward each quota --
+// matched by label_uz since new types get added through the lookup admin
+// UI with auto-generated, unpredictable slugs (raw, unromanized Cyrillic if
+// the label was entered in Russian), so slug isn't a reliable match key.
+const REELS_LABELS = ['reels montaji', 'video montaji']
+const POST_LABELS = ['post dizayni', 'design post', 'karusel']
+const TARGET_LABELS = ['target sozlash', "voronka bo'yicha ishlash"]
+
+function monthRange(date: Date) {
+  const start = new Date(date.getFullYear(), date.getMonth(), 1)
+  const end = new Date(date.getFullYear(), date.getMonth() + 1, 1)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
 export function ProjectsPage() {
   const { t, i18n } = useTranslation()
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
@@ -16,7 +30,7 @@ export function ProjectsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('id, name, logo_url, project_type_id, pm_profile_id')
+        .select('id, name, logo_url, project_type_id, pm_profile_id, monthly_quota_posts, monthly_quota_reels, target_enabled')
         .order('name')
       if (error) throw error
       return data
@@ -41,6 +55,8 @@ export function ProjectsPage() {
     },
   })
 
+  // Fallback progress (average task percent-complete) for projects that
+  // haven't set any quota yet -- otherwise they'd show a flat 0%.
   const { data: kpiByProject } = useQuery({
     queryKey: ['v_project_kpi'],
     queryFn: async () => {
@@ -50,7 +66,92 @@ export function ProjectsPage() {
     },
   })
 
+  const { data: doneStatusId } = useQuery({
+    queryKey: ['task_statuses-done-id'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_statuses').select('id, slug').eq('slug', 'done').maybeSingle()
+      if (error) throw error
+      return data?.id ?? null
+    },
+  })
+
+  const { data: deliverableTypes } = useQuery({
+    queryKey: ['deliverable_types-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('deliverable_types').select('id, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+
   const projectIds = useMemo(() => (projects ?? []).map((p) => p.id), [projects])
+
+  const monthKeyRef = useMemo(() => monthRange(new Date()), [])
+
+  // This month's done tasks per project, with their deliverable types, to
+  // compute quota fulfillment (posts/reels/target).
+  const { data: monthDoneTasks } = useQuery({
+    queryKey: ['projects-quota-tasks', projectIds, doneStatusId, monthKeyRef.start],
+    enabled: projectIds.length > 0 && !!doneStatusId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id, project_id')
+        .in('project_id', projectIds)
+        .eq('status_id', doneStatusId!)
+        .gte('completed_at', monthKeyRef.start)
+        .lt('completed_at', monthKeyRef.end)
+      if (error) throw error
+      return data
+    },
+  })
+
+  const taskIdsForQuota = useMemo(() => (monthDoneTasks ?? []).map((t) => t.id), [monthDoneTasks])
+
+  const { data: taskDeliverables } = useQuery({
+    queryKey: ['task_deliverable_types-for-quota', taskIdsForQuota],
+    enabled: taskIdsForQuota.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_deliverable_types')
+        .select('task_id, deliverable_type_id')
+        .in('task_id', taskIdsForQuota)
+      if (error) throw error
+      return data
+    },
+  })
+
+  const quotaProgressFor = (project: {
+    id: string
+    monthly_quota_posts: number | null
+    monthly_quota_reels: number | null
+    target_enabled: boolean
+  }) => {
+    const quotaTotal =
+      (project.monthly_quota_posts ?? 0) + (project.monthly_quota_reels ?? 0) + (project.target_enabled ? 1 : 0)
+    if (quotaTotal === 0) return null
+
+    const labelFor = (deliverableTypeId: string) =>
+      deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''
+
+    const doneTaskIds = new Set((monthDoneTasks ?? []).filter((t) => t.project_id === project.id).map((t) => t.id))
+    let postsDone = 0
+    let reelsDone = 0
+    let targetDone = false
+    for (const taskId of doneTaskIds) {
+      const labels = (taskDeliverables ?? []).filter((td) => td.task_id === taskId).map((td) => labelFor(td.deliverable_type_id))
+      if (labels.some((l) => POST_LABELS.includes(l))) postsDone += 1
+      if (labels.some((l) => REELS_LABELS.includes(l))) reelsDone += 1
+      if (labels.some((l) => TARGET_LABELS.includes(l))) targetDone = true
+    }
+
+    const doneTotal =
+      Math.min(postsDone, project.monthly_quota_posts ?? 0) +
+      Math.min(reelsDone, project.monthly_quota_reels ?? 0) +
+      (project.target_enabled && targetDone ? 1 : 0)
+
+    return Math.round((doneTotal / quotaTotal) * 100)
+  }
 
   const { data: assistantsByProject } = useQuery({
     queryKey: ['project_members-assistants-batch', projectIds],
@@ -90,7 +191,7 @@ export function ProjectsPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
         {projects?.map((project) => {
-          const progress = Math.round(kpiByProject?.get(project.id) ?? 0)
+          const progress = quotaProgressFor(project) ?? Math.round(kpiByProject?.get(project.id) ?? 0)
           return (
             <Card
               key={project.id}

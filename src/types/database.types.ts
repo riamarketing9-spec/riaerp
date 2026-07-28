@@ -71,6 +71,7 @@ type ProjectRow = {
   logo_url: string | null
   start_date: string | null
   end_date: string | null
+  target_enabled: boolean
   created_at: string
   updated_at: string
 }
