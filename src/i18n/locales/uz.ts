@@ -118,6 +118,8 @@ export const uz = {
     audienceVoice: 'Maqsadli auditoriya (ovozli)',
     audienceFile: 'Maqsadli auditoriya (PDF)',
     billingDay: "Hisob kuni",
+    startDate: 'Boshlanish sanasi',
+    endDate: 'Tugash sanasi',
     client: 'Mijoz / voronka',
     deliverables: "Bizning qilib berish kerak bo'lgan ish",
     assistantPm: 'PM yordamchisi',

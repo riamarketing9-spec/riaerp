@@ -69,6 +69,8 @@ type ProjectRow = {
   target_audience_voice_url: string | null
   target_audience_file_url: string | null
   logo_url: string | null
+  start_date: string | null
+  end_date: string | null
   created_at: string
   updated_at: string
 }
@@ -368,6 +370,13 @@ type ProjectProfitViewRow = {
   profit: number
 }
 
+type ProjectKpiViewRow = {
+  project_id: string
+  name: string
+  avg_task_percent_complete: number | null
+  content_published_this_month: number
+}
+
 type CeoDashboardViewRow = {
   mrr: number
   active_projects: number
@@ -506,6 +515,7 @@ export type Database = {
       v_task_queue: { Row: TaskQueueViewRow; Relationships: [] }
       v_employee_workload: { Row: EmployeeWorkloadViewRow; Relationships: [] }
       v_project_profit: { Row: ProjectProfitViewRow; Relationships: [] }
+      v_project_kpi: { Row: ProjectKpiViewRow; Relationships: [] }
       v_ceo_dashboard: { Row: CeoDashboardViewRow; Relationships: [] }
       v_employee_kpi: { Row: EmployeeKpiViewRow; Relationships: [] }
     }

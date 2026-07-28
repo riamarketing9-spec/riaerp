@@ -32,6 +32,8 @@ import { pickLabel } from '@/lib/localizedLabel'
 import { normalizeUrl } from '@/lib/utils'
 import { FileUpload } from '@/components/FileUpload'
 import { Checkbox } from '@/components/ui/checkbox'
+import { ProjectMonthlyGoals } from './ProjectMonthlyGoals'
+import { AiClientReportDialog } from './AiClientReportDialog'
 
 const schema = z.object({
   name: z.string().min(1, 'Обязательное поле'),
@@ -46,6 +48,8 @@ const schema = z.object({
   target_audience_file_url: z.string().optional(),
   logo_url: z.string().optional(),
   billing_day: z.string().optional(),
+  start_date: z.string().optional(),
+  end_date: z.string().optional(),
   contract_url: z.string().optional(),
 })
 
@@ -192,6 +196,8 @@ export function ProjectDialog({
         target_audience_file_url: existing.target_audience_file_url ?? '',
         logo_url: existing.logo_url ?? '',
         billing_day: existing.billing_day ? String(existing.billing_day) : '',
+        start_date: existing.start_date ?? '',
+        end_date: existing.end_date ?? '',
       })
     }
   }, [existing, reset])
@@ -219,6 +225,8 @@ export function ProjectDialog({
       target_audience_file_url: values.target_audience_file_url || null,
       logo_url: values.logo_url || null,
       billing_day: values.billing_day ? Number(values.billing_day) : null,
+      start_date: values.start_date || null,
+      end_date: values.end_date || null,
     }
 
     let currentProjectId = effectiveId
@@ -487,6 +495,17 @@ export function ProjectDialog({
             <Input id="billing_day" type="number" min={1} max={31} {...register('billing_day')} />
           </div>
 
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="start_date">{t('projects.startDate')}</Label>
+              <Input id="start_date" type="date" {...register('start_date')} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="end_date">{t('projects.endDate')}</Label>
+              <Input id="end_date" type="date" {...register('end_date')} />
+            </div>
+          </div>
+
           {isCeo && (
             <div className="flex flex-col gap-1.5 rounded-lg border border-border p-3">
               <Label>{t('projects.contract')}</Label>
@@ -517,6 +536,13 @@ export function ProjectDialog({
                 onChange={(url) => setValue('contract_url', url)}
                 folder="contracts"
               />
+            </div>
+          )}
+
+          {effectiveId && (
+            <div className="flex flex-col gap-3 border-t border-border pt-4">
+              <ProjectMonthlyGoals projectId={effectiveId} />
+              <AiClientReportDialog projectId={effectiveId} />
             </div>
           )}
 

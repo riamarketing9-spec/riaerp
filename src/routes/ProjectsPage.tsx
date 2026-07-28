@@ -1,23 +1,28 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useAuth } from '@/auth/AuthProvider'
 import { supabase } from '@/lib/supabaseClient'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
+import { Avatar } from '@/components/Avatar'
 import { CreateProjectDialog, ProjectDialog } from './CreateProjectDialog'
-import { AiClientReportDialog } from './AiClientReportDialog'
-import { ProjectMonthlyGoals } from './ProjectMonthlyGoals'
 import { pickLabel } from '@/lib/localizedLabel'
+
+// Deterministic color per project so the no-logo placeholder is still
+// visually distinguishable from card to card, same idea as the content-plan
+// calendar's project dots.
+const PLACEHOLDER_COLORS = [
+  'bg-rose-500', 'bg-orange-500', 'bg-amber-500', 'bg-lime-500',
+  'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-blue-500',
+  'bg-violet-500', 'bg-fuchsia-500',
+]
+function placeholderColorFor(id: string) {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  return PLACEHOLDER_COLORS[hash % PLACEHOLDER_COLORS.length]
+}
 
 export function ProjectsPage() {
   const { t, i18n } = useTranslation()
-  const { hasCapability, profile } = useAuth()
-  // contracts_select_pm RLS lets a project's own PM read its client's
-  // contract too, not just is_ceo() -- match that here instead of gating
-  // on the role-slug-based isCeo boolean, which only ever covered CEO.
-  const isCeoCap = hasCapability('org.full_access')
-  const canSeeAnyContract = isCeoCap || hasCapability('projects.manage')
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
 
   const { data: projects, isLoading } = useQuery({
@@ -25,9 +30,7 @@ export function ProjectsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select(
-          'id, name, logo_url, goal, deliverables_text, target_audience, target_audience_voice_url, target_audience_file_url, billing_day, project_type_id, status_id, pm_profile_id, client_id'
-        )
+        .select('id, name, logo_url, project_type_id, pm_profile_id')
         .order('name')
       if (error) throw error
       return data
@@ -43,30 +46,21 @@ export function ProjectsPage() {
     },
   })
 
-  const { data: projectStatuses } = useQuery({
-    queryKey: ['project_statuses'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('project_statuses').select('id, label_ru, label_uz')
-      if (error) throw error
-      return data
-    },
-  })
-
   const { data: managers } = useQuery({
-    queryKey: ['managers'],
+    queryKey: ['managers-with-avatar'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('id, full_name')
+      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url')
       if (error) throw error
       return data
     },
   })
 
-  const { data: clients } = useQuery({
-    queryKey: ['clients-lookup'],
+  const { data: kpiByProject } = useQuery({
+    queryKey: ['v_project_kpi'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('clients').select('id, name')
+      const { data, error } = await supabase.from('v_project_kpi').select('project_id, avg_task_percent_complete')
       if (error) throw error
-      return data
+      return new Map(data.map((row) => [row.project_id, row.avg_task_percent_complete ?? 0]))
     },
   })
 
@@ -92,25 +86,13 @@ export function ProjectsPage() {
     },
   })
 
-  const clientIds = useMemo(
-    () => [...new Set((projects ?? []).map((p) => p.client_id).filter((id): id is string => !!id))],
-    [projects]
-  )
+  const manager = (id: string) => managers?.find((m) => m.id === id)
 
-  const { data: contractClientIds } = useQuery({
-    queryKey: ['contracts-client-ids', clientIds],
-    enabled: canSeeAnyContract && clientIds.length > 0,
-    queryFn: async () => {
-      const { data, error } = await supabase.from('contracts').select('party_client_id').in('party_client_id', clientIds)
-      if (error) throw error
-      return new Set(data.map((r) => r.party_client_id))
-    },
-  })
-
-  const pmName = (id: string) => managers?.find((m) => m.id === id)?.full_name
-  const clientName = (id: string | null) => (id ? clients?.find((c) => c.id === id)?.name : undefined)
-  const assistantNames = (id: string) =>
-    (assistantsByProject?.get(id) ?? []).map((pid) => managers?.find((m) => m.id === pid)?.full_name).filter(Boolean)
+  // PM + assistant PMs, PM first, deduped -- the "responsible" avatars.
+  const responsibleFor = (project: { id: string; pm_profile_id: string }) => {
+    const ids = [project.pm_profile_id, ...(assistantsByProject?.get(project.id) ?? [])]
+    return [...new Set(ids)].map((id) => manager(id)).filter((m): m is NonNullable<typeof m> => !!m)
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -119,76 +101,56 @@ export function ProjectsPage() {
         <CreateProjectDialog />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
-        {projects?.map((project) => (
-          <Card
-            key={project.id}
-            className="cursor-pointer transition-colors hover:bg-muted/40"
-            onClick={() => setOpenProjectId(project.id)}
-          >
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between gap-2 text-base font-medium">
-                <span className="flex items-center gap-2">
-                  {project.logo_url && (
-                    <img src={project.logo_url} alt="" className="size-6 shrink-0 rounded-full object-cover" />
-                  )}
-                  {project.name}
-                </span>
-                {pmName(project.pm_profile_id) && (
-                  <span className="text-xs font-normal text-muted-foreground">{pmName(project.pm_profile_id)}</span>
-                )}
-              </CardTitle>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                <Badge variant="secondary" className="text-[10px]">
-                  {pickLabel(projectTypes?.find((pt) => pt.id === project.project_type_id), i18n.language)}
-                </Badge>
-                <Badge variant="outline" className="text-[10px]">
-                  {pickLabel(projectStatuses?.find((ps) => ps.id === project.status_id), i18n.language)}
-                </Badge>
-                {clientName(project.client_id) && (
-                  <Badge variant="outline" className="text-[10px]">
-                    {clientName(project.client_id)}
-                  </Badge>
-                )}
-                {(isCeoCap || project.pm_profile_id === profile?.id) && contractClientIds?.has(project.client_id) && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    {t('projects.contract')}
-                  </Badge>
+        {projects?.map((project) => {
+          const progress = Math.round(kpiByProject?.get(project.id) ?? 0)
+          return (
+            <Card
+              key={project.id}
+              className="cursor-pointer overflow-hidden p-0 transition-colors hover:bg-muted/40"
+              onClick={() => setOpenProjectId(project.id)}
+            >
+              <div className="flex h-28 w-full items-center justify-center overflow-hidden bg-muted">
+                {project.logo_url ? (
+                  <img src={project.logo_url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div
+                    className={`flex h-full w-full items-center justify-center text-3xl font-bold text-white ${placeholderColorFor(project.id)}`}
+                  >
+                    {project.name[0]?.toUpperCase()}
+                  </div>
                 )}
               </div>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
-              {project.goal && <p>{project.goal}</p>}
-              {project.deliverables_text && (
-                <p className="line-clamp-2 text-xs">{project.deliverables_text}</p>
-              )}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {project.billing_day && (
-                  <Badge variant="secondary" className="w-fit">
-                    {t('projects.billingDay')}: {project.billing_day}
-                  </Badge>
-                )}
-                {(project.target_audience || project.target_audience_voice_url || project.target_audience_file_url) && (
-                  <Badge variant="outline" className="w-fit text-[10px]">
-                    {t('projects.audience')}
-                  </Badge>
-                )}
-                {assistantNames(project.id).map((name) => (
-                  <Badge key={name} variant="outline" className="w-fit text-[10px]">
-                    {name}
-                  </Badge>
-                ))}
-              </div>
-              <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-                <ProjectMonthlyGoals projectId={project.id} />
+              <div className="flex flex-col gap-2.5 p-4">
                 <div>
-                  <AiClientReportDialog projectId={project.id} />
+                  <h3 className="truncate font-semibold">{project.name}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {pickLabel(projectTypes?.find((pt) => pt.id === project.project_type_id), i18n.language)}
+                  </p>
+                </div>
+
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-brand-600 transition-[width]"
+                    style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-end -space-x-2">
+                  {responsibleFor(project).map((m) => (
+                    <Avatar
+                      key={m.id}
+                      name={m.full_name}
+                      avatarUrl={m.avatar_url}
+                      className="size-7 rounded-full text-[10px] ring-2 ring-background"
+                    />
+                  ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </Card>
+          )
+        })}
         {!isLoading && (projects?.length ?? 0) === 0 && (
           <p className="text-sm text-muted-foreground">—</p>
         )}

@@ -118,6 +118,8 @@ export const ru = {
     audienceVoice: 'Целевая аудитория (голосовое)',
     audienceFile: 'Целевая аудитория (PDF)',
     billingDay: 'День оплаты',
+    startDate: 'Дата начала',
+    endDate: 'Дата окончания',
     client: 'Клиент / воронка',
     deliverables: 'Что мы должны сделать',
     assistantPm: 'Помощник PM',
