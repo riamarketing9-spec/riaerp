@@ -171,33 +171,38 @@ Deno.serve(async (req) => {
   // C. Tasks with nobody assigned at all: not date-scoped (a task can miss an
   //    assignee whether or not it even has a deadline), deduped once/day per
   //    task like everything else — nags the CEO plus that project's PM so it
-  //    doesn't just sit there silently.
+  //    doesn't just sit there silently. Restricted to the noon tick only, so
+  //    it lands once a day at a predictable time instead of on whichever
+  //    30-minute tick happens to run first (which could be the middle of the
+  //    night).
   // =========================================================================
-  const { data: unassignedTasks } = await admin
-    .from('tasks')
-    .select('id, title, project_id')
-    .is('assignee_profile_id', null)
-    .neq('status_id', doneStatus?.id ?? '')
+  if (hour === 12) {
+    const { data: unassignedTasks } = await admin
+      .from('tasks')
+      .select('id, title, project_id')
+      .is('assignee_profile_id', null)
+      .neq('status_id', doneStatus?.id ?? '')
 
-  for (const task of unassignedTasks ?? []) {
-    if (await alreadySentToday({ related_task_id: task.id }, 'no_assignee')) continue
+    for (const task of unassignedTasks ?? []) {
+      if (await alreadySentToday({ related_task_id: task.id }, 'no_assignee')) continue
 
-    const recipients = [...new Set([...ceoChatIds, ...(await getPmChatIds(task.project_id))])]
-    if (recipients.length === 0) continue
+      const recipients = [...new Set([...ceoChatIds, ...(await getPmChatIds(task.project_id))])]
+      if (recipients.length === 0) continue
 
-    const text = `⚠️ Vazifaga ijrochi tayinlanmagan: <b>${escapeHtml(task.title)}</b>`
-    let anySent = false
-    for (const chatId of recipients) {
-      if (await sendTelegram(chatId, text)) anySent = true
-    }
-    if (anySent) {
-      sent += 1
-      await admin.from('notification_log').insert({
-        channel: 'telegram',
-        type: 'no_assignee',
-        related_task_id: task.id,
-        payload_json: { text },
-      })
+      const text = `⚠️ Vazifaga ijrochi tayinlanmagan: <b>${escapeHtml(task.title)}</b>`
+      let anySent = false
+      for (const chatId of recipients) {
+        if (await sendTelegram(chatId, text)) anySent = true
+      }
+      if (anySent) {
+        sent += 1
+        await admin.from('notification_log').insert({
+          channel: 'telegram',
+          type: 'no_assignee',
+          related_task_id: task.id,
+          payload_json: { text },
+        })
+      }
     }
   }
 
@@ -214,22 +219,20 @@ Deno.serve(async (req) => {
     .in('publish_date', [todayKey, tomorrowKey])
 
   for (const item of contentItems ?? []) {
-    const isTomorrow = item.publish_date === tomorrowKey
-    let type: string | null = null
-    if (isTomorrow && hour === 12) type = 'pub_tomorrow_noon'
-    else if (!isTomorrow && hour === 9) type = 'pub_today_morning'
-    else if (!isTomorrow && hour === 14) type = 'pub_today_afternoon'
-    if (!type) continue
-
     const taggedProfileIds = [...new Set(
       [item.shooter_profile_id, item.editor_profile_id, item.responsible_profile_id].filter(
         (id): id is string => !!id
       )
     )]
 
+    // No-assignee nag is independent of the T-1/T-0 slot logic below: one
+    // dedup key per item per day (not per slot), sent only at the noon tick,
+    // so a still-unfilled item nags CEO/PM once a day instead of up to three
+    // times (it used to fire at each of the 9/12/14 slots separately since
+    // the dedup key was slot-scoped).
     if (taggedProfileIds.length === 0) {
-      const noAssigneeType = `${type}_no_assignee`
-      if (await alreadySentToday({ related_content_plan_item_id: item.id }, noAssigneeType)) continue
+      if (hour !== 12) continue
+      if (await alreadySentToday({ related_content_plan_item_id: item.id }, 'no_assignee')) continue
 
       const recipients = [...new Set([...ceoChatIds, ...(await getPmChatIds(item.project_id))])]
       if (recipients.length === 0) continue
@@ -243,13 +246,20 @@ Deno.serve(async (req) => {
         sent += 1
         await admin.from('notification_log').insert({
           channel: 'telegram',
-          type: noAssigneeType,
+          type: 'no_assignee',
           related_content_plan_item_id: item.id,
           payload_json: { text },
         })
       }
       continue
     }
+
+    const isTomorrow = item.publish_date === tomorrowKey
+    let type: string | null = null
+    if (isTomorrow && hour === 12) type = 'pub_tomorrow_noon'
+    else if (!isTomorrow && hour === 9) type = 'pub_today_morning'
+    else if (!isTomorrow && hour === 14) type = 'pub_today_afternoon'
+    if (!type) continue
 
     for (const profileId of taggedProfileIds) {
       // Dedup per (item, type, profile) covers each tagged person
