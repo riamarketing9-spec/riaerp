@@ -100,7 +100,7 @@ export function ClientHistorySheet({
                 <p>{i.note}</p>
                 <p className="text-xs text-muted-foreground">
                   {profiles?.find((p) => p.id === i.profile_id)?.full_name ?? '—'} ·{' '}
-                  {new Date(i.created_at).toLocaleString('ru-RU')}
+                  {new Date(i.created_at).toLocaleString('ru-RU', { hour12: false })}
                 </p>
               </div>
             ))}

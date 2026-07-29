@@ -295,6 +295,7 @@ export function AuditLogPage() {
                     {new Date(log.changed_at).toLocaleTimeString(i18n.language.startsWith('uz') ? 'uz-Latn-UZ' : 'ru-RU', {
                       hour: '2-digit',
                       minute: '2-digit',
+                      hour12: false,
                     })}
                   </TableCell>
                   <TableCell className="font-medium">{actorName(log.actor_profile_id)}</TableCell>
