@@ -38,8 +38,11 @@ export function ClientHistorySheet({
     },
   })
 
+  // Deliberately unfiltered (unlike 'profiles-lookup'): a past interaction
+  // logged by someone since removed from the team must still show their
+  // name, not go blank.
   const { data: profiles } = useQuery({
-    queryKey: ['profiles-lookup'],
+    queryKey: ['profiles-lookup-all'],
     queryFn: async () => {
       const { data, error } = await supabase.from('profiles').select('id, full_name')
       if (error) throw error

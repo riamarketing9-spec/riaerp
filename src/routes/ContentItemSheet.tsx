@@ -98,8 +98,11 @@ export function ContentItemSheet({
       return data
     },
   })
-  const { data: profiles } = useQuery({
-    queryKey: ['profiles-lookup'],
+  // Unfiltered, for resolving the name of a person already assigned to this
+  // item even after they've since been removed from the team -- the picker
+  // options themselves (profilesWithRoles below) stay active-only.
+  const { data: allProfiles } = useQuery({
+    queryKey: ['profiles-lookup-all'],
     queryFn: async () => {
       const { data, error } = await supabase.from('profiles').select('id, full_name')
       if (error) throw error
@@ -112,7 +115,10 @@ export function ContentItemSheet({
   const { data: profilesWithRoles } = useQuery({
     queryKey: ['profiles-lookup-with-role'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('id, full_name, role_id')
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, role_id')
+        .is('deleted_at', null)
       if (error) throw error
       return data
     },
@@ -157,7 +163,7 @@ export function ContentItemSheet({
     currentId: string | undefined
   ) {
     if (!currentId || list.some((p) => p.id === currentId)) return list
-    const current = profiles?.find((p) => p.id === currentId)
+    const current = allProfiles?.find((p) => p.id === currentId)
     return current ? [{ ...current, role_id: '' }, ...list] : list
   }
   const { data: platforms } = useQuery({

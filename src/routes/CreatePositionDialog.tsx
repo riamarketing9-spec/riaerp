@@ -57,9 +57,9 @@ export function PositionDialog({
   })
 
   const { data: profiles } = useQuery({
-    queryKey: ['profiles-lookup'],
+    queryKey: ['profiles-lookup-active'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('id, full_name')
+      const { data, error } = await supabase.from('profiles').select('id, full_name').is('deleted_at', null)
       if (error) throw error
       return data
     },

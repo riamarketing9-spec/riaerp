@@ -46,6 +46,10 @@ export function AttendancePage() {
   const [rangeTo, setRangeTo] = useState('')
   const [employeeFilter, setEmployeeFilter] = useState('')
 
+  // Unfiltered: resolves names on existing time entries (including for
+  // someone since removed from the team) and doubles as the read-only
+  // "filter by employee" picker below, where a removed person's past
+  // attendance should stay findable.
   const { data: profiles } = useQuery({
     queryKey: ['profiles-lookup'],
     queryFn: async () => {

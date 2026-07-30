@@ -169,8 +169,11 @@ export function AuditLogPage() {
     },
   })
 
+  // Deliberately unfiltered (unlike the 'profiles-lookup' key used for
+  // assignment pickers elsewhere): an audit entry made by someone since
+  // removed from the team must still resolve their name, not go blank.
   const { data: profiles } = useQuery({
-    queryKey: ['profiles-lookup'],
+    queryKey: ['profiles-lookup-all'],
     queryFn: async () => {
       const { data, error } = await supabase.from('profiles').select('id, full_name')
       if (error) throw error

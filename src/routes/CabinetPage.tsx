@@ -261,6 +261,10 @@ function TaskChartsSection({
   const { data: profiles } = useQuery({
     queryKey: ['profiles-lookup'],
     queryFn: async () => {
+      // Unfiltered: this resolves assignee names on existing tasks/content
+      // items, including ones assigned to someone since removed from the
+      // team -- filtering here would blank out their name instead of
+      // showing it.
       const { data, error } = await supabase.from('profiles').select('id, full_name')
       if (error) throw error
       return data

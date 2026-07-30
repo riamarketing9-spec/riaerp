@@ -125,7 +125,7 @@ export function TaskSheet({
   const { data: assignees } = useQuery({
     queryKey: ['assignees'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('id, full_name')
+      const { data, error } = await supabase.from('profiles').select('id, full_name').is('deleted_at', null)
       if (error) throw error
       return data
     },
