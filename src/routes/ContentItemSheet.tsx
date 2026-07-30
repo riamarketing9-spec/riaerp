@@ -106,6 +106,60 @@ export function ContentItemSheet({
       return data
     },
   })
+  // Distinct key/shape from 'profiles-lookup' (which several other pages
+  // share expecting just id+full_name) -- needs role_id too, to filter each
+  // combobox down to people in the matching profession.
+  const { data: profilesWithRoles } = useQuery({
+    queryKey: ['profiles-lookup-with-role'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('id, full_name, role_id')
+      if (error) throw error
+      return data
+    },
+  })
+  const { data: rolesForFiltering } = useQuery({
+    queryKey: ['roles-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('roles').select('id, slug, label_ru, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+  // Secondary positions ("Qo'shimcha lavozimlar" in the employee editor) --
+  // someone whose primary role is e.g. Targetolog but is also checked off
+  // as Syomkachi should still show up in the shooter picker.
+  const { data: employeeRoles } = useQuery({
+    queryKey: ['employee_roles-all'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('employee_roles').select('profile_id, role_id')
+      if (error) throw error
+      return data
+    },
+  })
+
+  function profilesByRoleSlugs(slugs: string[]) {
+    const roleIds = new Set((rolesForFiltering ?? []).filter((r) => slugs.includes(r.slug)).map((r) => r.id))
+    const secondaryProfileIds = new Set(
+      (employeeRoles ?? []).filter((er) => roleIds.has(er.role_id)).map((er) => er.profile_id)
+    )
+    return (profilesWithRoles ?? []).filter((p) => roleIds.has(p.role_id) || secondaryProfileIds.has(p.id))
+  }
+
+  const shooterOptions = profilesByRoleSlugs(['syomkachi', 'mobilograf'])
+  const editorOptions = profilesByRoleSlugs(['montajchi'])
+  const smmOptions = profilesByRoleSlugs(['smm_manager'])
+
+  // A previously-assigned person whose role no longer matches the filter
+  // (reassigned, or the item predates this filtering) must still show up as
+  // the current selection instead of rendering blank.
+  function withCurrentSelection(
+    list: NonNullable<typeof profilesWithRoles>,
+    currentId: string | undefined
+  ) {
+    if (!currentId || list.some((p) => p.id === currentId)) return list
+    const current = profiles?.find((p) => p.id === currentId)
+    return current ? [{ ...current, role_id: '' }, ...list] : list
+  }
   const { data: platforms } = useQuery({
     queryKey: ['platforms'],
     queryFn: async () => {
@@ -430,7 +484,10 @@ export function ContentItemSheet({
             <div className="flex flex-col gap-1.5">
               <Label>{t('contentPlan.shooter')}</Label>
               <Combobox
-                options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
+                options={withCurrentSelection(shooterOptions, watch('shooter_profile_id')).map((p) => ({
+                  value: p.id,
+                  label: p.full_name,
+                }))}
                 value={watch('shooter_profile_id') ?? ''}
                 onChange={(v) => setValue('shooter_profile_id', v)}
               />
@@ -438,7 +495,10 @@ export function ContentItemSheet({
             <div className="flex flex-col gap-1.5">
               <Label>{t('contentPlan.editor')}</Label>
               <Combobox
-                options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
+                options={withCurrentSelection(editorOptions, watch('editor_profile_id')).map((p) => ({
+                  value: p.id,
+                  label: p.full_name,
+                }))}
                 value={watch('editor_profile_id') ?? ''}
                 onChange={(v) => setValue('editor_profile_id', v)}
               />
@@ -446,7 +506,10 @@ export function ContentItemSheet({
             <div className="flex flex-col gap-1.5">
               <Label>{t('contentPlan.smm')}</Label>
               <Combobox
-                options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
+                options={withCurrentSelection(smmOptions, watch('smm_profile_id')).map((p) => ({
+                  value: p.id,
+                  label: p.full_name,
+                }))}
                 value={watch('smm_profile_id') ?? ''}
                 onChange={(v) => setValue('smm_profile_id', v)}
               />
