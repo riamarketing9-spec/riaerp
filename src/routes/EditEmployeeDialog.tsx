@@ -55,6 +55,7 @@ export function EditEmployeeDialog({
   const [roleId, setRoleId] = useState('')
   const [departmentId, setDepartmentId] = useState('')
   const [staffStatusId, setStaffStatusId] = useState('')
+  const [isApprentice, setIsApprentice] = useState(false)
   const [effectiveCaps, setEffectiveCaps] = useState<Set<string>>(new Set())
   const [secondaryRoleIds, setSecondaryRoleIds] = useState<Set<string>>(new Set())
 
@@ -64,7 +65,7 @@ export function EditEmployeeDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, role_id, department_id, staff_status_id')
+        .select('id, full_name, role_id, department_id, staff_status_id, is_apprentice')
         .eq('id', profileId!)
         .single()
       if (error) throw error
@@ -143,6 +144,7 @@ export function EditEmployeeDialog({
       setRoleId(profileRow.role_id)
       setDepartmentId(profileRow.department_id ?? '')
       setStaffStatusId(profileRow.staff_status_id ?? '')
+      setIsApprentice(profileRow.is_apprentice)
     }
   }, [profileRow])
 
@@ -185,6 +187,7 @@ export function EditEmployeeDialog({
         role_id: roleId,
         department_id: departmentId || null,
         staff_status_id: staffStatusId || null,
+        is_apprentice: isApprentice,
       })
       .eq('id', profileId!)
     if (profileErr) throw profileErr
@@ -271,6 +274,7 @@ export function EditEmployeeDialog({
     roleId,
     departmentId,
     staffStatusId,
+    isApprentice,
     effectiveCaps: [...effectiveCaps].sort(),
     secondaryRoleIds: [...secondaryRoleIds].sort(),
   }
@@ -404,6 +408,17 @@ export function EditEmployeeDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="is_apprentice"
+              checked={isApprentice}
+              onCheckedChange={(checked) => setIsApprentice(checked === true)}
+            />
+            <Label htmlFor="is_apprentice" className="font-normal">
+              {t('team.apprentice')}
+            </Label>
           </div>
 
           <div className="flex flex-col gap-2">

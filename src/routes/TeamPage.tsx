@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
+import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,7 +14,7 @@ import { InviteEmployeeDialog } from './InviteEmployeeDialog'
 import { EditEmployeeDialog } from './EditEmployeeDialog'
 import { Avatar } from '@/components/Avatar'
 import { Copy, Plus, Trash2 } from 'lucide-react'
-import { pickLabel } from '@/lib/localizedLabel'
+import { pickLabel, formatLocalDateTime } from '@/lib/localizedLabel'
 import { telegramDeepLink } from '@/lib/telegram'
 
 function DepartmentsPanel() {
@@ -100,7 +101,10 @@ function DepartmentsPanel() {
 
 export function TeamPage() {
   const { t, i18n } = useTranslation()
+  const { hasCapability } = useAuth()
+  const canManageTeam = hasCapability('org.full_access') || hasCapability('team.manage')
   const [showInactive, setShowInactive] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const { data: profiles, isLoading } = useQuery({
@@ -108,7 +112,7 @@ export function TeamPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, role_id, staff_status_id, avatar_url')
+        .select('id, full_name, role_id, staff_status_id, avatar_url, is_apprentice, deleted_at, deleted_by')
       if (error) throw error
       return data
     },
@@ -148,7 +152,10 @@ export function TeamPage() {
   const statusOf = (id: string | null) => staffStatuses?.find((s) => s.id === id)
   const isInactive = (id: string | null) => statusOf(id)?.slug === 'inactive'
 
-  const visibleProfiles = (profiles ?? []).filter((p) => showInactive || !isInactive(p.staff_status_id))
+  const activeProfiles = (profiles ?? []).filter((p) => !p.deleted_at)
+  const deletedProfiles = (profiles ?? []).filter((p) => p.deleted_at)
+  const visibleProfiles = activeProfiles.filter((p) => showInactive || !isInactive(p.staff_status_id))
+  const nameOf = (id: string | null) => (profiles ?? []).find((p) => p.id === id)?.full_name ?? null
 
   function copyLink(profileId: string) {
     navigator.clipboard.writeText(telegramDeepLink(profileId))
@@ -197,6 +204,11 @@ export function TeamPage() {
                           {pickLabel(status, i18n.language)}
                         </Badge>
                       )}
+                      {p.is_apprentice && (
+                        <Badge className="border-amber-500/30 bg-amber-500/15 text-[10px] text-amber-700 dark:text-amber-400">
+                          {t('team.apprenticeBadge')}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -219,6 +231,41 @@ export function TeamPage() {
           )
         })}
       </div>
+
+      {canManageTeam && (
+        <div className="flex flex-col gap-3">
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-fit"
+            onClick={() => setShowHistory((v) => !v)}
+          >
+            {showHistory ? t('team.hideHistory') : t('team.showHistory')}
+          </Button>
+          {showHistory && (
+            <div className="flex flex-col gap-2">
+              {deletedProfiles.length === 0 && (
+                <p className="text-sm text-muted-foreground">{t('team.historyEmpty')}</p>
+              )}
+              {deletedProfiles.map((p) => (
+                <Card key={p.id} className="opacity-70">
+                  <CardContent className="flex items-center gap-2.5 py-3">
+                    <Avatar name={p.full_name} avatarUrl={p.avatar_url} className="rounded-full" />
+                    <div>
+                      <p className="text-sm font-medium">{p.full_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t('team.deletedOn', { date: formatLocalDateTime(p.deleted_at, i18n.language) })}
+                        {' · '}
+                        {t('team.deletedBy', { name: nameOf(p.deleted_by) ?? t('team.deletedByUnknown') })}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <EditEmployeeDialog
         profileId={editingId}

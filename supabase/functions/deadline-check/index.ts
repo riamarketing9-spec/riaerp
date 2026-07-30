@@ -208,19 +208,21 @@ Deno.serve(async (req) => {
 
   // =========================================================================
   // D. Content-plan items: T-1 / T-0 reminders on publish_date, to every
-  //    tagged person (shooter, editor, responsible) — "за всё где он
+  //    tagged person (shooter, editor, responsible, SMM) — "за всё где он
   //    отмечен". Items with nobody tagged at all get the same CEO+PM nag as
   //    unassigned tasks, instead of being silently skipped.
   // =========================================================================
   const { data: contentItems } = await admin
     .from('content_plan_items')
-    .select('id, topic, publish_date, project_id, shooter_profile_id, editor_profile_id, responsible_profile_id')
+    .select(
+      'id, topic, publish_date, project_id, shooter_profile_id, editor_profile_id, responsible_profile_id, smm_profile_id'
+    )
     .not('publish_date', 'is', null)
     .in('publish_date', [todayKey, tomorrowKey])
 
   for (const item of contentItems ?? []) {
     const taggedProfileIds = [...new Set(
-      [item.shooter_profile_id, item.editor_profile_id, item.responsible_profile_id].filter(
+      [item.shooter_profile_id, item.editor_profile_id, item.responsible_profile_id, item.smm_profile_id].filter(
         (id): id is string => !!id
       )
     )]

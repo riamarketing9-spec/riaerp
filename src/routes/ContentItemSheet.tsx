@@ -34,6 +34,7 @@ const schema = z.object({
   shooter_profile_id: z.string().optional(),
   editor_profile_id: z.string().optional(),
   responsible_profile_id: z.string().optional(),
+  smm_profile_id: z.string().optional(),
   shoot_date: z.string().optional(),
   publish_date: z.string().optional(),
   script: z.string().optional(),
@@ -179,6 +180,7 @@ export function ContentItemSheet({
         shooter_profile_id: existing.shooter_profile_id ?? '',
         editor_profile_id: existing.editor_profile_id ?? '',
         responsible_profile_id: existing.responsible_profile_id ?? '',
+        smm_profile_id: existing.smm_profile_id ?? '',
         shoot_date: existing.shoot_date ?? '',
         publish_date: existing.publish_date ?? '',
         script: existing.script ?? '',
@@ -220,6 +222,7 @@ export function ContentItemSheet({
       shooter_profile_id: values.shooter_profile_id || null,
       editor_profile_id: values.editor_profile_id || null,
       responsible_profile_id: values.responsible_profile_id || null,
+      smm_profile_id: values.smm_profile_id || null,
       shoot_date: values.shoot_date || null,
       publish_date: values.publish_date || null,
       script: values.script || null,
@@ -423,7 +426,7 @@ export function ContentItemSheet({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="flex flex-col gap-1.5">
               <Label>{t('contentPlan.shooter')}</Label>
               <Combobox
@@ -438,6 +441,14 @@ export function ContentItemSheet({
                 options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
                 value={watch('editor_profile_id') ?? ''}
                 onChange={(v) => setValue('editor_profile_id', v)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>{t('contentPlan.smm')}</Label>
+              <Combobox
+                options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
+                value={watch('smm_profile_id') ?? ''}
+                onChange={(v) => setValue('smm_profile_id', v)}
               />
             </div>
           </div>

@@ -284,10 +284,12 @@ function TaskChartsSection({
     queryFn: async () => {
       let query = supabase
         .from('content_plan_items')
-        .select('id, topic, project_id, publish_date, status_id, shooter_profile_id, editor_profile_id')
+        .select('id, topic, project_id, publish_date, status_id, shooter_profile_id, editor_profile_id, smm_profile_id')
         .neq('status_id', publishedStatusId!)
       if (!seesTeamAggregate) {
-        query = query.or(`shooter_profile_id.eq.${profile!.id},editor_profile_id.eq.${profile!.id}`)
+        query = query.or(
+          `shooter_profile_id.eq.${profile!.id},editor_profile_id.eq.${profile!.id},smm_profile_id.eq.${profile!.id}`
+        )
       }
       const { data, error } = await query
       if (error) throw error
@@ -356,7 +358,8 @@ function TaskChartsSection({
   const contentSubtitle = (item: NonNullable<typeof contentItems>[number]) => {
     const shooter = assigneeName(item.shooter_profile_id) ?? '—'
     const editor = assigneeName(item.editor_profile_id) ?? '—'
-    return `${t('contentPlan.shooter')}: ${shooter} · ${t('contentPlan.editor')}: ${editor}`
+    const smm = assigneeName(item.smm_profile_id) ?? '—'
+    return `${t('contentPlan.shooter')}: ${shooter} · ${t('contentPlan.editor')}: ${editor} · ${t('contentPlan.smm')}: ${smm}`
   }
 
   const contentBars: ProjectTaskBar[] = useMemo(() => {

@@ -41,6 +41,9 @@ type ProfileRow = {
   workload_level_id: string | null
   hire_date: string | null
   avatar_url: string | null
+  is_apprentice: boolean
+  deleted_at: string | null
+  deleted_by: string | null
   created_at: string
   updated_at: string
 }
@@ -195,6 +198,7 @@ type ContentPlanItemRow = {
   shooter_profile_id: string | null
   editor_profile_id: string | null
   responsible_profile_id: string | null
+  smm_profile_id: string | null
   shoot_date: string | null
   edit_done_date: string | null
   cover_done_date: string | null

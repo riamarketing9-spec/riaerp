@@ -10,6 +10,7 @@ import { useAuth } from '@/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -34,6 +35,7 @@ const schema = z.object({
   password: z.string().min(6, 'Минимум 6 символов'),
   role_slug: z.string().min(1, 'Обязательное поле'),
   department_slug: z.string().optional(),
+  is_apprentice: z.boolean().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -92,6 +94,7 @@ export function InviteEmployeeDialog() {
             full_name: values.full_name,
             role_slug: values.role_slug,
             department_slug: values.department_slug || undefined,
+            is_apprentice: values.is_apprentice ?? false,
           }),
         }
       )
@@ -187,6 +190,17 @@ export function InviteEmployeeDialog() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="is_apprentice"
+              checked={watch('is_apprentice') ?? false}
+              onCheckedChange={(checked) => setValue('is_apprentice', checked === true)}
+            />
+            <Label htmlFor="is_apprentice" className="font-normal">
+              {t('team.apprentice')}
+            </Label>
           </div>
 
           <DialogFooter>

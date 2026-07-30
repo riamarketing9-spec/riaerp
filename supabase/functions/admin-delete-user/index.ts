@@ -1,8 +1,15 @@
-// CEO or team.manage: permanently deletes an employee's auth account
-// (profiles row cascades via auth_user_id references auth.users(id) on
-// delete cascade). Must run server-side — deleting auth.users requires
-// the service role key.
+// CEO or team.manage: removes an employee from the active roster. Soft
+// delete, not a hard one -- the profiles row stays (so historical
+// tasks/content-plan items still resolve a name, and there's a record of
+// who was removed), but the auth account is banned so access to the ERP is
+// revoked immediately, and deleted_at/deleted_by are stamped so the removal
+// shows up in the team's history. Must run server-side — banning
+// auth.users requires the service role key.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+
+// ~100 years: GoTrue has no "permanent" ban, only a duration: this is the
+// conventional stand-in for one.
+const PERMANENT_BAN_DURATION = '876000h'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,15 +51,16 @@ Deno.serve(async (req) => {
 
     const { data: profile, error: profileErr } = await admin
       .from('profiles')
-      .select('auth_user_id, role_id, roles(slug)')
+      .select('auth_user_id, role_id, deleted_at, roles(slug)')
       .eq('id', profile_id)
       .single()
     if (profileErr) throw profileErr
     if (!profile.auth_user_id) throw new Error('Profile has no linked auth user')
+    if (profile.deleted_at) throw new Error('Employee is already removed')
     // A team.manage holder who isn't a true CEO must never be able to
     // delete a CEO-role profile — only a real CEO can. This is the only
-    // real enforcement point for delete, since auth.admin.deleteUser runs
-    // under the service-role key and bypasses RLS entirely.
+    // real enforcement point for delete, since the ban below runs under
+    // the service-role key and bypasses RLS entirely.
     const targetRoleSlug = (profile as { roles?: { slug: string } | null }).roles?.slug
     if (!isCeo && targetRoleSlug === 'ceo') {
       return new Response(JSON.stringify({ error: 'Only CEO can delete a CEO-role employee' }), {
@@ -61,19 +69,39 @@ Deno.serve(async (req) => {
       })
     }
 
-    // profiles.id -> auth.users(id) cascades, but several tables reference
-    // profiles(id) with no ON DELETE behavior of their own (e.g. a profile's
-    // self-created checklist_instances from visiting /cabinet). Postgres
-    // then blocks the cascade with a foreign-key violation. Clean up the
-    // rows that are safe to drop entirely before deleting the auth user.
-    await admin.from('checklist_instances').delete().eq('profile_id', profile_id)
-    await admin.from('notification_log').delete().eq('profile_id', profile_id)
-    await admin.from('client_interactions').delete().eq('profile_id', profile_id)
-    await admin.from('task_comments').delete().eq('author_profile_id', profile_id)
-    await admin.from('document_visibility').delete().eq('profile_id', profile_id)
+    // Caller's own profile id, for deleted_by — resolved from the verified
+    // JWT (via the anon-key client bound to the caller's Authorization
+    // header) rather than trusted from the request body, so it can't be
+    // spoofed.
+    const {
+      data: { user: callerUser },
+    } = await callerClient.auth.getUser()
+    const { data: callerProfile } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', callerUser?.id ?? '')
+      .maybeSingle()
 
-    const { error: deleteErr } = await admin.auth.admin.deleteUser(profile.auth_user_id)
-    if (deleteErr) throw deleteErr
+    const { error: banErr } = await admin.auth.admin.updateUserById(profile.auth_user_id, {
+      ban_duration: PERMANENT_BAN_DURATION,
+    })
+    if (banErr) throw banErr
+
+    const { data: inactiveStatus } = await admin
+      .from('staff_statuses')
+      .select('id')
+      .eq('slug', 'inactive')
+      .maybeSingle()
+
+    const { error: updateErr } = await admin
+      .from('profiles')
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: callerProfile?.id ?? null,
+        ...(inactiveStatus ? { staff_status_id: inactiveStatus.id } : {}),
+      })
+      .eq('id', profile_id)
+    if (updateErr) throw updateErr
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
