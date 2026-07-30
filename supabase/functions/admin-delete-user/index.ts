@@ -49,9 +49,12 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceRoleKey)
 
+    // profiles -> roles is ambiguous to PostgREST since 0020 added
+    // employee_roles (a second, many-to-many path to roles for secondary
+    // positions): the FK name pins it to the direct role_id relationship.
     const { data: profile, error: profileErr } = await admin
       .from('profiles')
-      .select('auth_user_id, role_id, deleted_at, roles(slug)')
+      .select('auth_user_id, role_id, deleted_at, roles!profiles_role_id_fkey(slug)')
       .eq('id', profile_id)
       .single()
     if (profileErr) throw profileErr
