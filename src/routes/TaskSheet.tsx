@@ -196,12 +196,24 @@ export function TaskSheet({
   // A plain assignee (not CEO/PM/assistant-PM/projects.manage) may only
   // change this task's status -- everything else is locked in the UI, and
   // enforced for real by a DB trigger regardless of what the UI allows.
+  // Exception: a task someone made for themselves (self-created and still
+  // self-assigned) is theirs to fully manage -- that's everyone's baseline
+  // "keep my own to-do list" right, independent of role/capabilities.
   const currentProject = projects?.find((p) => p.id === existing?.project_id)
   const isPmOfProject = !!profile && currentProject?.pm_profile_id === profile.id
   const isAssistantPmOfProject = assistantPmRow?.role_on_project === 'assistant_pm'
   const canManageTask =
     hasCapability('org.full_access') || hasCapability('projects.manage') || isPmOfProject || isAssistantPmOfProject
-  const isOwnTaskOnly = isEdit && !canManageTask && existing?.assignee_profile_id === profile?.id
+  const isSelfCreatedOwnTask =
+    !!profile && existing?.created_by === profile.id && existing?.assignee_profile_id === profile.id
+  const isOwnTaskOnly =
+    isEdit && !canManageTask && !isSelfCreatedOwnTask && existing?.assignee_profile_id === profile?.id
+  // Someone without task-management rights can only ever hand a task to
+  // themselves -- assigning it to a colleague is still a PM/CEO action.
+  // Applies both to a brand-new task and to editing one they made for
+  // themselves earlier; a task assigned to them BY someone else is already
+  // locked entirely via isOwnTaskOnly above, so it's excluded here.
+  const assigneeLockedToSelf = !canManageTask && (!isEdit || isSelfCreatedOwnTask)
 
   const { data: existingDeliverableTypes } = useQuery({
     queryKey: ['task_deliverable_types', taskId],
@@ -229,11 +241,14 @@ export function TaskSheet({
 
   useEffect(() => {
     if (open && !isEdit) {
-      reset({ project_id: defaultProjectId ?? '' })
+      reset({
+        project_id: defaultProjectId ?? '',
+        assignee_profile_id: !canManageTask ? (profile?.id ?? '') : '',
+      })
       setSelectedDeliverableTypes(new Set())
       setDraftId(null)
     }
-  }, [open, isEdit, defaultProjectId, reset])
+  }, [open, isEdit, defaultProjectId, reset, canManageTask, profile?.id])
 
   useEffect(() => {
     if (existing) {
@@ -487,7 +502,7 @@ export function TaskSheet({
 
           <div className="flex flex-col gap-1.5">
             <Label>{t('tasks.assignee')}</Label>
-            <div className={cn(isOwnTaskOnly && 'pointer-events-none opacity-60')}>
+            <div className={cn((isOwnTaskOnly || assigneeLockedToSelf) && 'pointer-events-none opacity-60')}>
               <Combobox
                 options={(assignees ?? []).map((a) => ({ value: a.id, label: a.full_name }))}
                 value={watch('assignee_profile_id') ?? ''}
