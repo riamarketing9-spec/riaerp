@@ -38,10 +38,12 @@ export function PositionDialog({
   open,
   onOpenChange,
   positionId,
+  defaultParentId,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   positionId: string | null
+  defaultParentId?: string | null
 }) {
   const { t } = useTranslation()
   const isEdit = !!positionId
@@ -86,10 +88,10 @@ export function PositionDialog({
 
   useEffect(() => {
     if (open && !isEdit) {
-      reset({ title: '', parent_position_id: '', profile_id: '' })
+      reset({ title: '', parent_position_id: defaultParentId ?? '', profile_id: '' })
       setDraftId(null)
     }
-  }, [open, isEdit, reset])
+  }, [open, isEdit, defaultParentId, reset])
 
   useEffect(() => {
     if (existing) {

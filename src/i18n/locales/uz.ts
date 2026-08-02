@@ -236,6 +236,12 @@ export const uz = {
     person: 'Xodim',
     none: '—',
     empty: "Tashkiliy tuzilma hali to'ldirilmagan",
+    vacant: "Bo'sh o'rin",
+    addSubordinate: "Bo'ysunuvchi qo'shish",
+    dragHandle: "Ko'chirish",
+    dropToRoot: "Rahbarni olib tashlash uchun shu yerga tashlang",
+    moved: "Lavozim ko'chirildi",
+    cycleError: "Lavozimni o'z bo'ysunuvchisi ostiga ko'chirib bo'lmaydi",
   },
   docs: {
     title: 'Hujjatlar',

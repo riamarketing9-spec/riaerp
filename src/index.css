@@ -160,3 +160,70 @@
     background-color: var(--accent);
   }
 }
+
+/* Org chart connectors (OrgStructurePage) -- the classic pure-CSS tree
+   recipe: each <li> draws its own left/right half of the horizontal line to
+   its siblings via ::before/::after, and only a *nested* <ul> (a node's own
+   children row) gets the vertical stem down from its parent, via
+   `ul ul::before`. :only-child suppresses sibling lines for solo nodes
+   (including a single root, which has no line to draw at all). */
+.org-tree {
+  display: flex;
+  justify-content: center;
+}
+.org-tree ul {
+  display: flex;
+  justify-content: center;
+  padding-top: 28px;
+  position: relative;
+}
+.org-tree li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  list-style-type: none;
+  position: relative;
+  padding: 28px 14px 0 14px;
+}
+.org-tree li::before,
+.org-tree li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 28px;
+  border-top: 1.5px solid var(--border);
+}
+.org-tree li::after {
+  right: auto;
+  left: 50%;
+  border-left: 1.5px solid var(--border);
+}
+.org-tree li:only-child::after,
+.org-tree li:only-child::before {
+  display: none;
+}
+.org-tree li:only-child {
+  padding-top: 0;
+}
+.org-tree li:first-child::before,
+.org-tree li:last-child::after {
+  border: 0 none;
+}
+.org-tree li:last-child::before {
+  border-right: 1.5px solid var(--border);
+  border-radius: 0 6px 0 0;
+}
+.org-tree li:first-child::after {
+  border-radius: 6px 0 0 0;
+}
+.org-tree ul ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 28px;
+  border-left: 1.5px solid var(--border);
+}
