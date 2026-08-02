@@ -62,10 +62,6 @@ type ProjectRow = {
   client_id: string | null
   goal: string | null
   target_audience: string | null
-  monthly_quota_posts: number | null
-  monthly_quota_reels: number | null
-  monthly_quota_stories: number | null
-  monthly_quota_shoots: number | null
   billing_day: number | null
   deliverables_text: string | null
   brief_detail_text: string | null
@@ -74,7 +70,6 @@ type ProjectRow = {
   logo_url: string | null
   start_date: string | null
   end_date: string | null
-  target_enabled: boolean
   created_at: string
   updated_at: string
 }
@@ -279,7 +274,10 @@ type ProjectMonthlyGoalRow = {
   id: string
   project_id: string
   month: string
-  goal_text: string
+  note: string | null
+  target_posts: number
+  target_stories: number
+  target_ads: boolean
   created_at: string
 }
 
@@ -514,7 +512,7 @@ export type Database = {
       leads: ReturnType<typeof table<LeadRow, 'client_id' | 'stage_id'>>
       org_positions: ReturnType<typeof table<OrgPositionRow, 'title'>>
       client_interactions: ReturnType<typeof table<ClientInteractionRow, 'client_id' | 'note'>>
-      project_monthly_goals: ReturnType<typeof table<ProjectMonthlyGoalRow, 'project_id' | 'month' | 'goal_text'>>
+      project_monthly_goals: ReturnType<typeof table<ProjectMonthlyGoalRow, 'project_id' | 'month'>>
       document_categories: ReturnType<typeof table<DocumentCategoryRow, 'slug' | 'label_ru' | 'label_uz'>>
       documents: ReturnType<typeof table<DocumentRow, 'title' | 'storage_path'>>
       document_visibility: { Row: DocumentVisibilityRow; Insert: Pick<DocumentVisibilityRow, 'document_id' | 'profile_id'> & Partial<DocumentVisibilityRow>; Update: Partial<DocumentVisibilityRow>; Relationships: [] }

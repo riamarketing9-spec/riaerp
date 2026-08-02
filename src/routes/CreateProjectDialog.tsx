@@ -50,9 +50,6 @@ const schema = z.object({
   billing_day: z.string().optional(),
   start_date: z.string().optional(),
   end_date: z.string().optional(),
-  monthly_quota_posts: z.string().optional(),
-  monthly_quota_reels: z.string().optional(),
-  target_enabled: z.boolean(),
   contract_url: z.string().optional(),
 })
 
@@ -203,7 +200,7 @@ export function ProjectDialog({
 
   useEffect(() => {
     if (open && !isEdit) {
-      reset({ target_enabled: false })
+      reset({})
       setAssistantPmIds(new Set())
       setDraftId(null)
     }
@@ -226,9 +223,6 @@ export function ProjectDialog({
         billing_day: existing.billing_day ? String(existing.billing_day) : '',
         start_date: existing.start_date ?? '',
         end_date: existing.end_date ?? '',
-        monthly_quota_posts: existing.monthly_quota_posts ? String(existing.monthly_quota_posts) : '',
-        monthly_quota_reels: existing.monthly_quota_reels ? String(existing.monthly_quota_reels) : '',
-        target_enabled: existing.target_enabled,
       })
     }
   }, [existing, reset])
@@ -258,9 +252,6 @@ export function ProjectDialog({
       billing_day: values.billing_day ? Number(values.billing_day) : null,
       start_date: values.start_date || null,
       end_date: values.end_date || null,
-      monthly_quota_posts: values.monthly_quota_posts ? Number(values.monthly_quota_posts) : null,
-      monthly_quota_reels: values.monthly_quota_reels ? Number(values.monthly_quota_reels) : null,
-      target_enabled: values.target_enabled,
     }
 
     let currentProjectId = effectiveId
@@ -572,34 +563,6 @@ export function ProjectDialog({
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="end_date">{t('projects.endDate')}</Label>
               <Input id="end_date" type="date" {...register('end_date')} />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-            <Label>{t('projects.scopeSection')}</Label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="monthly_quota_posts" className="text-xs font-normal text-muted-foreground">
-                  {t('projects.quotaPosts')}
-                </Label>
-                <Input id="monthly_quota_posts" type="number" min={0} {...register('monthly_quota_posts')} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="monthly_quota_reels" className="text-xs font-normal text-muted-foreground">
-                  {t('projects.quotaReels')}
-                </Label>
-                <Input id="monthly_quota_reels" type="number" min={0} {...register('monthly_quota_reels')} />
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Checkbox
-                id="target_enabled"
-                checked={watch('target_enabled')}
-                onCheckedChange={(checked) => setValue('target_enabled', checked === true)}
-              />
-              <Label htmlFor="target_enabled" className="font-normal">
-                {t('projects.targetEnabled')}
-              </Label>
             </div>
           </div>
 

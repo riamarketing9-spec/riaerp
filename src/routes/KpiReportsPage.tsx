@@ -135,10 +135,23 @@ function ProjectKpiTab() {
   const { data: projects } = useQuery({
     queryKey: ['projects-lookup-quota'],
     queryFn: async () => {
+      const { data, error } = await supabase.from('projects').select('id, name').order('name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const currentMonthKey = useMemo(() => monthRange(new Date()).start.slice(0, 7) + '-01', [])
+  const { data: monthlyGoal } = useQuery({
+    queryKey: ['kpi-project-monthly-goal', projectId, currentMonthKey],
+    enabled: !!projectId,
+    queryFn: async () => {
       const { data, error } = await supabase
-        .from('projects')
-        .select('id, name, monthly_quota_posts, monthly_quota_reels')
-        .order('name')
+        .from('project_monthly_goals')
+        .select('target_posts, target_stories, target_ads')
+        .eq('project_id', projectId)
+        .eq('month', currentMonthKey)
+        .maybeSingle()
       if (error) throw error
       return data
     },
@@ -193,9 +206,8 @@ function ProjectKpiTab() {
   const monthPublished = (items ?? []).filter(
     (i) => i.status_id === publishedId && i.publish_date! >= monthKeyRef.start && i.publish_date! < monthKeyRef.end
   )
-  const monthPosts = monthPublished.filter((i) => formatSlug(i.format_id) === 'post').length
-  const monthReels = monthPublished.filter((i) => formatSlug(i.format_id) === 'reels').length
-  const project = projects?.find((p) => p.id === projectId)
+  const monthPosts = monthPublished.filter((i) => ['post', 'reels', 'carousel'].includes(formatSlug(i.format_id) ?? '')).length
+  const monthStories = monthPublished.filter((i) => formatSlug(i.format_id) === 'stories').length
 
   const byFormat = useMemo(() => {
     const map = new Map<string, number>()
@@ -233,6 +245,8 @@ function ProjectKpiTab() {
 
       {projectId && (
         <>
+          {!monthlyGoal && <p className="text-sm text-muted-foreground">{t('kpi.noMonthlyGoal')}</p>}
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Card>
               <CardContent className="flex flex-col gap-1 py-4">
@@ -243,7 +257,7 @@ function ProjectKpiTab() {
             <Card>
               <CardContent className="flex flex-col gap-1 py-4">
                 <span className="text-xs text-muted-foreground">
-                  {t('kpi.monthPosts')} ({project?.monthly_quota_posts ?? 0} {t('kpi.planned')})
+                  {t('kpi.monthPosts')} ({monthlyGoal?.target_posts ?? 0} {t('kpi.planned')})
                 </span>
                 <span className="text-2xl font-bold">{monthPosts}</span>
               </CardContent>
@@ -251,9 +265,17 @@ function ProjectKpiTab() {
             <Card>
               <CardContent className="flex flex-col gap-1 py-4">
                 <span className="text-xs text-muted-foreground">
-                  {t('kpi.monthReels')} ({project?.monthly_quota_reels ?? 0} {t('kpi.planned')})
+                  {t('kpi.monthStories')} ({monthlyGoal?.target_stories ?? 0} {t('kpi.planned')})
                 </span>
-                <span className="text-2xl font-bold">{monthReels}</span>
+                <span className="text-2xl font-bold">{monthStories}</span>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex flex-col gap-1 py-4">
+                <span className="text-xs text-muted-foreground">{t('kpi.monthTarget')}</span>
+                <span className="text-2xl font-bold">
+                  {monthlyGoal?.target_ads ? t('common.yes') : t('common.no')}
+                </span>
               </CardContent>
             </Card>
           </div>

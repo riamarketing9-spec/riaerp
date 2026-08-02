@@ -144,7 +144,7 @@ export function ProjectResultDialog({
 
   const filteredItems = (items ?? []).filter((i) => passesPlatform(i.id))
   const storiesCount = filteredItems.filter((i) => formatSlug(i.format_id) === 'stories').length
-  const postsCount = filteredItems.filter((i) => ['post', 'reels'].includes(formatSlug(i.format_id) ?? '')).length
+  const postsCount = filteredItems.filter((i) => ['post', 'reels', 'carousel'].includes(formatSlug(i.format_id) ?? '')).length
   const videoCount = filteredItems.filter((i) => formatSlug(i.format_id) === 'video').length
 
   const deliverableLabelFor = (deliverableTypeId: string) =>

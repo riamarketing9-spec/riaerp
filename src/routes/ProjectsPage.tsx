@@ -31,7 +31,7 @@ export function ProjectsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('id, name, logo_url, project_type_id, pm_profile_id, monthly_quota_posts, monthly_quota_reels, target_enabled')
+        .select('id, name, logo_url, project_type_id, pm_profile_id')
         .order('name')
       if (error) throw error
       return data
@@ -56,17 +56,6 @@ export function ProjectsPage() {
     },
   })
 
-  // Fallback progress (average task percent-complete) for projects that
-  // haven't set any quota yet -- otherwise they'd show a flat 0%.
-  const { data: kpiByProject } = useQuery({
-    queryKey: ['v_project_kpi'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('v_project_kpi').select('project_id, avg_task_percent_complete')
-      if (error) throw error
-      return new Map(data.map((row) => [row.project_id, row.avg_task_percent_complete ?? 0]))
-    },
-  })
-
   const { data: doneStatusId } = useQuery({
     queryKey: ['task_statuses-done-id'],
     queryFn: async () => {
@@ -88,6 +77,24 @@ export function ProjectsPage() {
   const projectIds = useMemo(() => (projects ?? []).map((p) => p.id), [projects])
 
   const monthKeyRef = useMemo(() => monthRange(new Date()), [])
+  const currentMonthKey = monthKeyRef.start.slice(0, 7) + '-01'
+
+  // This month's structured goal (target_posts/target_stories/target_ads)
+  // per project -- replaces the old always-on projects.monthly_quota_*
+  // columns, which never actually varied month to month.
+  const { data: monthlyGoalByProject } = useQuery({
+    queryKey: ['projects-monthly-goals', projectIds, currentMonthKey],
+    enabled: projectIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('project_monthly_goals')
+        .select('project_id, target_posts, target_stories, target_ads')
+        .in('project_id', projectIds)
+        .eq('month', currentMonthKey)
+      if (error) throw error
+      return new Map(data.map((row) => [row.project_id, row]))
+    },
+  })
 
   const { data: publishedStatusId } = useQuery({
     queryKey: ['content_statuses-published-id'],
@@ -159,24 +166,22 @@ export function ProjectsPage() {
     },
   })
 
-  const quotaProgressFor = (project: {
-    id: string
-    monthly_quota_posts: number | null
-    monthly_quota_reels: number | null
-    target_enabled: boolean
-  }) => {
-    const quotaTotal =
-      (project.monthly_quota_posts ?? 0) + (project.monthly_quota_reels ?? 0) + (project.target_enabled ? 1 : 0)
+  // No goal set for the current month at all -> don't show a progress bar
+  // (per spec: nothing to measure against, so no misleading 0%/percent).
+  const quotaProgressFor = (project: { id: string }) => {
+    const goal = monthlyGoalByProject?.get(project.id)
+    if (!goal) return null
+    const quotaTotal = goal.target_posts + goal.target_stories + (goal.target_ads ? 1 : 0)
     if (quotaTotal === 0) return null
 
     const formatSlug = (formatId: string) => contentFormats?.find((f) => f.id === formatId)?.slug
     const labelFor = (deliverableTypeId: string) =>
       deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''
 
-    // "Post" quota counts reels + post + carousel together, per spec.
+    // "Post" target counts reels + post + carousel together, per spec.
     const projectItems = (monthPublishedItems ?? []).filter((i) => i.project_id === project.id)
     const postsDone = projectItems.filter((i) => ['post', 'reels', 'carousel'].includes(formatSlug(i.format_id) ?? '')).length
-    const reelsDone = projectItems.filter((i) => formatSlug(i.format_id) === 'reels').length
+    const storiesDone = projectItems.filter((i) => formatSlug(i.format_id) === 'stories').length
 
     const doneTaskIds = new Set((monthDoneTasks ?? []).filter((t) => t.project_id === project.id).map((t) => t.id))
     let targetDone = false
@@ -186,9 +191,9 @@ export function ProjectsPage() {
     }
 
     const doneTotal =
-      Math.min(postsDone, project.monthly_quota_posts ?? 0) +
-      Math.min(reelsDone, project.monthly_quota_reels ?? 0) +
-      (project.target_enabled && targetDone ? 1 : 0)
+      Math.min(postsDone, goal.target_posts) +
+      Math.min(storiesDone, goal.target_stories) +
+      (goal.target_ads && targetDone ? 1 : 0)
 
     return Math.round((doneTotal / quotaTotal) * 100)
   }
@@ -231,7 +236,7 @@ export function ProjectsPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
         {projects?.map((project) => {
-          const progress = quotaProgressFor(project) ?? Math.round(kpiByProject?.get(project.id) ?? 0)
+          const progress = quotaProgressFor(project)
           return (
             <Card
               key={project.id}
@@ -251,15 +256,17 @@ export function ProjectsPage() {
                   </p>
                 </div>
 
-                <div className="relative h-5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-brand-600 transition-[width]"
-                    style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-                  />
-                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
-                    {progress}%
-                  </span>
-                </div>
+                {progress !== null && (
+                  <div className="relative h-5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-brand-600 transition-[width]"
+                      style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
+                      {progress}%
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between gap-2">
                   <Button

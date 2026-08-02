@@ -29,6 +29,7 @@ import { ContentCalendarView } from './ContentCalendarView'
 import { ContentTableView } from './ContentTableView'
 import { ProjectLogoSquare } from '@/components/ProjectLogoSquare'
 import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
+import { cn } from '@/lib/utils'
 import { ArrowLeft, Plus } from 'lucide-react'
 
 export function ContentPlanPage() {
@@ -106,7 +107,10 @@ export function ContentPlanPage() {
   const { data: statuses } = useQuery({
     queryKey: ['content_statuses'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('content_statuses').select('id, slug, label_ru, label_uz')
+      const { data, error } = await supabase
+        .from('content_statuses')
+        .select('id, slug, label_ru, label_uz, sort_order')
+        .order('sort_order')
       if (error) throw error
       return data
     },
@@ -177,7 +181,10 @@ export function ContentPlanPage() {
     [items, selectedProjectId]
   )
 
-  const filtered = useMemo(() => {
+  // Platform/date only, no status -- shared by the table (which also
+  // narrows by statusFilter) and the per-status stats strip below (which
+  // needs every status's count, so it can't itself be narrowed to one).
+  const itemsForStats = useMemo(() => {
     return itemsForSelectedProject.filter((item) => {
       if (platformFilter) {
         const ids = (itemPlatforms ?? [])
@@ -185,12 +192,22 @@ export function ContentPlanPage() {
           .map((ip) => ip.platform_id)
         if (!ids.includes(platformFilter)) return false
       }
-      if (statusFilter && item.status_id !== statusFilter) return false
       if (dateFrom && (!item.publish_date || item.publish_date < dateFrom)) return false
       if (dateTo && (!item.publish_date || item.publish_date > dateTo)) return false
       return true
     })
-  }, [itemsForSelectedProject, itemPlatforms, platformFilter, statusFilter, dateFrom, dateTo])
+  }, [itemsForSelectedProject, itemPlatforms, platformFilter, dateFrom, dateTo])
+
+  const filtered = useMemo(
+    () => itemsForStats.filter((item) => !statusFilter || item.status_id === statusFilter),
+    [itemsForStats, statusFilter]
+  )
+
+  const statusCounts = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const item of itemsForStats) map.set(item.status_id, (map.get(item.status_id) ?? 0) + 1)
+    return map
+  }, [itemsForStats])
 
   function openCreate() {
     setEditingId(null)
@@ -328,6 +345,32 @@ export function ContentPlanPage() {
                     {t('contentPlan.resetFilters')}
                   </Button>
                 )}
+              </div>
+
+              {/* Only shown once a specific project is selected -- a
+                  project-wide breakdown doesn't mean much across projects
+                  mixed together. Counts respect platform/date filters but
+                  not the status filter itself, since status is the axis
+                  being broken down. */}
+              <div className="flex flex-wrap gap-2">
+                {statuses?.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setStatusFilter(statusFilter === s.id ? '' : s.id)}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      statusFilter === s.id
+                        ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
+                        : 'border-border text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    {pickLabel(s, i18n.language)}
+                    <Badge variant="secondary" className="text-[10px]">
+                      {statusCounts.get(s.id) ?? 0}
+                    </Badge>
+                  </button>
+                ))}
               </div>
 
               <div className="overflow-x-auto rounded-lg border border-border">
