@@ -17,6 +17,7 @@ import { KnowledgeBasePage } from '@/routes/KnowledgeBasePage'
 import { TeamPage } from '@/routes/TeamPage'
 import { AuditLogPage } from '@/routes/AuditLogPage'
 import { AttendancePage } from '@/routes/AttendancePage'
+import { KpiReportsPage } from '@/routes/KpiReportsPage'
 import { LookupManagerPage } from '@/routes/LookupManagerPage'
 import { RequireCapability } from '@/routes/RequireCapability'
 
@@ -89,6 +90,14 @@ const router = createBrowserRouter(
           ),
         },
         { path: 'attendance', element: <AttendancePage /> },
+        {
+          path: 'kpi-reports',
+          element: (
+            <RequireCapability anyOf={['cabinets.read_all']}>
+              <KpiReportsPage />
+            </RequireCapability>
+          ),
+        },
         {
           path: 'lookups',
           element: (

@@ -21,6 +21,7 @@ import {
   Clock,
   ListTree,
   Pencil,
+  BarChart3,
 } from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
 import { supabase } from '@/lib/supabaseClient'
@@ -170,6 +171,9 @@ export function AppShell() {
         <NavItem to="/audit" icon={ScrollText} label={t('nav.audit')} onNavigate={closeMobileNav} />
       )}
       <NavItem to="/attendance" icon={Clock} label={t('nav.attendance')} onNavigate={closeMobileNav} />
+      {canSeeAll && (
+        <NavItem to="/kpi-reports" icon={BarChart3} label={t('kpi.reportsTitle')} onNavigate={closeMobileNav} />
+      )}
       {canSeeLookupAdmin && (
         <NavItem to="/lookups" icon={ListTree} label={t('nav.lookupAdmin')} onNavigate={closeMobileNav} />
       )}
