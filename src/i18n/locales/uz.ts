@@ -338,6 +338,8 @@ export const uz = {
     pickProject: 'Loyihani tanlang',
     onTimePct: "O'z vaqtida bajarilgan, %",
     avgPercentComplete: "Vazifalarning o'rtacha bajarilishi",
+    onTimeCount: 'Muddatida ulgurgan',
+    fullyDoneCount: "To'liq bajarilgan (100%)",
     projectPercentDone: 'Loyiha % bajarilgani',
     monthPosts: 'Bu oy postlar (reels+post+karusel)',
     monthStories: 'Bu oy stories',

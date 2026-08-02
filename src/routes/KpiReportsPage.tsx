@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Combobox } from '@/components/ui/combobox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { pickLabel } from '@/lib/localizedLabel'
+import { computeMonthlyProgress } from '@/lib/projectMonthlyProgress'
+import { MonthlyProgressBreakdown } from '@/components/MonthlyProgressBreakdown'
 
 // Plain local-calendar date strings, built directly from Y/M/D -- NOT via
 // `new Date(y, m, 1).toISOString()`, which converts local midnight to UTC
@@ -25,9 +27,13 @@ function monthRange(date: Date) {
   return { start, end }
 }
 
-// "Xodim bo'yicha": per-employee task KPIs (completed count, on-time %,
-// average completion %) over a date range -- the counterpart to
-// v_employee_kpi, which has no date filter of its own.
+// "Xodim bo'yicha": per-employee task KPIs over a date range, as counts
+// rather than percentages -- a bare "% on time" reads as "he was late" even
+// when the real reason is simply that no deadline was ever set (nothing to
+// judge on-time-ness by), so the denominator is only tasks that actually
+// had a deadline. "On time" itself is an exact timestamp comparison
+// (completed_at <= deadline) -- same-day-but-after-the-deadline-hour still
+// counts as late, not just a different calendar day.
 function EmployeeKpiTab() {
   const { t } = useTranslation()
   const [profileId, setProfileId] = useState('')
@@ -74,12 +80,9 @@ function EmployeeKpiTab() {
   }
 
   const completedInRange = (tasks ?? []).filter((tsk) => tsk.status_id === doneId && inRange(tsk.completed_at))
-  const onTimeCount = completedInRange.filter((tsk) => tsk.deadline && tsk.completed_at! <= tsk.deadline).length
-  const onTimePct = completedInRange.length > 0 ? Math.round((onTimeCount / completedInRange.length) * 100) : 0
-  const avgPercent =
-    (tasks ?? []).length > 0
-      ? Math.round((tasks ?? []).reduce((sum, tsk) => sum + tsk.percent_complete, 0) / (tasks ?? []).length)
-      : 0
+  const withDeadline = completedInRange.filter((tsk) => tsk.deadline)
+  const onTimeCount = withDeadline.filter((tsk) => tsk.completed_at! <= tsk.deadline!).length
+  const fullyDoneCount = (tasks ?? []).filter((tsk) => tsk.percent_complete >= 100).length
 
   return (
     <div className="flex flex-col gap-4">
@@ -115,14 +118,18 @@ function EmployeeKpiTab() {
           </Card>
           <Card>
             <CardContent className="flex flex-col gap-1 py-4">
-              <span className="text-xs text-muted-foreground">{t('kpi.onTimePct')}</span>
-              <span className="text-2xl font-bold">{onTimePct}%</span>
+              <span className="text-xs text-muted-foreground">{t('kpi.onTimeCount')}</span>
+              <span className="text-2xl font-bold">
+                {onTimeCount} / {withDeadline.length}
+              </span>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="flex flex-col gap-1 py-4">
-              <span className="text-xs text-muted-foreground">{t('kpi.avgPercentComplete')}</span>
-              <span className="text-2xl font-bold">{avgPercent}%</span>
+              <span className="text-xs text-muted-foreground">{t('kpi.fullyDoneCount')}</span>
+              <span className="text-2xl font-bold">
+                {fullyDoneCount} / {(tasks ?? []).length}
+              </span>
             </CardContent>
           </Card>
         </div>
@@ -131,16 +138,13 @@ function EmployeeKpiTab() {
   )
 }
 
-// "Loyiha bo'yicha" + "Mijoz hisoboti": per-project completion % (from the
-// content plan, same source as the project card's progress bar), this
-// month's output vs the monthly quota, and a plain-text breakdown of what
-// shipped in the selected range -- everything from data that already
-// exists, nothing manually entered.
+// "Loyiha bo'yicha": exactly the same monthly-goal-vs-actual logic as the
+// project card's progress bar (computeMonthlyProgress) -- no separate
+// date-range-based "% published" metric, so this tab and the Projects page
+// can never disagree about what this month's number is.
 function ProjectKpiTab() {
   const { t, i18n } = useTranslation()
   const [projectId, setProjectId] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
 
   const { data: projects } = useQuery({
     queryKey: ['projects-lookup-quota'],
@@ -151,16 +155,17 @@ function ProjectKpiTab() {
     },
   })
 
-  const currentMonthKey = useMemo(() => monthRange(new Date()).start, [])
+  const monthKeyRef = useMemo(() => monthRange(new Date()), [])
+
   const { data: monthlyGoal } = useQuery({
-    queryKey: ['kpi-project-monthly-goal', projectId, currentMonthKey],
+    queryKey: ['kpi-project-monthly-goal', projectId, monthKeyRef.start],
     enabled: !!projectId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('project_monthly_goals')
         .select('target_posts, target_stories, target_ads')
         .eq('project_id', projectId)
-        .eq('month', currentMonthKey)
+        .eq('month', monthKeyRef.start)
         .maybeSingle()
       if (error) throw error
       return data
@@ -170,64 +175,105 @@ function ProjectKpiTab() {
   const { data: contentFormats } = useQuery({
     queryKey: ['content_formats'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('content_formats').select('id, slug, label_ru, label_uz')
+      const { data, error } = await supabase.from('content_formats').select('id, slug')
       if (error) throw error
       return data
     },
   })
 
-  const { data: contentStatuses } = useQuery({
-    queryKey: ['content_statuses'],
+  const { data: publishedStatus } = useQuery({
+    queryKey: ['content_statuses-published'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('content_statuses').select('id, slug')
+      const { data, error } = await supabase
+        .from('content_statuses')
+        .select('id, label_ru, label_uz')
+        .eq('slug', 'published')
+        .maybeSingle()
       if (error) throw error
       return data
     },
   })
-  const publishedId = contentStatuses?.find((s) => s.slug === 'published')?.id
 
-  const { data: items } = useQuery({
-    queryKey: ['kpi-project-items', projectId],
-    enabled: !!projectId,
+  const { data: doneStatus } = useQuery({
+    queryKey: ['task_statuses-done'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_statuses')
+        .select('id, label_ru, label_uz')
+        .eq('slug', 'done')
+        .maybeSingle()
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: monthItems } = useQuery({
+    queryKey: ['kpi-project-month-items', projectId, publishedStatus?.id, monthKeyRef.start],
+    enabled: !!projectId && !!publishedStatus,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('content_plan_items')
-        .select('id, topic, format_id, status_id, publish_date')
+        .select('id, topic, format_id, publish_date')
         .eq('project_id', projectId)
-        .not('publish_date', 'is', null)
+        .eq('status_id', publishedStatus!.id)
+        .gte('publish_date', monthKeyRef.start)
+        .lt('publish_date', monthKeyRef.end)
       if (error) throw error
       return data
     },
   })
 
-  const monthKeyRef = useMemo(() => monthRange(new Date()), [])
-  const inRange = (dateStr: string | null) => {
-    if (!dateStr) return false
-    if (dateFrom && dateStr < dateFrom) return false
-    if (dateTo && dateStr > dateTo) return false
-    return true
-  }
+  const { data: deliverableTypes } = useQuery({
+    queryKey: ['deliverable_types-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('deliverable_types').select('id, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
 
-  const itemsInRange = (items ?? []).filter((i) => inRange(i.publish_date))
-  const publishedInRange = itemsInRange.filter((i) => i.status_id === publishedId)
-  const percentDone = itemsInRange.length > 0 ? Math.round((publishedInRange.length / itemsInRange.length) * 100) : 0
+  const { data: monthDoneTasks } = useQuery({
+    queryKey: ['kpi-project-month-tasks', projectId, doneStatus?.id, monthKeyRef.start],
+    enabled: !!projectId && !!doneStatus,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id, title, completed_at')
+        .eq('project_id', projectId)
+        .eq('status_id', doneStatus!.id)
+        .gte('completed_at', monthKeyRef.start)
+        .lt('completed_at', monthKeyRef.end)
+      if (error) throw error
+      return data
+    },
+  })
 
-  const formatSlug = (id: string) => contentFormats?.find((f) => f.id === id)?.slug
-  const monthPublished = (items ?? []).filter(
-    (i) => i.status_id === publishedId && i.publish_date! >= monthKeyRef.start && i.publish_date! < monthKeyRef.end
-  )
-  const monthPosts = monthPublished.filter((i) => ['post', 'reels', 'carousel'].includes(formatSlug(i.format_id) ?? '')).length
-  const monthStories = monthPublished.filter((i) => formatSlug(i.format_id) === 'stories').length
+  const taskIds = useMemo(() => (monthDoneTasks ?? []).map((t) => t.id), [monthDoneTasks])
+  const { data: taskDeliverables } = useQuery({
+    queryKey: ['task_deliverable_types-for-kpi', taskIds],
+    enabled: taskIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_deliverable_types')
+        .select('task_id, deliverable_type_id')
+        .in('task_id', taskIds)
+      if (error) throw error
+      return data
+    },
+  })
 
-  const byFormat = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const i of publishedInRange) {
-      const slug = formatSlug(i.format_id) ?? '—'
-      map.set(slug, (map.get(slug) ?? 0) + 1)
-    }
-    return map
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publishedInRange, contentFormats])
+  const formatSlugOf = (formatId: string) => contentFormats?.find((f) => f.id === formatId)?.slug
+  const deliverableLabelOf = (deliverableTypeId: string) =>
+    deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''
+
+  const detail = computeMonthlyProgress({
+    goal: monthlyGoal ?? undefined,
+    items: monthItems ?? [],
+    doneTasks: monthDoneTasks ?? [],
+    taskDeliverables: taskDeliverables ?? [],
+    formatSlugOf,
+    deliverableLabelOf,
+  })
 
   return (
     <div className="flex flex-col gap-4">
@@ -241,14 +287,6 @@ function ProjectKpiTab() {
             onChange={setProjectId}
           />
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">{t('contentPlan.dateFrom')}</Label>
-          <Input type="date" className="w-40" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">{t('contentPlan.dateTo')}</Label>
-          <Input type="date" className="w-40" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
       </div>
 
       {!projectId && <p className="text-sm text-muted-foreground">{t('kpi.pickProject')}</p>}
@@ -257,49 +295,23 @@ function ProjectKpiTab() {
         <>
           {!monthlyGoal && <p className="text-sm text-muted-foreground">{t('kpi.noMonthlyGoal')}</p>}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {detail && (
             <Card>
               <CardContent className="flex flex-col gap-1 py-4">
                 <span className="text-xs text-muted-foreground">{t('kpi.projectPercentDone')}</span>
-                <span className="text-2xl font-bold">{percentDone}%</span>
+                <span className="text-2xl font-bold">{detail.percent}%</span>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="flex flex-col gap-1 py-4">
-                <span className="text-xs text-muted-foreground">
-                  {t('kpi.monthPosts')} ({monthlyGoal?.target_posts ?? 0} {t('kpi.planned')})
-                </span>
-                <span className="text-2xl font-bold">{monthPosts}</span>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex flex-col gap-1 py-4">
-                <span className="text-xs text-muted-foreground">
-                  {t('kpi.monthStories')} ({monthlyGoal?.target_stories ?? 0} {t('kpi.planned')})
-                </span>
-                <span className="text-2xl font-bold">{monthStories}</span>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex flex-col gap-1 py-4">
-                <span className="text-xs text-muted-foreground">{t('kpi.monthTarget')}</span>
-                <span className="text-2xl font-bold">
-                  {monthlyGoal?.target_ads ? t('common.yes') : t('common.no')}
-                </span>
-              </CardContent>
-            </Card>
-          </div>
+          )}
 
           <Card>
-            <CardContent className="flex flex-col gap-1.5 py-4">
-              <span className="text-sm font-medium">{t('kpi.clientReport')}</span>
-              {byFormat.size === 0 && <p className="text-sm text-muted-foreground">{t('kpi.expenseBreakdownEmpty')}</p>}
-              {[...byFormat.entries()].map(([slug, count]) => (
-                <div key={slug} className="flex items-center justify-between text-sm">
-                  <span>{pickLabel(contentFormats?.find((f) => f.slug === slug), i18n.language) ?? slug}</span>
-                  <span className="font-medium">{count}</span>
-                </div>
-              ))}
+            <CardContent className="py-4">
+              <span className="mb-3 block text-sm font-medium">{t('kpi.clientReport')}</span>
+              <MonthlyProgressBreakdown
+                detail={detail}
+                publishedStatusLabel={pickLabel(publishedStatus, i18n.language) ?? ''}
+                doneStatusLabel={pickLabel(doneStatus, i18n.language) ?? ''}
+              />
             </CardContent>
           </Card>
         </>

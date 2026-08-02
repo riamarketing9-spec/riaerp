@@ -4,18 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { Card } from '@/components/ui/card'
 import { Avatar } from '@/components/Avatar'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { BarChart3 } from 'lucide-react'
 import { CreateProjectDialog, ProjectDialog } from './CreateProjectDialog'
 import { ProjectResultDialog } from './ProjectResultDialog'
-import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
-
-// Which "ish turi" (deliverable type) label counts toward the target quota
-// -- matched by label_uz since new types get added through the lookup
-// admin UI with auto-generated, unpredictable slugs.
-const TARGET_LABELS = ['target sozlash', "voronka bo'yicha ishlash"]
+import { pickLabel } from '@/lib/localizedLabel'
+import { computeMonthlyProgress } from '@/lib/projectMonthlyProgress'
+import { MonthlyProgressBreakdown, type MonthlyProgressDetail } from '@/components/MonthlyProgressBreakdown'
 
 // Plain local-calendar date strings, built directly from Y/M/D -- NOT via
 // `new Date(y, m, 1).toISOString()`, which converts local midnight to UTC
@@ -35,46 +31,6 @@ function monthRange(date: Date) {
   return { start, end }
 }
 
-type ProgressDetailItem = { id: string; topic: string; publish_date: string | null }
-type ProgressDetailTask = { id: string; title: string; completed_at: string | null }
-
-function ProgressDetailSection({
-  label,
-  target,
-  statusLabel,
-  emptyLabel,
-  items,
-}: {
-  label: string
-  target: number
-  statusLabel: string
-  emptyLabel: string
-  items: ProgressDetailItem[]
-}) {
-  const { i18n } = useTranslation()
-  if (target === 0) return null
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between text-sm font-medium">
-        <span>{label}</span>
-        <span className="text-muted-foreground">
-          {items.length} / {target}
-        </span>
-      </div>
-      {items.length === 0 && <p className="text-xs text-muted-foreground">{emptyLabel}</p>}
-      {items.map((item) => (
-        <div key={item.id} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
-          <span className="text-muted-foreground">{formatLocalDate(item.publish_date, i18n.language)}</span>
-          <span className="flex-1 truncate">{item.topic}</span>
-          <Badge variant="secondary" className="shrink-0 text-[10px]">
-            {statusLabel}
-          </Badge>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function ProjectProgressDetailDialog({
   open,
   onOpenChange,
@@ -86,11 +42,11 @@ function ProjectProgressDetailDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   projectName?: string
-  detail: { goal: { target_posts: number; target_stories: number; target_ads: boolean }; postsItems: ProgressDetailItem[]; storiesItems: ProgressDetailItem[]; targetTasks: ProgressDetailTask[] } | null
+  detail: MonthlyProgressDetail | null
   publishedStatusLabel: string
   doneStatusLabel: string
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -99,46 +55,11 @@ function ProjectProgressDetailDialog({
             {t('projects.progressDetail')} {projectName ? `— ${projectName}` : ''}
           </DialogTitle>
         </DialogHeader>
-        {detail && (
-          <div className="flex flex-col gap-4">
-            <ProgressDetailSection
-              label={t('kpi.monthPosts')}
-              target={detail.goal.target_posts}
-              statusLabel={publishedStatusLabel}
-              emptyLabel={t('projects.progressDetailEmpty')}
-              items={detail.postsItems}
-            />
-            <ProgressDetailSection
-              label={t('kpi.monthStories')}
-              target={detail.goal.target_stories}
-              statusLabel={publishedStatusLabel}
-              emptyLabel={t('projects.progressDetailEmpty')}
-              items={detail.storiesItems}
-            />
-            {detail.goal.target_ads && (
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between text-sm font-medium">
-                  <span>{t('kpi.monthTarget')}</span>
-                  <span className="text-muted-foreground">
-                    {detail.targetTasks.length > 0 ? t('common.yes') : t('common.no')}
-                  </span>
-                </div>
-                {detail.targetTasks.length === 0 && (
-                  <p className="text-xs text-muted-foreground">{t('projects.progressDetailEmpty')}</p>
-                )}
-                {detail.targetTasks.map((tsk) => (
-                  <div key={tsk.id} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
-                    <span className="text-muted-foreground">{formatLocalDate(tsk.completed_at, i18n.language)}</span>
-                    <span className="flex-1 truncate">{tsk.title}</span>
-                    <Badge variant="secondary" className="shrink-0 text-[10px]">
-                      {doneStatusLabel}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        <MonthlyProgressBreakdown
+          detail={detail}
+          publishedStatusLabel={publishedStatusLabel}
+          doneStatusLabel={doneStatusLabel}
+        />
       </DialogContent>
     </Dialog>
   )
@@ -300,63 +221,24 @@ export function ProjectsPage() {
     },
   })
 
+  const formatSlugOf = (formatId: string) => contentFormats?.find((f) => f.id === formatId)?.slug
+  const deliverableLabelOf = (deliverableTypeId: string) =>
+    deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''
+
   // No goal set for the current month at all -> don't show a progress bar
   // (per spec: nothing to measure against, so no misleading 0%/percent).
-  const quotaProgressFor = (project: { id: string }) => {
-    const goal = monthlyGoalByProject?.get(project.id)
-    if (!goal) return null
-    const quotaTotal = goal.target_posts + goal.target_stories + (goal.target_ads ? 1 : 0)
-    if (quotaTotal === 0) return null
-
-    const formatSlug = (formatId: string) => contentFormats?.find((f) => f.id === formatId)?.slug
-    const labelFor = (deliverableTypeId: string) =>
-      deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''
-
-    // "Post" target counts reels + post + carousel together, per spec.
-    const projectItems = (monthPublishedItems ?? []).filter((i) => i.project_id === project.id)
-    const postsDone = projectItems.filter((i) => ['post', 'reels', 'carousel'].includes(formatSlug(i.format_id) ?? '')).length
-    const storiesDone = projectItems.filter((i) => formatSlug(i.format_id) === 'stories').length
-
-    const doneTaskIds = new Set((monthDoneTasks ?? []).filter((t) => t.project_id === project.id).map((t) => t.id))
-    let targetDone = false
-    for (const taskId of doneTaskIds) {
-      const labels = (taskDeliverables ?? []).filter((td) => td.task_id === taskId).map((td) => labelFor(td.deliverable_type_id))
-      if (labels.some((l) => TARGET_LABELS.includes(l))) targetDone = true
-    }
-
-    const doneTotal =
-      Math.min(postsDone, goal.target_posts) +
-      Math.min(storiesDone, goal.target_stories) +
-      (goal.target_ads && targetDone ? 1 : 0)
-
-    return Math.round((doneTotal / quotaTotal) * 100)
-  }
-
-  // Drill-down behind the progress bar: exactly which cards/tasks counted
-  // toward this month's %, grouped by the same categories as the goal
-  // (only categories with a nonzero target show up -- a project with no
-  // story target shouldn't display an empty "Stories: 0" section).
+  // Also backs the progress bar's drill-down dialog -- same computation,
+  // so the % and "what counted toward it" list can never disagree.
   const progressDetailFor = (project: { id: string }) => {
     const goal = monthlyGoalByProject?.get(project.id)
-    if (!goal) return null
-
-    const formatSlug = (formatId: string) => contentFormats?.find((f) => f.id === formatId)?.slug
-    const labelFor = (deliverableTypeId: string) =>
-      deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''
-
-    const projectItems = (monthPublishedItems ?? []).filter((i) => i.project_id === project.id)
-    const postsItems = projectItems.filter((i) => ['post', 'reels', 'carousel'].includes(formatSlug(i.format_id) ?? ''))
-    const storiesItems = projectItems.filter((i) => formatSlug(i.format_id) === 'stories')
-
-    const projectDoneTasks = (monthDoneTasks ?? []).filter((tsk) => tsk.project_id === project.id)
-    const targetTasks = projectDoneTasks.filter((tsk) => {
-      const labels = (taskDeliverables ?? [])
-        .filter((td) => td.task_id === tsk.id)
-        .map((td) => labelFor(td.deliverable_type_id))
-      return labels.some((l) => TARGET_LABELS.includes(l))
+    return computeMonthlyProgress({
+      goal,
+      items: (monthPublishedItems ?? []).filter((i) => i.project_id === project.id),
+      doneTasks: (monthDoneTasks ?? []).filter((tsk) => tsk.project_id === project.id),
+      taskDeliverables: taskDeliverables ?? [],
+      formatSlugOf,
+      deliverableLabelOf,
     })
-
-    return { goal, postsItems, storiesItems, targetTasks }
   }
 
   const { data: assistantsByProject } = useQuery({
@@ -397,7 +279,7 @@ export function ProjectsPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
         {projects?.map((project) => {
-          const progress = quotaProgressFor(project)
+          const progress = progressDetailFor(project)?.percent ?? null
           return (
             <Card
               key={project.id}

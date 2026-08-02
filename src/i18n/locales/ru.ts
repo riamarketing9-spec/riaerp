@@ -338,6 +338,8 @@ export const ru = {
     pickProject: 'Выберите проект',
     onTimePct: 'Выполнено вовремя, %',
     avgPercentComplete: 'Средняя готовность задач',
+    onTimeCount: 'Успел до дедлайна',
+    fullyDoneCount: 'Полностью выполнено (100%)',
     projectPercentDone: '% выполнения проекта',
     monthPosts: 'Постов за месяц (reels+post+карусель)',
     monthStories: 'Сторис за месяц',
