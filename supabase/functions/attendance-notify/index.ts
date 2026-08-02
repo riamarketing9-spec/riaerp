@@ -7,9 +7,10 @@
 // and daily-report (this call originates from Postgres itself).
 //
 // On 'stop' the CEO also gets a per-task breakdown of what that employee
-// actually did -- not just a task count. This is meant to stand in for the
-// old fixed-21:00 report on a per-employee basis: it fires the moment each
-// person clocks out, rather than everyone getting one bulk report at a
+// actually did -- project name, task title, and per-checklist-item done/
+// not-done. This replaces the old fixed-21:00 bulk report (see
+// 0057_unschedule_daily_report.sql) -- each person's report fires the
+// moment they clock out, rather than everyone getting one summary at a
 // fixed hour regardless of when they actually worked.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
@@ -46,32 +47,44 @@ async function buildEmployeeTaskReport(admin: any, profileId: string): Promise<s
 
   const { data: openTasks } = await admin
     .from('tasks')
-    .select('id, title')
+    .select('id, title, project_id')
     .eq('assignee_profile_id', profileId)
     .neq('status_id', doneId ?? '00000000-0000-0000-0000-000000000000')
 
   const { data: doneTodayTasks } = await admin
     .from('tasks')
-    .select('id, title')
+    .select('id, title, project_id')
     .eq('assignee_profile_id', profileId)
     .eq('status_id', doneId ?? '00000000-0000-0000-0000-000000000000')
     .gte('completed_at', todayStart)
 
-  const allTaskIds = [...(openTasks ?? []), ...(doneTodayTasks ?? [])].map((t: { id: string }) => t.id)
-  if (allTaskIds.length === 0) return ''
+  const allTasks = [...(openTasks ?? []), ...(doneTodayTasks ?? [])]
+  if (allTasks.length === 0) return ''
+  const allTaskIds = allTasks.map((t: { id: string }) => t.id)
 
   const { data: items } = await admin
     .from('task_items')
     .select('task_id, title, is_done')
     .in('task_id', allTaskIds)
 
+  const projectIds = [...new Set(allTasks.map((t: { project_id: string | null }) => t.project_id).filter(Boolean))]
+  const { data: projects } = projectIds.length > 0
+    ? await admin.from('projects').select('id, name').in('id', projectIds)
+    : { data: [] }
+  const projectNameFor = (projectId: string | null) =>
+    projectId ? ((projects ?? []).find((p: { id: string }) => p.id === projectId)?.name ?? null) : null
+
   const itemsFor = (taskId: string) => (items ?? []).filter((i: { task_id: string }) => i.task_id === taskId)
+  const taskLabel = (task: { title: string; project_id: string | null }) => {
+    const projectName = projectNameFor(task.project_id)
+    return projectName ? `${escapeHtml(task.title)} <i>(${escapeHtml(projectName)})</i>` : escapeHtml(task.title)
+  }
 
   const lines: string[] = []
 
   for (const task of doneTodayTasks ?? []) {
     const taskItems = itemsFor(task.id)
-    lines.push(`✅ <b>${escapeHtml(task.title)}</b> — bajarildi`)
+    lines.push(`✅ <b>${taskLabel(task)}</b> — bajarildi`)
     if (taskItems.length > 0) {
       lines.push(`   ✅ barcha chek-list bandlari bajarildi: ${taskItems.map((i: { title: string }) => escapeHtml(i.title)).join(', ')}`)
     }
@@ -79,7 +92,7 @@ async function buildEmployeeTaskReport(admin: any, profileId: string): Promise<s
 
   for (const task of openTasks ?? []) {
     const taskItems = itemsFor(task.id)
-    lines.push(`📋 <b>${escapeHtml(task.title)}</b>`)
+    lines.push(`📋 <b>${taskLabel(task)}</b>`)
     if (taskItems.length > 0) {
       const done = taskItems.filter((i: { is_done: boolean }) => i.is_done).map((i: { title: string }) => escapeHtml(i.title))
       const notDone = taskItems.filter((i: { is_done: boolean }) => !i.is_done).map((i: { title: string }) => escapeHtml(i.title))
