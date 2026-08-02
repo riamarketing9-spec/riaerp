@@ -114,7 +114,7 @@ export function ProjectDialog({
   const { data: managers } = useQuery({
     queryKey: ['managers'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('id, full_name')
+      const { data, error } = await supabase.from('profiles').select('id, full_name').is('deleted_at', null)
       if (error) throw error
       return data
     },
