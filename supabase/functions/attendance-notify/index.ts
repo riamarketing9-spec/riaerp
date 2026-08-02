@@ -5,6 +5,12 @@
 // came in and who left, without waiting for the 21:00 daily report.
 // Auth: x-cron-secret header, same shared-secret pattern as deadline-check
 // and daily-report (this call originates from Postgres itself).
+//
+// On 'stop' the CEO also gets a per-task breakdown of what that employee
+// actually did -- not just a task count. This is meant to stand in for the
+// old fixed-21:00 report on a per-employee basis: it fires the moment each
+// person clocks out, rather than everyone getting one bulk report at a
+// fixed hour regardless of when they actually worked.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const TASHKENT_OFFSET_HOURS = 5
@@ -16,6 +22,11 @@ function tashkentTimeStr(iso: string): string {
   return `${hh}:${mm}`
 }
 
+function tashkentMidnightUtc(): Date {
+  const t = new Date(Date.now() + TASHKENT_OFFSET_HOURS * 60 * 60 * 1000)
+  return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), -TASHKENT_OFFSET_HOURS, 0, 0))
+}
+
 function formatDuration(ms: number): string {
   const totalMinutes = Math.floor(ms / 60000)
   const hours = Math.floor(totalMinutes / 60)
@@ -25,6 +36,59 @@ function formatDuration(ms: number): string {
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// deno-lint-ignore no-explicit-any
+async function buildEmployeeTaskReport(admin: any, profileId: string): Promise<string> {
+  const { data: doneStatus } = await admin.from('task_statuses').select('id').eq('slug', 'done').maybeSingle()
+  const doneId = doneStatus?.id ?? null
+  const todayStart = tashkentMidnightUtc().toISOString()
+
+  const { data: openTasks } = await admin
+    .from('tasks')
+    .select('id, title')
+    .eq('assignee_profile_id', profileId)
+    .neq('status_id', doneId ?? '00000000-0000-0000-0000-000000000000')
+
+  const { data: doneTodayTasks } = await admin
+    .from('tasks')
+    .select('id, title')
+    .eq('assignee_profile_id', profileId)
+    .eq('status_id', doneId ?? '00000000-0000-0000-0000-000000000000')
+    .gte('completed_at', todayStart)
+
+  const allTaskIds = [...(openTasks ?? []), ...(doneTodayTasks ?? [])].map((t: { id: string }) => t.id)
+  if (allTaskIds.length === 0) return ''
+
+  const { data: items } = await admin
+    .from('task_items')
+    .select('task_id, title, is_done')
+    .in('task_id', allTaskIds)
+
+  const itemsFor = (taskId: string) => (items ?? []).filter((i: { task_id: string }) => i.task_id === taskId)
+
+  const lines: string[] = []
+
+  for (const task of doneTodayTasks ?? []) {
+    const taskItems = itemsFor(task.id)
+    lines.push(`✅ <b>${escapeHtml(task.title)}</b> — bajarildi`)
+    if (taskItems.length > 0) {
+      lines.push(`   ✅ barcha chek-list bandlari bajarildi: ${taskItems.map((i: { title: string }) => escapeHtml(i.title)).join(', ')}`)
+    }
+  }
+
+  for (const task of openTasks ?? []) {
+    const taskItems = itemsFor(task.id)
+    lines.push(`📋 <b>${escapeHtml(task.title)}</b>`)
+    if (taskItems.length > 0) {
+      const done = taskItems.filter((i: { is_done: boolean }) => i.is_done).map((i: { title: string }) => escapeHtml(i.title))
+      const notDone = taskItems.filter((i: { is_done: boolean }) => !i.is_done).map((i: { title: string }) => escapeHtml(i.title))
+      if (done.length > 0) lines.push(`   ✅ ${done.join(', ')}`)
+      if (notDone.length > 0) lines.push(`   ▫️ ${notDone.join(', ')}`)
+    }
+  }
+
+  return lines.join('\n')
 }
 
 Deno.serve(async (req) => {
@@ -43,12 +107,17 @@ Deno.serve(async (req) => {
   const { data: profile } = await admin.from('profiles').select('full_name').eq('id', profile_id).maybeSingle()
   const name = profile?.full_name ?? 'Xodim'
 
-  const text =
+  let text =
     event === 'start'
       ? `🟢 <b>${escapeHtml(name)}</b> ishni boshladi — ${tashkentTimeStr(occurred_at)}`
       : `🔴 <b>${escapeHtml(name)}</b> ishni tugatdi — ${tashkentTimeStr(occurred_at)} (${formatDuration(
           new Date(occurred_at).getTime() - new Date(started_at).getTime()
         )})`
+
+  if (event === 'stop') {
+    const report = await buildEmployeeTaskReport(admin, profile_id)
+    if (report) text += `\n\n${report}`
+  }
 
   const { data: profiles } = await admin.from('profiles').select('id')
 

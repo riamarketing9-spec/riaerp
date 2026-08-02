@@ -45,6 +45,8 @@ export const ru = {
     working: 'В работе',
     notWorking: 'Сейчас не работаете',
     currentlyWorking: 'Сейчас работают',
+    todayTitle: 'Посещаемость сегодня',
+    notArrived: 'Не пришёл(ла)',
     noneWorking: 'Сейчас никто не отмечен как работающий',
     since: 'с',
     forceStop: 'Закрыть сессию',

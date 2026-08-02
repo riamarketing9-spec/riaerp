@@ -210,6 +210,84 @@ function TodayContentWidget() {
   )
 }
 
+// Today's attendance at a glance -- every active employee, whether they've
+// clocked in yet, and their start/end time if so. Separate from
+// IdleTeamWidget above (that one's about open task count, not attendance).
+function AttendanceTodayWidget() {
+  const { t, i18n } = useTranslation()
+  const todayBounds = useMemo(() => {
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 1)
+    return { start, end }
+  }, [])
+
+  const { data: profiles } = useQuery({
+    queryKey: ['profiles-lookup-active'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('id, full_name').is('deleted_at', null)
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: entries } = useQuery({
+    queryKey: ['attendance-today-widget', todayBounds.start.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('time_entries')
+        .select('profile_id, started_at, ended_at')
+        .or(`and(started_at.gte.${todayBounds.start.toISOString()},started_at.lt.${todayBounds.end.toISOString()}),ended_at.is.null`)
+        .order('started_at', { ascending: true })
+      if (error) throw error
+      return data
+    },
+    refetchInterval: 60_000,
+  })
+
+  const entryFor = (profileId: string) => entries?.find((e) => e.profile_id === profileId)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base font-medium">{t('attendance.todayTitle')}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-1.5">
+        {profiles?.map((p) => {
+          const entry = entryFor(p.id)
+          return (
+            <div key={p.id} className="flex items-center justify-between gap-2 rounded-md bg-muted/30 px-2 py-1.5">
+              <span className="text-sm">{p.full_name}</span>
+              {entry ? (
+                <span className="text-xs text-muted-foreground">
+                  {new Date(entry.started_at).toLocaleTimeString(i18n.language.startsWith('uz') ? 'uz-Latn-UZ' : 'ru-RU', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                  })}
+                  {' – '}
+                  {entry.ended_at
+                    ? new Date(entry.ended_at).toLocaleTimeString(i18n.language.startsWith('uz') ? 'uz-Latn-UZ' : 'ru-RU', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false,
+                      })
+                    : t('attendance.working')}
+                </span>
+              ) : (
+                <Badge variant="secondary" className="text-[10px]">
+                  {t('attendance.notArrived')}
+                </Badge>
+              )}
+            </div>
+          )
+        })}
+      </CardContent>
+    </Card>
+  )
+}
+
 // Replaces the old plain stat-card tiles: a status-colored bar chart (open /
 // overdue / due-soon) and a per-project bar list, both personal for a plain
 // employee but switching to the team-wide aggregate for CEO/PM -- one view,
@@ -1003,6 +1081,7 @@ export function CabinetPage() {
           <DeadlinesWidget />
           <IdleTeamWidget />
           <TodayContentWidget />
+          <AttendanceTodayWidget />
         </div>
       )}
 

@@ -45,6 +45,8 @@ export const uz = {
     working: 'Ishlamoqda',
     notWorking: 'Hozir ishlamayapsiz',
     currentlyWorking: 'Hozir ishlayotganlar',
+    todayTitle: 'Bugungi davomat',
+    notArrived: 'Kelmadi',
     noneWorking: "Hozircha hech kim ishlamoqda deb belgilanmagan",
     since: '-dan beri',
     forceStop: "Sessiyani yopish",
