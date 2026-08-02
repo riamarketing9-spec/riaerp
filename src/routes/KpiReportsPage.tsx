@@ -7,7 +7,9 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Combobox } from '@/components/ui/combobox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { pickLabel } from '@/lib/localizedLabel'
+import { Badge } from '@/components/ui/badge'
+import { pickLabel, formatLocalDateTime } from '@/lib/localizedLabel'
+import { formatDurationMs } from '@/lib/duration'
 import { computeMonthlyProgress } from '@/lib/projectMonthlyProgress'
 import { MonthlyProgressBreakdown } from '@/components/MonthlyProgressBreakdown'
 
@@ -35,7 +37,7 @@ function monthRange(date: Date) {
 // (completed_at <= deadline) -- same-day-but-after-the-deadline-hour still
 // counts as late, not just a different calendar day.
 function EmployeeKpiTab() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [profileId, setProfileId] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -55,7 +57,7 @@ function EmployeeKpiTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, status_id, completed_at, deadline, percent_complete')
+        .select('id, title, status_id, completed_at, deadline, percent_complete')
         .eq('assignee_profile_id', profileId)
       if (error) throw error
       return data
@@ -80,7 +82,14 @@ function EmployeeKpiTab() {
   }
 
   const completedInRange = (tasks ?? []).filter((tsk) => tsk.status_id === doneId && inRange(tsk.completed_at))
-  const withDeadline = completedInRange.filter((tsk) => tsk.deadline)
+  const withDeadline = completedInRange
+    .filter((tsk) => tsk.deadline)
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.completed_at!).getTime() - new Date(b.deadline!).getTime() -
+        (new Date(a.completed_at!).getTime() - new Date(a.deadline!).getTime())
+    )
   const onTimeCount = withDeadline.filter((tsk) => tsk.completed_at! <= tsk.deadline!).length
   const fullyDoneCount = (tasks ?? []).filter((tsk) => tsk.percent_complete >= 100).length
 
@@ -133,6 +142,35 @@ function EmployeeKpiTab() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {profileId && withDeadline.length > 0 && (
+        <Card>
+          <CardContent className="flex flex-col gap-1.5 py-4">
+            <span className="mb-1 text-sm font-medium">{t('kpi.lateList')}</span>
+            {withDeadline.map((tsk) => {
+              const onTime = tsk.completed_at! <= tsk.deadline!
+              const lateMs = new Date(tsk.completed_at!).getTime() - new Date(tsk.deadline!).getTime()
+              return (
+                <div key={tsk.id} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
+                  <span className="flex-1 truncate">{tsk.title}</span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {t('tasks.deadline')}: {formatLocalDateTime(tsk.deadline, i18n.language)}
+                  </span>
+                  {onTime ? (
+                    <Badge variant="secondary" className="shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      {t('kpi.onTimeBadge')}
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive" className="shrink-0">
+                      +{formatDurationMs(lateMs)}
+                    </Badge>
+                  )}
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
       )}
     </div>
   )

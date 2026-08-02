@@ -340,6 +340,8 @@ export const ru = {
     avgPercentComplete: 'Средняя готовность задач',
     onTimeCount: 'Успел до дедлайна',
     fullyDoneCount: 'Полностью выполнено (100%)',
+    lateList: 'Опоздания по задачам с дедлайном',
+    onTimeBadge: 'Вовремя',
     projectPercentDone: '% выполнения проекта',
     monthPosts: 'Постов за месяц (reels+post+карусель)',
     monthStories: 'Сторис за месяц',

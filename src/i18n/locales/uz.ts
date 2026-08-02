@@ -340,6 +340,8 @@ export const uz = {
     avgPercentComplete: "Vazifalarning o'rtacha bajarilishi",
     onTimeCount: 'Muddatida ulgurgan',
     fullyDoneCount: "To'liq bajarilgan (100%)",
+    lateList: 'Muddati bo\'lgan vazifalar bo\'yicha kechikishlar',
+    onTimeBadge: 'Vaqtida',
     projectPercentDone: 'Loyiha % bajarilgani',
     monthPosts: 'Bu oy postlar (reels+post+karusel)',
     monthStories: 'Bu oy stories',
