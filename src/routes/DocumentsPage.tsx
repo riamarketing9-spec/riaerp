@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Combobox } from '@/components/ui/combobox'
 import { CreateDocumentDialog, DocumentDialog } from './CreateDocumentDialog'
@@ -21,13 +22,14 @@ function DocList({
   emptyLabel,
 }: {
   kind: DocKind
-  documents: Array<{ id: string; title: string; storage_path: string; note: string | null; profile_id: string | null; kind: DocKind }>
+  documents: Array<{ id: string; title: string; storage_path: string; note: string | null; profile_id: string | null; kind: DocKind; is_org_wide: boolean }>
   canAdmin: boolean
   showEmployee: boolean
   personName: (id: string | null) => string
   onEdit: (id: string) => void
   emptyLabel: string
 }) {
+  const { t } = useTranslation()
   const rows = documents.filter((d) => d.kind === kind)
   return (
     <div className="flex flex-col gap-2">
@@ -50,8 +52,14 @@ function DocList({
                 >
                   {doc.title}
                 </a>
-                {showEmployee && (
-                  <span className="text-xs text-muted-foreground">· {personName(doc.profile_id)}</span>
+                {doc.is_org_wide ? (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {t('docs.team')}
+                  </Badge>
+                ) : (
+                  showEmployee && (
+                    <span className="text-xs text-muted-foreground">· {personName(doc.profile_id)}</span>
+                  )
                 )}
               </div>
               {doc.note && <p className="truncate text-xs text-muted-foreground">{doc.note}</p>}
@@ -75,7 +83,7 @@ export function DocumentsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('documents')
-        .select('id, title, storage_path, note, profile_id, kind')
+        .select('id, title, storage_path, note, profile_id, kind, is_org_wide')
       if (error) throw error
       return data
     },
@@ -94,7 +102,7 @@ export function DocumentsPage() {
   const personName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name ?? t('org.none')
 
   const visibleDocuments = useMemo(
-    () => (documents ?? []).filter((d) => !employeeFilter || d.profile_id === employeeFilter),
+    () => (documents ?? []).filter((d) => d.is_org_wide || !employeeFilter || d.profile_id === employeeFilter),
     [documents, employeeFilter]
   )
 

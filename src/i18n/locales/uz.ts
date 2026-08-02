@@ -253,6 +253,8 @@ export const uz = {
     storagePath: 'Fayl / havola',
     note: 'Izoh',
     employee: 'Xodim',
+    team: 'Jamoa',
+    assignTo: 'Kimga',
     allEmployees: 'Barcha xodimlar',
     tabDocuments: 'Hujjatlar',
     tabContracts: 'Shartnomalar',

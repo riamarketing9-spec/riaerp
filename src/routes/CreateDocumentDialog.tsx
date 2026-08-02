@@ -28,7 +28,7 @@ const schema = z.object({
   title: z.string().min(1, 'Обязательное поле'),
   storage_path: z.string().min(1, 'Обязательное поле'),
   note: z.string().optional(),
-  profile_id: z.string().min(1, 'Обязательное поле'),
+  profile_id: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -49,6 +49,7 @@ export function DocumentDialog({
   const { t } = useTranslation()
   const isEdit = !!documentId
   const queryClient = useQueryClient()
+  const [target, setTarget] = useState<'employee' | 'team'>('employee')
 
   const { data: profiles } = useQuery({
     queryKey: ['profiles-lookup-active'],
@@ -81,6 +82,7 @@ export function DocumentDialog({
   useEffect(() => {
     if (open && !isEdit) {
       reset({ title: '', storage_path: '', note: '', profile_id: defaultProfileId ?? '' })
+      setTarget('employee')
       setDraftId(null)
     }
   }, [open, isEdit, defaultProfileId, reset])
@@ -93,6 +95,7 @@ export function DocumentDialog({
         note: existing.note ?? '',
         profile_id: existing.profile_id ?? '',
       })
+      setTarget(existing.is_org_wide ? 'team' : 'employee')
     }
   }, [existing, reset])
 
@@ -101,19 +104,17 @@ export function DocumentDialog({
   const effectiveKind = existing?.kind ?? kind
 
   async function performSave(values: FormValues) {
-    const payload = {
-      title: values.title,
-      storage_path: values.storage_path,
-      note: values.note || null,
-      profile_id: values.profile_id,
-    }
+    const payload =
+      target === 'team'
+        ? { title: values.title, storage_path: values.storage_path, note: values.note || null, profile_id: null, is_org_wide: true }
+        : { title: values.title, storage_path: values.storage_path, note: values.note || null, profile_id: values.profile_id || null, is_org_wide: false }
     if (effectiveId) {
       const { error } = await supabase.from('documents').update(payload).eq('id', effectiveId)
       if (error) throw error
     } else {
       const { data, error } = await supabase
         .from('documents')
-        .insert({ ...payload, kind, is_org_wide: false })
+        .insert({ ...payload, kind })
         .select('id')
         .single()
       if (error) throw error
@@ -133,7 +134,7 @@ export function DocumentDialog({
   })
 
   const watched = watch()
-  const canAutosave = !!(watched.title && watched.storage_path && watched.profile_id)
+  const canAutosave = !!(watched.title && watched.storage_path && (target === 'team' || watched.profile_id))
   const autosaveStatus = useAutosave(
     watched,
     async (values) => {
@@ -176,7 +177,13 @@ export function DocumentDialog({
           )}
         </DialogHeader>
         <form
-          onSubmit={handleSubmit((values) => mutation.mutate(values))}
+          onSubmit={handleSubmit((values) => {
+            if (target === 'employee' && !values.profile_id) {
+              toast.error('Обязательное поле')
+              return
+            }
+            mutation.mutate(values)
+          })}
           className="flex flex-col gap-4"
         >
           <div className="flex flex-col gap-1.5">
@@ -186,14 +193,37 @@ export function DocumentDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>{t('docs.employee')}</Label>
-            <Combobox
-              options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
-              value={watch('profile_id') ?? ''}
-              onChange={(v) => setValue('profile_id', v)}
-            />
-            {errors.profile_id && <p className="text-xs text-destructive">{errors.profile_id.message}</p>}
+            <Label>{t('docs.assignTo')}</Label>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={target === 'employee' ? 'default' : 'outline'}
+                onClick={() => setTarget('employee')}
+              >
+                {t('docs.employee')}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={target === 'team' ? 'default' : 'outline'}
+                onClick={() => setTarget('team')}
+              >
+                {t('docs.team')}
+              </Button>
+            </div>
           </div>
+
+          {target === 'employee' && (
+            <div className="flex flex-col gap-1.5">
+              <Label>{t('docs.employee')}</Label>
+              <Combobox
+                options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
+                value={watch('profile_id') ?? ''}
+                onChange={(v) => setValue('profile_id', v)}
+              />
+            </div>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="storage_path">{t('docs.storagePath')}</Label>

@@ -253,6 +253,8 @@ export const ru = {
     storagePath: 'Файл / ссылка',
     note: 'Примечание',
     employee: 'Сотрудник',
+    team: 'Жамоа',
+    assignTo: 'Кому',
     allEmployees: 'Все сотрудники',
     tabDocuments: 'Документы',
     tabContracts: 'Контракты',
