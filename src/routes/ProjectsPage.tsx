@@ -4,15 +4,15 @@ import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { Card } from '@/components/ui/card'
 import { Avatar } from '@/components/Avatar'
+import { Button } from '@/components/ui/button'
+import { BarChart3 } from 'lucide-react'
 import { CreateProjectDialog, ProjectDialog } from './CreateProjectDialog'
+import { ProjectResultDialog } from './ProjectResultDialog'
 import { pickLabel } from '@/lib/localizedLabel'
 
-// Which "ish turi" (deliverable type) labels count toward each quota --
-// matched by label_uz since new types get added through the lookup admin
-// UI with auto-generated, unpredictable slugs (raw, unromanized Cyrillic if
-// the label was entered in Russian), so slug isn't a reliable match key.
-const REELS_LABELS = ['reels montaji', 'video montaji']
-const POST_LABELS = ['post dizayni', 'design post', 'karusel']
+// Which "ish turi" (deliverable type) label counts toward the target quota
+// -- matched by label_uz since new types get added through the lookup
+// admin UI with auto-generated, unpredictable slugs.
 const TARGET_LABELS = ['target sozlash', "voronka bo'yicha ishlash"]
 
 function monthRange(date: Date) {
@@ -24,6 +24,7 @@ function monthRange(date: Date) {
 export function ProjectsPage() {
   const { t, i18n } = useTranslation()
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
+  const [resultProjectId, setResultProjectId] = useState<string | null>(null)
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ['projects'],
@@ -88,8 +89,45 @@ export function ProjectsPage() {
 
   const monthKeyRef = useMemo(() => monthRange(new Date()), [])
 
-  // This month's done tasks per project, with their deliverable types, to
-  // compute quota fulfillment (posts/reels/target).
+  const { data: publishedStatusId } = useQuery({
+    queryKey: ['content_statuses-published-id'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('content_statuses').select('id').eq('slug', 'published').maybeSingle()
+      if (error) throw error
+      return data?.id ?? null
+    },
+  })
+
+  const { data: contentFormats } = useQuery({
+    queryKey: ['content_formats'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('content_formats').select('id, slug')
+      if (error) throw error
+      return data
+    },
+  })
+
+  // This month's published content-plan items per project, by format -- the
+  // progress bar now reflects what actually shipped in the content plan
+  // (posts/reels quota), not task completion.
+  const { data: monthPublishedItems } = useQuery({
+    queryKey: ['projects-quota-content', projectIds, publishedStatusId, monthKeyRef.start],
+    enabled: projectIds.length > 0 && !!publishedStatusId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('content_plan_items')
+        .select('id, project_id, format_id')
+        .in('project_id', projectIds)
+        .eq('status_id', publishedStatusId!)
+        .gte('publish_date', monthKeyRef.start.slice(0, 10))
+        .lt('publish_date', monthKeyRef.end.slice(0, 10))
+      if (error) throw error
+      return data
+    },
+  })
+
+  // Target quota still comes from tasks -- content plan has no "target"
+  // format, that work is tracked as a deliverable type on tasks instead.
   const { data: monthDoneTasks } = useQuery({
     queryKey: ['projects-quota-tasks', projectIds, doneStatusId, monthKeyRef.start],
     enabled: projectIds.length > 0 && !!doneStatusId,
@@ -131,17 +169,18 @@ export function ProjectsPage() {
       (project.monthly_quota_posts ?? 0) + (project.monthly_quota_reels ?? 0) + (project.target_enabled ? 1 : 0)
     if (quotaTotal === 0) return null
 
+    const formatSlug = (formatId: string) => contentFormats?.find((f) => f.id === formatId)?.slug
     const labelFor = (deliverableTypeId: string) =>
       deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''
 
+    const projectItems = (monthPublishedItems ?? []).filter((i) => i.project_id === project.id)
+    const postsDone = projectItems.filter((i) => formatSlug(i.format_id) === 'post').length
+    const reelsDone = projectItems.filter((i) => formatSlug(i.format_id) === 'reels').length
+
     const doneTaskIds = new Set((monthDoneTasks ?? []).filter((t) => t.project_id === project.id).map((t) => t.id))
-    let postsDone = 0
-    let reelsDone = 0
     let targetDone = false
     for (const taskId of doneTaskIds) {
       const labels = (taskDeliverables ?? []).filter((td) => td.task_id === taskId).map((td) => labelFor(td.deliverable_type_id))
-      if (labels.some((l) => POST_LABELS.includes(l))) postsDone += 1
-      if (labels.some((l) => REELS_LABELS.includes(l))) reelsDone += 1
       if (labels.some((l) => TARGET_LABELS.includes(l))) targetDone = true
     }
 
@@ -221,15 +260,28 @@ export function ProjectsPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-end -space-x-2">
-                  {responsibleFor(project).map((m) => (
-                    <Avatar
-                      key={m.id}
-                      name={m.full_name}
-                      avatarUrl={m.avatar_url}
-                      className="size-7 rounded-full text-[10px] ring-2 ring-background"
-                    />
-                  ))}
+                <div className="flex items-center justify-between gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setResultProjectId(project.id)
+                    }}
+                  >
+                    <BarChart3 className="size-3.5" />
+                    {t('projects.result')}
+                  </Button>
+                  <div className="flex items-center justify-end -space-x-2">
+                    {responsibleFor(project).map((m) => (
+                      <Avatar
+                        key={m.id}
+                        name={m.full_name}
+                        avatarUrl={m.avatar_url}
+                        className="size-7 rounded-full text-[10px] ring-2 ring-background"
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </Card>
@@ -244,6 +296,12 @@ export function ProjectsPage() {
         open={!!openProjectId}
         onOpenChange={(open) => !open && setOpenProjectId(null)}
         projectId={openProjectId}
+      />
+      <ProjectResultDialog
+        projectId={resultProjectId}
+        projectName={projects?.find((p) => p.id === resultProjectId)?.name}
+        open={!!resultProjectId}
+        onOpenChange={(open) => !open && setResultProjectId(null)}
       />
     </div>
   )

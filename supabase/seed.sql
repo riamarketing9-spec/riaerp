@@ -113,7 +113,8 @@ insert into platforms (slug, label_ru, label_uz) values
   ('ig', 'Instagram', 'Instagram'),
   ('tg', 'Telegram', 'Telegram'),
   ('yt', 'YouTube', 'YouTube'),
-  ('fb', 'Facebook', 'Facebook')
+  ('fb', 'Facebook', 'Facebook'),
+  ('trial', 'Trial', 'Trial')
 on conflict (slug) do nothing;
 
 insert into content_statuses (slug, label_ru, label_uz, sort_order) values
