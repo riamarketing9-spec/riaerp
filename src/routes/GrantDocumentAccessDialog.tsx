@@ -5,28 +5,21 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from '@/components/ui/dialog'
-import { Lock, Trash2 } from 'lucide-react'
+import { Lock } from 'lucide-react'
 
 export function GrantDocumentAccessDialog({ documentId }: { documentId: string }) {
   const { t } = useTranslation()
   const { profile } = useAuth()
   const [open, setOpen] = useState(false)
-  const [selected, setSelected] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const { data: profiles } = useQuery({
@@ -51,7 +44,7 @@ export function GrantDocumentAccessDialog({ documentId }: { documentId: string }
     },
   })
 
-  const mutation = useMutation({
+  const grantMutation = useMutation({
     mutationFn: async (profileId: string) => {
       const { error } = await supabase.from('document_visibility').insert({
         document_id: documentId,
@@ -61,9 +54,7 @@ export function GrantDocumentAccessDialog({ documentId }: { documentId: string }
       if (error) throw error
     },
     onSuccess: () => {
-      toast.success('Доступ открыт')
       queryClient.invalidateQueries({ queryKey: ['document_visibility', documentId] })
-      setSelected(null)
     },
     onError: (err: Error) => toast.error(err.message),
   })
@@ -78,14 +69,14 @@ export function GrantDocumentAccessDialog({ documentId }: { documentId: string }
       if (error) throw error
     },
     onSuccess: () => {
-      toast.success(t('docs.accessRevoked'))
       queryClient.invalidateQueries({ queryKey: ['document_visibility', documentId] })
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
-  function handleRevoke(profileId: string) {
-    if (window.confirm(t('common.delete') + '?')) revokeMutation.mutate(profileId)
+  function toggle(profileId: string, checked: boolean) {
+    if (checked) grantMutation.mutate(profileId)
+    else revokeMutation.mutate(profileId)
   }
 
   const grantedIds = new Set(grants?.map((g) => g.profile_id))
@@ -104,53 +95,21 @@ export function GrantDocumentAccessDialog({ documentId }: { documentId: string }
         <DialogHeader>
           <DialogTitle>{t('docs.grantAccess')}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <Select onValueChange={(v: string | null) => setSelected(v)}>
-            <SelectTrigger>
-              <SelectValue placeholder="—">
-                {() => profiles?.find((p) => p.id === selected)?.full_name}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {profiles
-                ?.filter((p) => !grantedIds.has(p.id))
-                .map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.full_name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-
-          {(grants?.length ?? 0) > 0 && (
-            <div className="flex flex-col gap-1">
-              {grants?.map((g) => (
-                <div key={g.profile_id} className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">
-                    {profiles?.find((p) => p.id === g.profile_id)?.full_name}
-                  </p>
-                  <button
-                    type="button"
-                    title={t('docs.revokeAccess')}
-                    onClick={() => handleRevoke(g.profile_id)}
-                    disabled={revokeMutation.isPending}
-                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </div>
-              ))}
+        <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
+          {profiles?.map((p) => (
+            <div key={p.id} className="flex items-center gap-2">
+              <Checkbox
+                id={`doc-access-${p.id}`}
+                checked={grantedIds.has(p.id)}
+                disabled={grantMutation.isPending || revokeMutation.isPending}
+                onCheckedChange={(checked) => toggle(p.id, checked === true)}
+              />
+              <Label htmlFor={`doc-access-${p.id}`} className="font-normal">
+                {p.full_name}
+              </Label>
             </div>
-          )}
+          ))}
         </div>
-        <DialogFooter>
-          <Button
-            disabled={!selected || mutation.isPending}
-            onClick={() => selected && mutation.mutate(selected)}
-          >
-            {t('docs.grantAccess')}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
