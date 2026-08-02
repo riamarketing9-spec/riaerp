@@ -12,7 +12,7 @@ import { ContentItemSheet } from './ContentItemSheet'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
 import { formatLocalDate, pickLabel } from '@/lib/localizedLabel'
 import { Button } from '@/components/ui/button'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Plus } from 'lucide-react'
 import { telegramDeepLink } from '@/lib/telegram'
 import { TimeTrackerWidget } from '@/components/TimeTrackerWidget'
 import { TaskStatusChart, type TaskStatusBucket } from '@/components/charts/TaskStatusChart'
@@ -797,6 +797,148 @@ function TelegramConnectCard() {
   )
 }
 
+// The recurring-task "checklist" view: daily/weekly/monthly/one-time tasks
+// filtered by recurrence type, in a row of toggle buttons rather than a
+// dropdown (matches the same picker style used on the task card itself).
+// PM/CEO see everyone's; a plain employee sees only their own (mirrors
+// tasks_select_own RLS -- the team-wide query would just come back empty
+// for them anyway, this only avoids the wasted request).
+function RecurringChecklistWidget({
+  teamWide,
+  onOpen,
+}: {
+  teamWide: boolean
+  onOpen: (id: string) => void
+}) {
+  const { t, i18n } = useTranslation()
+  const { profile } = useAuth()
+  const [filterSlug, setFilterSlug] = useState<string | null>(null)
+  const [creatingOpen, setCreatingOpen] = useState(false)
+
+  const { data: recurrenceTypes } = useQuery({
+    queryKey: ['recurrence_types'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('recurrence_types').select('id, slug, label_ru, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: statuses } = useQuery({
+    queryKey: ['task_statuses-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_statuses').select('id, slug')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: tasks, isLoading } = useQuery({
+    queryKey: ['recurring-checklist-tasks', teamWide, profile?.id],
+    enabled: !!profile,
+    queryFn: async () => {
+      let query = supabase
+        .from('tasks')
+        .select('id, title, status_id, deadline, percent_complete, recurrence_id, assignee_profile_id')
+        .not('recurrence_id', 'is', null)
+        .order('deadline', { ascending: true, nullsFirst: false })
+      if (!teamWide) query = query.eq('assignee_profile_id', profile!.id)
+      const { data, error } = await query
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: profiles } = useQuery({
+    queryKey: ['profiles-lookup'],
+    enabled: teamWide,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('id, full_name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const taskIds = useMemo(() => (tasks ?? []).map((tsk) => tsk.id), [tasks])
+  const { data: subtasksByTask } = useSubtasksBatch(taskIds)
+
+  const doneId = statuses?.find((s) => s.slug === 'done')?.id
+  const statusSlugOf = (id: string) => statuses?.find((s) => s.id === id)?.slug
+  const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name ?? undefined
+
+  // One-time tasks drop off the list once done (they don't respawn, so
+  // there's nothing left to track); recurring ones stay visible so the
+  // just-completed instance and its freshly spawned successor are both
+  // seen briefly.
+  const visibleTasks = (tasks ?? []).filter((tsk) => {
+    if (filterSlug && recurrenceTypes?.find((r) => r.id === tsk.recurrence_id)?.slug !== filterSlug) return false
+    const recSlug = recurrenceTypes?.find((r) => r.id === tsk.recurrence_id)?.slug
+    if (recSlug === 'one_time' && tsk.status_id === doneId) return false
+    return true
+  })
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-base font-medium">{t('tasks.checklist')}</CardTitle>
+        <Button size="sm" variant="outline" onClick={() => setCreatingOpen(true)}>
+          <Plus className="size-3.5" />
+        </Button>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setFilterSlug(null)}
+            className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors ${
+              filterSlug === null
+                ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
+                : 'border-border text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            {t('common.all')}
+          </button>
+          {recurrenceTypes?.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => setFilterSlug(r.slug)}
+              className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors ${
+                filterSlug === r.slug
+                  ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
+                  : 'border-border text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {pickLabel(r, i18n.language)}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
+          {!isLoading && visibleTasks.length === 0 && (
+            <p className="text-sm text-muted-foreground">{t('cabinet.empty')}</p>
+          )}
+          {visibleTasks.map((tsk) => (
+            <TaskCard
+              key={tsk.id}
+              title={tsk.title}
+              statusSlug={statusSlugOf(tsk.status_id)}
+              deadline={tsk.deadline}
+              percentComplete={tsk.percent_complete}
+              subtasks={subtasksByTask?.get(tsk.id)}
+              assigneeName={teamWide ? assigneeName(tsk.assignee_profile_id) : undefined}
+              onOpen={() => onOpen(tsk.id)}
+            />
+          ))}
+        </div>
+      </CardContent>
+
+      <TaskSheet open={creatingOpen} onOpenChange={setCreatingOpen} taskId={null} />
+    </Card>
+  )
+}
+
 export function CabinetPage() {
   const { t } = useTranslation()
   const { profile, hasCapability } = useAuth()
@@ -886,6 +1028,8 @@ export function CabinetPage() {
           ))}
         </CardContent>
       </Card>
+
+      <RecurringChecklistWidget teamWide={canSeeTeamWidgets || isPm} onOpen={setOpenTaskId} />
 
       {isPm && <TeamTasksWidget onOpen={setOpenTaskId} />}
 

@@ -1,5 +1,6 @@
 export const ru = {
   common: {
+    all: 'Все',
     loading: 'Загрузка',
     logout: 'Выйти',
     save: 'Сохранить',
@@ -157,6 +158,7 @@ export const ru = {
     resetDateFilter: 'Сбросить даты',
     eisenhower: 'Приоритет (матрица Эйзенхауэра)',
     recurrence: 'Повторяемость',
+    checklist: 'Чек-лист',
     quadrantDoNow: 'Срочно и важно',
     quadrantSchedule: 'Не срочно, но важно',
     quadrantDelegate: 'Срочно, но не важно',

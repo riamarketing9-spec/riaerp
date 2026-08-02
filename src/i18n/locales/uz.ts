@@ -1,5 +1,6 @@
 export const uz = {
   common: {
+    all: 'Barchasi',
     loading: 'Yuklanmoqda',
     logout: 'Chiqish',
     save: 'Saqlash',
@@ -157,6 +158,7 @@ export const uz = {
     resetDateFilter: 'Sanani tozalash',
     eisenhower: 'Prioritet (Eyzenxauer matritsasi)',
     recurrence: 'Takrorlanishi',
+    checklist: 'Chek-list',
     quadrantDoNow: 'Shoshilinch va muhim',
     quadrantSchedule: 'Shoshilinch emas, lekin muhim',
     quadrantDelegate: 'Shoshilinch, lekin muhim emas',
