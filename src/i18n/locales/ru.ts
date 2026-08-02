@@ -197,6 +197,10 @@ export const ru = {
     openTasks: 'Открытых задач',
     limit: 'Лимит',
     overloaded: 'Перегружен',
+    active: 'Активные',
+    archive: 'Архив',
+    noActive: 'Нет активных задач',
+    noArchive: 'Нет завершённых задач',
   },
   clients: {
     title: 'Клиенты',

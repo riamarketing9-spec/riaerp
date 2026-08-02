@@ -197,6 +197,10 @@ export const uz = {
     openTasks: 'Ochiq vazifalar',
     limit: 'Limit',
     overloaded: 'Band',
+    active: 'Faol',
+    archive: 'Arxiv',
+    noActive: 'Faol vazifalar yo\'q',
+    noArchive: 'Tugallangan vazifalar yo\'q',
   },
   clients: {
     title: 'Mijozlar',
