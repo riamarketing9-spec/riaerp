@@ -19,7 +19,7 @@ import { Plus, User } from 'lucide-react'
 import { CreatePositionDialog, PositionDialog } from './CreatePositionDialog'
 
 type OrgPosition = { id: string; title: string; parent_position_id: string | null; profile_id: string | null }
-type Profile = { id: string; full_name: string; avatar_url?: string | null }
+type PersonInfo = { full_name: string | null; avatar_url: string | null }
 
 const ROOT_DROP_ID = '__org_root__'
 
@@ -185,7 +185,7 @@ function OrgTreeLi({
   position: OrgPosition
   depth: number
   childrenOf: Map<string, OrgPosition[]>
-  personFor: (id: string | null) => Profile | undefined
+  personFor: (id: string | null) => PersonInfo | undefined
   canManage: boolean
   onEdit: (id: string) => void
   onAddChild: (parentId: string) => void
@@ -258,27 +258,26 @@ export function OrgStructurePage() {
   const [dragActiveId, setDragActiveId] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
+  // v_org_positions joins the assignee's name/avatar in server-side (see
+  // 0053) instead of resolving it from a plain `profiles` select -- that
+  // table's RLS is locked to your own row unless you're CEO/finance/
+  // cabinets.read_all, so every other position rendered as vacant for
+  // anyone without one of those capabilities.
   const { data: positions, isLoading } = useQuery({
     queryKey: ['org_positions'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('org_positions')
-        .select('id, title, parent_position_id, profile_id')
+        .from('v_org_positions')
+        .select('id, title, parent_position_id, profile_id, full_name, avatar_url')
       if (error) throw error
       return data
     },
   })
 
-  const { data: profiles } = useQuery({
-    queryKey: ['profiles-lookup-avatar'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url')
-      if (error) throw error
-      return data
-    },
-  })
-
-  const personFor = (id: string | null) => profiles?.find((p) => p.id === id)
+  const personFor = (id: string | null) => {
+    const row = positions?.find((p) => p.profile_id === id)
+    return row ? { full_name: row.full_name, avatar_url: row.avatar_url } : undefined
+  }
 
   const { roots, childrenOf } = useMemo(() => {
     const map = new Map<string, OrgPosition[]>()
