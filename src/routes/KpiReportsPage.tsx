@@ -9,10 +9,20 @@ import { Combobox } from '@/components/ui/combobox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { pickLabel } from '@/lib/localizedLabel'
 
+// Plain local-calendar date strings, built directly from Y/M/D -- NOT via
+// `new Date(y, m, 1).toISOString()`, which converts local midnight to UTC
+// and silently shifts the date back a day for any timezone ahead of UTC
+// (e.g. Asia/Tashkent, UTC+5), making "this month" resolve to last month.
+function pad2(n: number) {
+  return String(n).padStart(2, '0')
+}
 function monthRange(date: Date) {
-  const start = new Date(date.getFullYear(), date.getMonth(), 1)
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 1)
-  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) }
+  const y = date.getFullYear()
+  const m = date.getMonth()
+  const start = `${y}-${pad2(m + 1)}-01`
+  const endD = new Date(y, m + 1, 1)
+  const end = `${endD.getFullYear()}-${pad2(endD.getMonth() + 1)}-01`
+  return { start, end }
 }
 
 // "Xodim bo'yicha": per-employee task KPIs (completed count, on-time %,
@@ -141,7 +151,7 @@ function ProjectKpiTab() {
     },
   })
 
-  const currentMonthKey = useMemo(() => monthRange(new Date()).start.slice(0, 7) + '-01', [])
+  const currentMonthKey = useMemo(() => monthRange(new Date()).start, [])
   const { data: monthlyGoal } = useQuery({
     queryKey: ['kpi-project-monthly-goal', projectId, currentMonthKey],
     enabled: !!projectId,

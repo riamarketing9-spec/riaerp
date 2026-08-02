@@ -15,10 +15,22 @@ import { pickLabel } from '@/lib/localizedLabel'
 // admin UI with auto-generated, unpredictable slugs.
 const TARGET_LABELS = ['target sozlash', "voronka bo'yicha ishlash"]
 
+// Plain local-calendar date strings, built directly from Y/M/D -- NOT via
+// `new Date(y, m, 1).toISOString()`, which converts local midnight to UTC
+// and silently shifts the date back a day for any timezone ahead of UTC
+// (e.g. Asia/Tashkent, UTC+5): Aug 1 00:00 local becomes Jul 31T19:00Z, so
+// slicing to 10 chars yields "2026-07-31" instead of "2026-08-01" -- which
+// made "this month's goal" resolve to last month's row instead.
+function pad2(n: number) {
+  return String(n).padStart(2, '0')
+}
 function monthRange(date: Date) {
-  const start = new Date(date.getFullYear(), date.getMonth(), 1)
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 1)
-  return { start: start.toISOString(), end: end.toISOString() }
+  const y = date.getFullYear()
+  const m = date.getMonth()
+  const start = `${y}-${pad2(m + 1)}-01`
+  const endD = new Date(y, m + 1, 1)
+  const end = `${endD.getFullYear()}-${pad2(endD.getMonth() + 1)}-01`
+  return { start, end }
 }
 
 export function ProjectsPage() {
@@ -77,7 +89,7 @@ export function ProjectsPage() {
   const projectIds = useMemo(() => (projects ?? []).map((p) => p.id), [projects])
 
   const monthKeyRef = useMemo(() => monthRange(new Date()), [])
-  const currentMonthKey = monthKeyRef.start.slice(0, 7) + '-01'
+  const currentMonthKey = monthKeyRef.start
 
   // This month's structured goal (target_posts/target_stories/target_ads)
   // per project -- replaces the old always-on projects.monthly_quota_*
