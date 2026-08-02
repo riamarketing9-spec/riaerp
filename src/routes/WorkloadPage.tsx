@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -24,6 +25,22 @@ function EmployeeTasksDialog({
 }) {
   const { t, i18n } = useTranslation()
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
+  const toggleSubtask = useMutation({
+    mutationFn: async ({ id, is_done }: { id: string; is_done: boolean }) => {
+      const { error } = await supabase.from('task_items').update({ is_done }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task_items-batch'] })
+      queryClient.invalidateQueries({ queryKey: ['task_items'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
 
   const { data: tasks } = useQuery({
     queryKey: ['workload-employee-tasks', profileId],
@@ -74,14 +91,20 @@ function EmployeeTasksDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_items')
-        .select('id, task_id, title, is_done, sort_order')
+        .select('id, task_id, title, is_done, sort_order, created_at, completed_at')
         .in('task_id', taskIds)
         .order('sort_order')
       if (error) throw error
       const map = new Map<string, TaskCardSubtask[]>()
       for (const item of data) {
         const list = map.get(item.task_id) ?? []
-        list.push({ id: item.id, title: item.title, is_done: item.is_done })
+        list.push({
+          id: item.id,
+          title: item.title,
+          is_done: item.is_done,
+          created_at: item.created_at,
+          completed_at: item.completed_at,
+        })
         map.set(item.task_id, list)
       }
       return map
@@ -108,6 +131,10 @@ function EmployeeTasksDialog({
       subtasks={subtasksByTask?.get(task.id)}
       createdViaBot={task.created_via_telegram}
       onOpen={() => setOpenTaskId(task.id)}
+      onToggleSubtask={(id, done) => toggleSubtask.mutate({ id, is_done: done })}
+      // Reaching this dialog at all already requires CEO/cabinets.read_all
+      // (v_employee_workload's own gate), so no extra capability check.
+      showSubtaskDuration
     />
   )
 
@@ -128,7 +155,7 @@ function EmployeeTasksDialog({
               </TabsTrigger>
             </TabsList>
             <TabsContent value="active">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                 {activeTasks.length === 0 && (
                   <p className="text-sm text-muted-foreground">{t('workload.noActive')}</p>
                 )}
@@ -136,7 +163,7 @@ function EmployeeTasksDialog({
               </div>
             </TabsContent>
             <TabsContent value="archive">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                 {archivedTasks.length === 0 && (
                   <p className="text-sm text-muted-foreground">{t('workload.noArchive')}</p>
                 )}

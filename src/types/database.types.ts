@@ -105,6 +105,7 @@ type TaskItemRow = {
   is_done: boolean
   sort_order: number
   created_at: string
+  completed_at: string | null
 }
 
 type TaskPriorityQuadrantRow = {

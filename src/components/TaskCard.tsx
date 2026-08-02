@@ -4,9 +4,16 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Avatar } from '@/components/Avatar'
 import { Pencil, Trash2 } from 'lucide-react'
 import { formatLocalDateTime } from '@/lib/localizedLabel'
+import { formatDurationMs } from '@/lib/duration'
 import { cn } from '@/lib/utils'
 
-export type TaskCardSubtask = { id: string; title: string; is_done: boolean }
+export type TaskCardSubtask = {
+  id: string
+  title: string
+  is_done: boolean
+  created_at?: string
+  completed_at?: string | null
+}
 
 // One color per task status, applied only to the status pill — the card
 // itself always stays neutral/white regardless of status.
@@ -32,6 +39,8 @@ export function TaskCard({
   createdViaBot,
   onOpen,
   onDelete,
+  onToggleSubtask,
+  showSubtaskDuration,
   className,
 }: {
   title: string
@@ -48,6 +57,12 @@ export function TaskCard({
   createdViaBot?: boolean
   onOpen: () => void
   onDelete?: () => void
+  // Lets a subtask be checked off right from the card ("снаружи"), not only
+  // inside the full TaskSheet -- omit to keep the checkbox read-only.
+  onToggleSubtask?: (subtaskId: string, done: boolean) => void
+  // PM/CEO only, mirrors the same gate TaskSheet uses for its status-
+  // duration log -- how long this subtask sat unchecked before completion.
+  showSubtaskDuration?: boolean
   className?: string
 }) {
   const { i18n } = useTranslation()
@@ -149,10 +164,22 @@ export function TaskCard({
           <div className="flex flex-col gap-1 rounded-md bg-muted/30 p-2">
             {visibleSubtasks.map((st) => (
               <div key={st.id} className="flex items-center gap-1.5">
-                <Checkbox checked={st.is_done} disabled className="size-3.5" />
-                <span className={cn('text-xs', st.is_done && 'text-muted-foreground line-through')}>
+                <Checkbox
+                  checked={st.is_done}
+                  disabled={!onToggleSubtask}
+                  onCheckedChange={
+                    onToggleSubtask ? (checked) => onToggleSubtask(st.id, checked === true) : undefined
+                  }
+                  className="size-3.5"
+                />
+                <span className={cn('flex-1 text-xs', st.is_done && 'text-muted-foreground line-through')}>
                   {st.title}
                 </span>
+                {showSubtaskDuration && st.completed_at && st.created_at && (
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                    {formatDurationMs(new Date(st.completed_at).getTime() - new Date(st.created_at).getTime())}
+                  </span>
+                )}
               </div>
             ))}
             {remainingCount > 0 && (

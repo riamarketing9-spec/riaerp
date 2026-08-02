@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Combobox } from '@/components/ui/combobox'
 import { Plus, X } from 'lucide-react'
 import { pickLabel, formatLocalDateTime } from '@/lib/localizedLabel'
+import { formatDurationMs } from '@/lib/duration'
 import { cn } from '@/lib/utils'
 
 const schema = z.object({
@@ -56,13 +57,6 @@ function toDatetimeLocalValue(iso: string | null | undefined): string {
   if (!iso) return ''
   const d = new Date(iso)
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-}
-
-function formatDurationMs(ms: number): string {
-  const totalMinutes = Math.round(ms / 60000)
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
-  return `${hours}h ${minutes}m`
 }
 
 export function TaskSheet({
@@ -173,7 +167,7 @@ export function TaskSheet({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_items')
-        .select('id, title, is_done, sort_order')
+        .select('id, title, is_done, sort_order, created_at, completed_at')
         .eq('task_id', taskId!)
         .order('sort_order')
       if (error) throw error
@@ -696,6 +690,14 @@ export function TaskSheet({
                     <span className={cn('flex-1 text-sm', st.is_done && 'text-muted-foreground line-through')}>
                       {st.title}
                     </span>
+                    {/* PM/CEO only -- how long this subtask sat unchecked
+                        before completion, mirrors the statusDurations block
+                        below for whole-task status timing. */}
+                    {canManageTask && st.completed_at && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatDurationMs(new Date(st.completed_at).getTime() - new Date(st.created_at).getTime())}
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => deleteSubtask.mutate(st.id)}

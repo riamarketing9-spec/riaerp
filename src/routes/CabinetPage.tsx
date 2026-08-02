@@ -33,18 +33,43 @@ function useSubtasksBatch(taskIds: string[]) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_items')
-        .select('id, task_id, title, is_done, sort_order')
+        .select('id, task_id, title, is_done, sort_order, created_at, completed_at')
         .in('task_id', taskIds)
         .order('sort_order')
       if (error) throw error
       const map = new Map<string, TaskCardSubtask[]>()
       for (const item of data) {
         const list = map.get(item.task_id) ?? []
-        list.push({ id: item.id, title: item.title, is_done: item.is_done })
+        list.push({
+          id: item.id,
+          title: item.title,
+          is_done: item.is_done,
+          created_at: item.created_at,
+          completed_at: item.completed_at,
+        })
         map.set(item.task_id, list)
       }
       return map
     },
+  })
+}
+
+function useToggleSubtask() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, is_done }: { id: string; is_done: boolean }) => {
+      const { error } = await supabase.from('task_items').update({ is_done }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task_items-batch'] })
+      queryClient.invalidateQueries({ queryKey: ['task_items'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['recurring-checklist-tasks'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
   })
 }
 
@@ -889,9 +914,11 @@ function RecurringChecklistWidget({
   onOpen: (id: string) => void
 }) {
   const { t, i18n } = useTranslation()
-  const { profile } = useAuth()
+  const { profile, hasCapability } = useAuth()
+  const showSubtaskDuration = hasCapability('org.full_access') || hasCapability('projects.manage')
   const [filterSlug, setFilterSlug] = useState<string | null>(null)
   const [creatingOpen, setCreatingOpen] = useState(false)
+  const toggleSubtask = useToggleSubtask()
 
   const { data: recurrenceTypes } = useQuery({
     queryKey: ['recurrence_types'],
@@ -992,7 +1019,7 @@ function RecurringChecklistWidget({
           ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
           {!isLoading && visibleTasks.length === 0 && (
             <p className="text-sm text-muted-foreground">{t('cabinet.empty')}</p>
@@ -1007,6 +1034,8 @@ function RecurringChecklistWidget({
               subtasks={subtasksByTask?.get(tsk.id)}
               assigneeName={teamWide ? assigneeName(tsk.assignee_profile_id) : undefined}
               onOpen={() => onOpen(tsk.id)}
+              onToggleSubtask={(id, done) => toggleSubtask.mutate({ id, is_done: done })}
+              showSubtaskDuration={showSubtaskDuration}
             />
           ))}
         </div>
@@ -1029,6 +1058,7 @@ export function CabinetPage() {
   // the 'pm' role slug.
   const isPm = hasCapability('projects.manage')
   const canSeeFinance = hasCapability('finance.read') || hasCapability('finance.write')
+  const showSubtaskDuration = hasCapability('org.full_access') || isPm
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [openContentItemId, setOpenContentItemId] = useState<string | null>(null)
 
@@ -1059,6 +1089,7 @@ export function CabinetPage() {
 
   const taskIds = useMemo(() => (tasks ?? []).map((t) => t.id), [tasks])
   const { data: subtasksByTask } = useSubtasksBatch(taskIds)
+  const toggleSubtask = useToggleSubtask()
 
   return (
     <div className="flex flex-col gap-8">
@@ -1089,7 +1120,7 @@ export function CabinetPage() {
         <CardHeader>
           <CardTitle className="text-base font-medium">{t('cabinet.myTasks')}</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <CardContent className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
           {!isLoading && (tasks?.length ?? 0) === 0 && (
             <p className="text-sm text-muted-foreground">{t('cabinet.empty')}</p>
@@ -1103,6 +1134,8 @@ export function CabinetPage() {
               percentComplete={task.percent_complete}
               subtasks={subtasksByTask?.get(task.id)}
               onOpen={() => setOpenTaskId(task.id)}
+              onToggleSubtask={(id, done) => toggleSubtask.mutate({ id, is_done: done })}
+              showSubtaskDuration={showSubtaskDuration}
             />
           ))}
         </CardContent>

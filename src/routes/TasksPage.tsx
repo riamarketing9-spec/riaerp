@@ -18,8 +18,9 @@ import { useCanDeleteTask } from '@/hooks/useCanDeleteTask'
 
 export function TasksPage() {
   const { t, i18n } = useTranslation()
-  const { profile } = useAuth()
+  const { profile, hasCapability } = useAuth()
   const canDeleteTask = useCanDeleteTask()
+  const showSubtaskDuration = hasCapability('org.full_access') || hasCapability('projects.manage')
   const [searchParams, setSearchParams] = useSearchParams()
   const view = searchParams.get('view') === 'kanban' ? 'kanban' : 'list'
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
@@ -82,14 +83,23 @@ export function TasksPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_items')
-        .select('id, task_id, title, is_done, sort_order')
+        .select('id, task_id, title, is_done, sort_order, created_at, completed_at')
         .in('task_id', taskIds)
         .order('sort_order')
       if (error) throw error
-      const map = new Map<string, { id: string; title: string; is_done: boolean }[]>()
+      const map = new Map<
+        string,
+        { id: string; title: string; is_done: boolean; created_at: string; completed_at: string | null }[]
+      >()
       for (const item of data) {
         const list = map.get(item.task_id) ?? []
-        list.push({ id: item.id, title: item.title, is_done: item.is_done })
+        list.push({
+          id: item.id,
+          title: item.title,
+          is_done: item.is_done,
+          created_at: item.created_at,
+          completed_at: item.completed_at,
+        })
         map.set(item.task_id, list)
       }
       return map
@@ -104,6 +114,21 @@ export function TasksPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
       queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const toggleSubtask = useMutation({
+    mutationFn: async ({ id, is_done }: { id: string; is_done: boolean }) => {
+      const { error } = await supabase.from('task_items').update({ is_done }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task_items-batch'] })
+      queryClient.invalidateQueries({ queryKey: ['task_items'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
     },
     onError: (err: Error) => toast.error(err.message),
   })
@@ -269,7 +294,7 @@ export function TasksPage() {
           {!isLoading && filteredTasks.length === 0 && (
             <p className="text-sm text-muted-foreground">{t('tasks.empty')}</p>
           )}
-          <div className={cn('grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3')}>
+          <div className={cn('grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3')}>
             {filteredTasks.map((task) => (
               <TaskCard
                 key={task.id}
@@ -291,6 +316,8 @@ export function TasksPage() {
                       }
                     : undefined
                 }
+                onToggleSubtask={(id, done) => toggleSubtask.mutate({ id, is_done: done })}
+                showSubtaskDuration={showSubtaskDuration}
               />
             ))}
           </div>

@@ -14,6 +14,7 @@ import {
 import { useDroppable } from '@dnd-kit/core'
 import { useDraggable } from '@dnd-kit/core'
 import { supabase } from '@/lib/supabaseClient'
+import { useAuth } from '@/auth/AuthProvider'
 import { cn } from '@/lib/utils'
 import { pickLabel } from '@/lib/localizedLabel'
 import { TaskSheet } from './TaskSheet'
@@ -45,6 +46,8 @@ function DraggableCard({
   assigneeName,
   assigneeAvatarUrl,
   subtasks,
+  onToggleSubtask,
+  showSubtaskDuration,
 }: {
   task: TaskCardData
   onOpen: (id: string) => void
@@ -56,6 +59,8 @@ function DraggableCard({
   assigneeName?: string
   assigneeAvatarUrl?: string | null
   subtasks?: TaskCardSubtask[]
+  onToggleSubtask: (subtaskId: string, done: boolean) => void
+  showSubtaskDuration: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
@@ -79,6 +84,8 @@ function DraggableCard({
         createdViaBot={task.created_via_telegram}
         onOpen={() => onOpen(task.id)}
         onDelete={canDelete(task) ? () => onDelete(task.id) : undefined}
+        onToggleSubtask={onToggleSubtask}
+        showSubtaskDuration={showSubtaskDuration}
         className="w-full cursor-grab active:cursor-grabbing"
       />
     </div>
@@ -98,6 +105,8 @@ function DroppableColumn({
   assigneeNameFor,
   assigneeAvatarUrlFor,
   subtasksFor,
+  onToggleSubtask,
+  showSubtaskDuration,
 }: {
   id: string
   label: string
@@ -111,6 +120,8 @@ function DroppableColumn({
   assigneeNameFor: (id: string | null) => string | undefined
   assigneeAvatarUrlFor: (id: string | null) => string | null | undefined
   subtasksFor: (id: string) => TaskCardSubtask[] | undefined
+  onToggleSubtask: (subtaskId: string, done: boolean) => void
+  showSubtaskDuration: boolean
 }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
@@ -138,6 +149,8 @@ function DroppableColumn({
             assigneeName={assigneeNameFor(t.assignee_profile_id)}
             assigneeAvatarUrl={assigneeAvatarUrlFor(t.assignee_profile_id)}
             subtasks={subtasksFor(t.id)}
+            onToggleSubtask={onToggleSubtask}
+            showSubtaskDuration={showSubtaskDuration}
           />
         ))}
       </div>
@@ -153,8 +166,10 @@ export function TasksKanban({
   employeeFilterId?: string | null
 } = {}) {
   const { t, i18n } = useTranslation()
+  const { hasCapability } = useAuth()
   const queryClient = useQueryClient()
   const canDelete = useCanDeleteTask()
+  const showSubtaskDuration = hasCapability('org.full_access') || hasCapability('projects.manage')
   const [activeTask, setActiveTask] = useState<TaskCardData | null>(null)
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
 
@@ -214,18 +229,39 @@ export function TasksKanban({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_items')
-        .select('id, task_id, title, is_done, sort_order')
+        .select('id, task_id, title, is_done, sort_order, created_at, completed_at')
         .in('task_id', taskIds)
         .order('sort_order')
       if (error) throw error
       const map = new Map<string, TaskCardSubtask[]>()
       for (const item of data) {
         const list = map.get(item.task_id) ?? []
-        list.push({ id: item.id, title: item.title, is_done: item.is_done })
+        list.push({
+          id: item.id,
+          title: item.title,
+          is_done: item.is_done,
+          created_at: item.created_at,
+          completed_at: item.completed_at,
+        })
         map.set(item.task_id, list)
       }
       return map
     },
+  })
+
+  const toggleSubtask = useMutation({
+    mutationFn: async ({ id, is_done }: { id: string; is_done: boolean }) => {
+      const { error } = await supabase.from('task_items').update({ is_done }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task_items-batch'] })
+      queryClient.invalidateQueries({ queryKey: ['task_items'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const moveTask = useMutation({
@@ -313,6 +349,8 @@ export function TasksKanban({
               assigneeNameFor={assigneeNameFor}
               assigneeAvatarUrlFor={assigneeAvatarUrlFor}
               subtasksFor={subtasksFor}
+              onToggleSubtask={(id, done) => toggleSubtask.mutate({ id, is_done: done })}
+              showSubtaskDuration={showSubtaskDuration}
             />
           ))}
         </div>
