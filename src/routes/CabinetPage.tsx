@@ -12,7 +12,7 @@ import { ContentItemSheet } from './ContentItemSheet'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
 import { formatLocalDate, pickLabel } from '@/lib/localizedLabel'
 import { Button } from '@/components/ui/button'
-import { Trash2, Plus, Wallet, FolderKanban, AlertTriangle, Gauge } from 'lucide-react'
+import { Trash2, Plus } from 'lucide-react'
 import { telegramDeepLink } from '@/lib/telegram'
 import { TimeTrackerWidget } from '@/components/TimeTrackerWidget'
 import { TaskStatusChart, type TaskStatusBucket } from '@/components/charts/TaskStatusChart'
@@ -180,7 +180,7 @@ function IdleTeamWidget() {
           </div>
           <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-300 shadow-[0_0_12px_-1px_var(--color-brand-400)] transition-[width] duration-700 ease-out"
+              className="h-full rounded-full bg-brand-600 transition-[width] duration-500 ease-out"
               style={{ width: `${idlePct}%` }}
             />
           </div>
@@ -549,31 +549,26 @@ function monthKey(d: Date) {
 }
 
 // A gradient-tinted tile with a colored icon badge, replacing the old plain
-// "Label: value · Label: value" text line -- the same 4 numbers, but each
-// one now reads as its own headline instead of buried mid-sentence.
+// Plain inline stat, no card/icon/border -- matches a dense SaaS dashboard's
+// headline row: small label above a bold number, an optional dark pill for
+// a flag worth calling out. Replaces both the old "Label: value · ..." text
+// line and an earlier icon-badge-card version that read as a toy dashboard.
 function FinanceStatTile({
-  icon: Icon,
   label,
   value,
-  accent,
+  flag,
 }: {
-  icon: typeof Wallet
   label: string
   value: string | number
-  accent: string
+  flag?: boolean
 }) {
   return (
-    <div className="stat-tile flex flex-col gap-2 rounded-xl border border-border p-3.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-      <div
-        className="flex size-8 items-center justify-center rounded-lg"
-        style={{ background: `color-mix(in oklch, ${accent}, transparent 85%)`, color: accent }}
-      >
-        <Icon className="size-4" strokeWidth={2} />
-      </div>
-      <div>
-        <p className="text-lg font-extrabold tracking-tight text-foreground">{value}</p>
-        <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-      </div>
+    <div className="flex flex-col gap-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="flex items-center gap-1.5">
+        <span className="text-xl font-semibold tracking-tight text-foreground">{value}</span>
+        {flag && <span className="stat-pill bg-destructive text-destructive-foreground">!</span>}
+      </span>
     </div>
   )
 }
@@ -715,11 +710,11 @@ function FinanceSection() {
         <BackupExportButton />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <FinanceStatTile icon={Wallet} label={t('kpi.mrr')} value={formatMoney(dashboard?.mrr ?? 0)} accent="var(--color-brand-500)" />
-        <FinanceStatTile icon={FolderKanban} label={t('kpi.activeProjects')} value={dashboard?.active_projects ?? 0} accent="var(--color-sky-accent)" />
-        <FinanceStatTile icon={AlertTriangle} label={t('kpi.overdueTasks')} value={dashboard?.overdue_tasks ?? 0} accent="var(--destructive)" />
-        <FinanceStatTile icon={Gauge} label={t('kpi.overloadedEmployees')} value={dashboard?.overloaded_employees ?? 0} accent="var(--color-amber-accent)" />
+      <div className="flex flex-wrap gap-x-8 gap-y-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-xs">
+        <FinanceStatTile label={t('kpi.mrr')} value={formatMoney(dashboard?.mrr ?? 0)} />
+        <FinanceStatTile label={t('kpi.activeProjects')} value={dashboard?.active_projects ?? 0} />
+        <FinanceStatTile label={t('kpi.overdueTasks')} value={dashboard?.overdue_tasks ?? 0} flag={(dashboard?.overdue_tasks ?? 0) > 0} />
+        <FinanceStatTile label={t('kpi.overloadedEmployees')} value={dashboard?.overloaded_employees ?? 0} flag={(dashboard?.overloaded_employees ?? 0) > 0} />
       </div>
 
       <Card>

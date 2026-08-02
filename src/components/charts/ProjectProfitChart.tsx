@@ -39,8 +39,7 @@ export function ProjectProfitChart({ data }: { data: { projectId: string; name: 
                 style={{
                   width: grown ? `${Math.max(widthPct, 4)}%` : '0%',
                   background: color,
-                  boxShadow: `0 0 10px -2px ${color}`,
-                  transition: `width 650ms var(--ease-spring) ${i * 60}ms`,
+                  transition: `width 550ms var(--ease-out-strong) ${i * 50}ms`,
                 }}
               />
             </span>

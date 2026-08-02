@@ -83,11 +83,11 @@ export function RevenueProfitChart({
     <div className="viz-root">
       <div className="mb-3 flex items-center gap-4 text-xs">
         <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full" style={{ background: 'var(--chart-revenue)', boxShadow: '0 0 8px var(--chart-revenue)' }} />
+          <span className="size-2 rounded-full" style={{ background: 'var(--chart-revenue)' }} />
           <span className="font-medium text-muted-foreground">{revenueLabel}</span>
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full" style={{ background: 'var(--chart-profit)', boxShadow: '0 0 8px var(--chart-profit)' }} />
+          <span className="size-2 rounded-full" style={{ background: 'var(--chart-profit)' }} />
           <span className="font-medium text-muted-foreground">{profitLabel}</span>
         </span>
       </div>
@@ -95,7 +95,7 @@ export function RevenueProfitChart({
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="w-full cursor-pointer overflow-visible"
-        style={{ ['--chart-revenue' as string]: 'var(--color-brand-600)', ['--chart-profit' as string]: 'var(--color-amber-accent)' }}
+        style={{ ['--chart-revenue' as string]: 'var(--color-chart-pink)', ['--chart-profit' as string]: 'var(--color-chart-green)' }}
         onMouseLeave={() => setHoverIndex(null)}
         onClick={() => setTableOpen((v) => !v)}
         role="button"
@@ -103,16 +103,9 @@ export function RevenueProfitChart({
       >
         <defs>
           <linearGradient id="revenue-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--chart-revenue)" stopOpacity="0.32" />
+            <stop offset="0%" stopColor="var(--chart-revenue)" stopOpacity="0.14" />
             <stop offset="100%" stopColor="var(--chart-revenue)" stopOpacity="0" />
           </linearGradient>
-          <filter id="line-glow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="3.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
         </defs>
 
         {gridLines.map((y) => (
@@ -130,10 +123,9 @@ export function RevenueProfitChart({
           d={revenuePath}
           fill="none"
           stroke="var(--chart-revenue)"
-          strokeWidth={3}
+          strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
-          filter="url(#line-glow)"
           style={{ transition: 'stroke-dashoffset 1100ms var(--ease-out-strong)' }}
         />
         <path
@@ -141,15 +133,15 @@ export function RevenueProfitChart({
           d={profitPath}
           fill="none"
           stroke="var(--chart-profit)"
-          strokeWidth={2.5}
+          strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
           style={{ transition: 'stroke-dashoffset 1100ms var(--ease-out-strong) 120ms' }}
         />
 
-        {/* pulsing "live" marker on the latest point */}
+        {/* subtle pulsing marker on the latest point -- flags "current", no glow blur */}
         {lastIndex >= 0 && drawn && (
-          <circle cx={xFor(lastIndex)} cy={yFor(data[lastIndex].revenue)} r={5} fill="var(--chart-revenue)" className="animate-glow-pulse" />
+          <circle cx={xFor(lastIndex)} cy={yFor(data[lastIndex].revenue)} r={3.5} fill="var(--chart-revenue)" className="animate-glow-pulse" />
         )}
 
         {data.map((d, i) => (

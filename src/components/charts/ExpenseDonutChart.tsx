@@ -25,7 +25,7 @@ function arcPath(startDeg: number, endDeg: number) {
 // "Other" bucket -- a donut shows every pair of slices at once, and only the
 // first three categorical slots in the palette clear the CVD/normal-vision
 // floor for all-pairs comparison (see the dataviz skill's palette notes).
-const SLICE_COLORS = ['var(--color-sky-accent)', 'var(--color-amber-accent)', 'var(--color-brand-500)', 'var(--color-muted-foreground)']
+const SLICE_COLORS = ['var(--color-chart-pink)', 'var(--color-chart-blue)', 'var(--color-chart-green)', 'var(--color-chart-gray)']
 
 export function ExpenseDonutChart({
   slices,
@@ -68,16 +68,7 @@ export function ExpenseDonutChart({
           role="button"
           aria-expanded={tableOpen}
         >
-          <defs>
-            <filter id="donut-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-          <circle cx={CENTER} cy={CENTER} r={RADIUS} fill="none" stroke="var(--muted)" strokeWidth={STROKE} opacity={0.4} />
+          <circle cx={CENTER} cy={CENTER} r={RADIUS} fill="none" stroke="var(--muted)" strokeWidth={STROKE} opacity={0.5} />
           {arcs.map((a, i) =>
             a.end > a.start ? (
               <path
@@ -87,8 +78,7 @@ export function ExpenseDonutChart({
                 stroke={a.color}
                 strokeWidth={STROKE}
                 strokeLinecap="round"
-                filter="url(#donut-glow)"
-                className="origin-center transition-[opacity,transform] duration-200 hover:scale-[1.035] hover:opacity-90"
+                className="origin-center transition-[opacity,transform] duration-200 hover:scale-[1.02] hover:opacity-85"
                 style={{
                   transformBox: 'fill-box',
                   strokeDasharray: a.arcLen,
@@ -102,8 +92,8 @@ export function ExpenseDonutChart({
             x={CENTER}
             y={CENTER - 4}
             textAnchor="middle"
-            className="fill-foreground text-2xl font-extrabold animate-pop-in"
-            fontSize={22}
+            className="fill-foreground font-semibold animate-pop-in"
+            fontSize={20}
             style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
           >
             {formatMoney(total)}
@@ -115,7 +105,7 @@ export function ExpenseDonutChart({
         <div className="flex flex-col gap-2">
           {arcs.map((a) => (
             <div key={a.label} className="flex items-center gap-2 text-sm">
-              <span className="size-2.5 shrink-0 rounded-full" style={{ background: a.color, boxShadow: `0 0 6px ${a.color}` }} />
+              <span className="size-2.5 shrink-0 rounded-full" style={{ background: a.color }} />
               <span className="font-medium text-foreground">{a.label}</span>
               <span className="text-muted-foreground">
                 {total > 0 ? Math.round((a.value / total) * 100) : 0}%

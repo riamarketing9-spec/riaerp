@@ -50,9 +50,8 @@ export function ProjectTasksChart({
                 className="block h-full rounded-full"
                 style={{
                   width: grown ? `${Math.max((b.count / max) * 100, b.count > 0 ? 4 : 0)}%` : '0%',
-                  background: `linear-gradient(90deg, ${color}, color-mix(in oklch, ${color}, white 25%))`,
-                  boxShadow: b.count > 0 ? `0 0 10px -2px ${color}` : 'none',
-                  transition: `width 650ms var(--ease-spring) ${i * 60}ms`,
+                  background: color,
+                  transition: `width 550ms var(--ease-out-strong) ${i * 50}ms`,
                 }}
               />
             </span>

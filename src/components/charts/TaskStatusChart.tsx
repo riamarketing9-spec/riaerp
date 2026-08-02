@@ -39,21 +39,6 @@ export function TaskStatusChart({
   return (
     <div>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full max-w-xs overflow-visible">
-        <defs>
-          {buckets.map((b) => (
-            <linearGradient key={b.key} id={`taskbar-${b.key}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={b.color} stopOpacity={1} />
-              <stop offset="100%" stopColor={b.color} stopOpacity={0.55} />
-            </linearGradient>
-          ))}
-          <filter id="taskbar-glow" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="6" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
         {buckets.map((b, i) => {
           const h = grown ? (b.count / max) * plotH : 0
           const x = i * (barW + BAR_GAP)
@@ -67,40 +52,28 @@ export function TaskStatusChart({
               aria-expanded={openKey === b.key}
             >
               {/* faint full-height track so short bars aren't floating with no baseline reference */}
-              <rect x={x} y={0} width={barW} height={plotH} rx={8} className="fill-muted/40" />
-              {b.count > 0 && (
-                <ellipse
-                  cx={x + barW / 2}
-                  cy={plotH}
-                  rx={barW / 2}
-                  ry={4}
-                  fill={b.color}
-                  opacity={grown ? 0.35 : 0}
-                  style={{ transition: 'opacity 700ms var(--ease-out-strong) 200ms' }}
-                />
-              )}
+              <rect x={x} y={0} width={barW} height={plotH} rx={5} className="fill-muted/50" />
               <rect
                 x={x}
                 y={y}
                 width={barW}
                 height={Math.max(h, b.count > 0 ? 4 : 0)}
-                rx={8}
-                fill={`url(#taskbar-${b.key})`}
-                filter="url(#taskbar-glow)"
-                className="transition-[filter] duration-200 group-hover:brightness-110"
-                style={{ transition: 'height 700ms var(--ease-spring), y 700ms var(--ease-spring)' }}
+                rx={5}
+                fill={b.color}
+                className="transition-opacity duration-200 group-hover:opacity-85"
+                style={{ transition: 'height 650ms var(--ease-out-strong), y 650ms var(--ease-out-strong)' }}
               />
               <text
                 x={x + barW / 2}
                 y={y - 10}
                 textAnchor="middle"
-                className="fill-foreground text-sm font-extrabold transition-opacity duration-500"
-                fontSize={18}
-                style={{ opacity: grown ? 1 : 0, transitionDelay: '400ms' }}
+                className="fill-foreground font-semibold transition-opacity duration-500"
+                fontSize={17}
+                style={{ opacity: grown ? 1 : 0, transitionDelay: '350ms' }}
               >
                 {b.count}
               </text>
-              <text x={x + barW / 2} y={HEIGHT - 8} textAnchor="middle" className="fill-muted-foreground font-semibold uppercase tracking-wide" fontSize={10}>
+              <text x={x + barW / 2} y={HEIGHT - 8} textAnchor="middle" className="fill-muted-foreground" fontSize={11}>
                 {b.label}
               </text>
             </g>

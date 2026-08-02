@@ -6,9 +6,9 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
 
-  /* RIA brand teal-green, re-tuned for more life: a touch more saturation
-     through the mid-range so accent fills/badges/charts read as "green",
-     not "gray with a green tint" (the old 500/600 were nearly desaturated). */
+  /* RIA brand green -- now reserved for primary actions/active states only,
+     not smeared across every shadow/hover/background (that read as
+     "everything is tinted green" instead of "clean UI, color = data"). */
   --color-brand-50: #eafaf3;
   --color-brand-100: #cdf1e0;
   --color-brand-200: #9de4c4;
@@ -20,13 +20,18 @@
   --color-brand-800: #074934;
   --color-brand-900: #053626;
 
-  /* Small warm/cool companions so charts and status pills aren't limited to
-     one hue -- categorical order for dataviz: brand, amber, sky, violet,
-     rose, then repeat with the 300 step. Fixed order, never cycled per-row. */
+  /* Categorical dataviz palette -- fixed order (pink, green, blue, gray),
+     never cycled, modeled on the reference dashboard: color carries the
+     data series, the surrounding UI chrome stays neutral gray/white. */
+  --color-chart-pink: #ec4899;
+  --color-chart-green: #16a34a;
+  --color-chart-blue: #3b82f6;
+  --color-chart-gray: #94a3b8;
+  --color-chart-amber: #d97a1f;
   --color-amber-accent: #d97a1f;
-  --color-sky-accent: #1b84c9;
+  --color-sky-accent: #3b82f6;
   --color-violet-accent: #7c5cd6;
-  --color-rose-accent: #d94f6b;
+  --color-rose-accent: #ec4899;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -58,14 +63,13 @@
   --radius-xl: 14px;
   --radius-2xl: 18px;
 
-  /* Elevation now carries a faint brand tint instead of pure black, so cards
-     feel like they belong to this product's palette even at rest -- and a
-     visible (not near-zero) lift on hover is what makes the UI feel alive
-     rather than flat/inert. */
-  --shadow-xs: 0 1px 2px rgb(15 60 45 / 0.05);
-  --shadow-sm: 0 1px 3px rgb(15 60 45 / 0.07), 0 1px 2px rgb(15 60 45 / 0.05);
-  --shadow-md: 0 4px 14px rgb(15 60 45 / 0.08), 0 1px 3px rgb(15 60 45 / 0.06);
-  --shadow-lg: 0 12px 28px rgb(15 60 45 / 0.12), 0 2px 6px rgb(15 60 45 / 0.06);
+  /* Neutral elevation -- plain black at low opacity, not brand-tinted. A
+     data-dense dashboard should feel calm at rest; color is reserved for
+     charts and status, not smeared into every shadow. */
+  --shadow-xs: 0 1px 2px rgb(15 23 32 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(15 23 32 / 0.05), 0 1px 1px rgb(15 23 32 / 0.04);
+  --shadow-md: 0 3px 10px rgb(15 23 32 / 0.06), 0 1px 2px rgb(15 23 32 / 0.05);
+  --shadow-lg: 0 10px 24px rgb(15 23 32 / 0.10), 0 2px 6px rgb(15 23 32 / 0.05);
   --shadow-glow: 0 0 0 1px rgb(14 148 99 / 0.12), 0 8px 24px rgb(14 148 99 / 0.16);
 
   /* Strong ease-out: starts fast, settles gently -- reads as "responsive"
@@ -75,44 +79,46 @@
 }
 
 :root {
-  --background: #fbfcfb;
-  --foreground: #1c2622;
+  /* Light neutral gray page, white cards -- not tinted green. Color shows
+     up in charts/badges/primary actions, not in the canvas itself. */
+  --background: #f3f4f6;
+  --foreground: #14161a;
   --card: #ffffff;
-  --card-foreground: #1c2622;
+  --card-foreground: #14161a;
   --popover: #ffffff;
-  --popover-foreground: #1c2622;
+  --popover-foreground: #14161a;
   --primary: #0a7a52;
   --primary-foreground: #ffffff;
-  --secondary: #f2f8f5;
-  --secondary-foreground: #1c2622;
-  --muted: #f2f8f5;
-  --muted-foreground: #66746d;
-  --accent: #eaf5ef;
-  --accent-foreground: #0a7a52;
+  --secondary: #f3f4f6;
+  --secondary-foreground: #14161a;
+  --muted: #f3f4f6;
+  --muted-foreground: #70747c;
+  --accent: #eef0f3;
+  --accent-foreground: #14161a;
   --destructive: #c22b30;
   --destructive-foreground: #ffffff;
-  --border: #e4ece7;
-  --input: #e4ece7;
-  --ring: #2fb27e;
+  --border: #e6e7eb;
+  --input: #e6e7eb;
+  --ring: #0e9463;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --background: #101512;
-    --foreground: #eef4f0;
-    --card: #171d19;
-    --card-foreground: #eef4f0;
-    --popover: #171d19;
-    --popover-foreground: #eef4f0;
+    --background: #0b0c0e;
+    --foreground: #f2f3f5;
+    --card: #17181b;
+    --card-foreground: #f2f3f5;
+    --popover: #17181b;
+    --popover-foreground: #f2f3f5;
     --primary: #4fcb98;
     --primary-foreground: #06241a;
-    --secondary: #1b2320;
-    --secondary-foreground: #eef4f0;
-    --muted: #1b2320;
-    --muted-foreground: #93a49b;
-    --accent: #1a2b23;
-    --accent-foreground: #6bdba8;
+    --secondary: #1a1b1e;
+    --secondary-foreground: #f2f3f5;
+    --muted: #1a1b1e;
+    --muted-foreground: #93969e;
+    --accent: #202226;
+    --accent-foreground: #f2f3f5;
     --destructive: #e0665c;
     --destructive-foreground: #1f0a08;
     --border: rgba(255, 255, 255, 0.08);
@@ -123,20 +129,20 @@
 }
 
 :root[data-theme="dark"] {
-  --background: #101512;
-  --foreground: #eef4f0;
-  --card: #171d19;
-  --card-foreground: #eef4f0;
-  --popover: #171d19;
-  --popover-foreground: #eef4f0;
+  --background: #0b0c0e;
+  --foreground: #f2f3f5;
+  --card: #17181b;
+  --card-foreground: #f2f3f5;
+  --popover: #17181b;
+  --popover-foreground: #f2f3f5;
   --primary: #4fcb98;
   --primary-foreground: #06241a;
-  --secondary: #1b2320;
-  --secondary-foreground: #eef4f0;
-  --muted: #1b2320;
-  --muted-foreground: #93a49b;
-  --accent: #1a2b23;
-  --accent-foreground: #6bdba8;
+  --secondary: #1a1b1e;
+  --secondary-foreground: #f2f3f5;
+  --muted: #1a1b1e;
+  --muted-foreground: #93969e;
+  --accent: #202226;
+  --accent-foreground: #f2f3f5;
   --destructive: #e0665c;
   --destructive-foreground: #1f0a08;
   --border: rgba(255, 255, 255, 0.08);
@@ -155,18 +161,12 @@
   body {
     margin: 0;
     background: var(--background);
-    /* A faint, fixed brand-tinted wash instead of a flat fill -- the app
-       reads as inhabited rather than a blank spreadsheet canvas, without
-       competing with content (opacity stays under 5%). */
-    background-image:
-      radial-gradient(1100px 560px at 100% -10%, color-mix(in oklch, var(--color-brand-400), transparent 93%), transparent),
-      radial-gradient(900px 500px at -10% 10%, color-mix(in oklch, var(--color-brand-300), transparent 95%), transparent);
-    background-attachment: fixed;
     color: var(--foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "cv11", "ss01", "cv01", "cv03";
+    font-variant-numeric: tabular-nums;
   }
   #root {
     min-height: 100svh;
@@ -175,26 +175,21 @@
     letter-spacing: -0.015em;
   }
 
-  /* Cards lift and their border tints toward brand on hover -- motion +
-     color is what reads as "clickable and alive", a flat tint alone reads
-     inert. Respects reduced-motion below. */
+  /* A calm, precise hover -- a hairline border shift and a barely-there
+     shadow, not a lift/glow. Data-dense screens read as considered when
+     motion is restrained, not when every card bounces. */
   [data-slot="card"].cursor-pointer {
-    transition: transform 180ms var(--ease-out-strong), box-shadow 180ms var(--ease-out-strong), border-color 180ms var(--ease-out-strong);
+    transition: box-shadow 150ms var(--ease-out-strong), border-color 150ms var(--ease-out-strong);
   }
   [data-slot="card"].cursor-pointer:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    border-color: color-mix(in oklch, var(--color-brand-400), transparent 55%);
-  }
-  [data-slot="card"].cursor-pointer:active {
-    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+    border-color: color-mix(in oklch, var(--foreground), transparent 78%);
   }
 
   @media (prefers-reduced-motion: reduce) {
     [data-slot="card"].cursor-pointer,
     [data-slot="card"].cursor-pointer:hover {
       transition: none;
-      transform: none;
     }
   }
 
@@ -203,16 +198,18 @@
   }
 }
 
-/* Reusable "alive" accents -- a few named utilities instead of one-off
-   inline gradients scattered per page, so the effect stays consistent. */
-@utility surface-glow {
-  box-shadow: var(--shadow-glow);
-}
-@utility text-gradient-brand {
-  background: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-300));
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
+/* A small dark/light pill for an inline stat delta (e.g. "8%" next to a
+   headline number) -- matches the reference dashboard's compact stat row,
+   used instead of a big icon-badge card. */
+@utility stat-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--foreground);
+  color: var(--background);
 }
 
 /* Real motion, not just color -- an entrance moment for anything that just
@@ -246,25 +243,6 @@
   .animate-fade-in-up, .animate-pop-in, .animate-glow-pulse {
     animation: none !important;
   }
-}
-
-/* Stat tiles (FinanceSection headline row, KPI cards) -- a soft brand-tinted
-   gradient card instead of flat white, with a decorative oversized number
-   ghosted in the corner for depth. Opt-in via className, doesn't touch the
-   plain Card look used everywhere else. */
-.stat-tile {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(155deg, color-mix(in oklch, var(--color-brand-400), transparent 90%), var(--card) 55%);
-}
-.stat-tile::after {
-  content: '';
-  position: absolute;
-  inset: -40% -20% auto auto;
-  width: 140px;
-  height: 140px;
-  background: radial-gradient(circle, color-mix(in oklch, var(--color-brand-400), transparent 78%), transparent 70%);
-  pointer-events: none;
 }
 
 /* Org chart connectors (OrgStructurePage) -- the classic pure-CSS tree
