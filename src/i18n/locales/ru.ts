@@ -305,6 +305,8 @@ export const ru = {
     editor: 'Монтажёр',
     smm: 'СММщик',
     shootDate: 'Дата съёмки',
+    editDoneDate: 'Дата монтажа',
+    coverDoneDate: 'Дата обложки (cover)',
     publishDate: 'Дата публикации',
     empty: 'Контент-плана пока нет',
     script: 'Сценарий',

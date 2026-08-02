@@ -305,6 +305,8 @@ export const uz = {
     editor: 'Montajchi',
     smm: 'SMMchi',
     shootDate: 'Syomka sanasi',
+    editDoneDate: 'Montaj sanasi',
+    coverDoneDate: 'Cover (muqova) sanasi',
     publishDate: 'Chiqish sanasi',
     empty: "Kontent reja hozircha yo'q",
     script: 'Ssenariy',

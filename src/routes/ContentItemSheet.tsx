@@ -36,6 +36,8 @@ const schema = z.object({
   responsible_profile_id: z.string().optional(),
   smm_profile_id: z.string().optional(),
   shoot_date: z.string().optional(),
+  edit_done_date: z.string().optional(),
+  cover_done_date: z.string().optional(),
   publish_date: z.string().optional(),
   script: z.string().optional(),
   tor_text: z.string().optional(),
@@ -242,6 +244,8 @@ export function ContentItemSheet({
         responsible_profile_id: existing.responsible_profile_id ?? '',
         smm_profile_id: existing.smm_profile_id ?? '',
         shoot_date: existing.shoot_date ?? '',
+        edit_done_date: existing.edit_done_date ?? '',
+        cover_done_date: existing.cover_done_date ?? '',
         publish_date: existing.publish_date ?? '',
         script: existing.script ?? '',
         tor_text: existing.tor_text ?? '',
@@ -284,6 +288,8 @@ export function ContentItemSheet({
       responsible_profile_id: values.responsible_profile_id || null,
       smm_profile_id: values.smm_profile_id || null,
       shoot_date: values.shoot_date || null,
+      edit_done_date: values.edit_done_date || null,
+      cover_done_date: values.cover_done_date || null,
       publish_date: values.publish_date || null,
       script: values.script || null,
       tor_text: values.tor_text || null,
@@ -552,6 +558,14 @@ export function ContentItemSheet({
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="shoot_date">{t('contentPlan.shootDate')}</Label>
               <Input id="shoot_date" type="date" {...register('shoot_date')} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="edit_done_date">{t('contentPlan.editDoneDate')}</Label>
+              <Input id="edit_done_date" type="date" {...register('edit_done_date')} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="cover_done_date">{t('contentPlan.coverDoneDate')}</Label>
+              <Input id="cover_done_date" type="date" {...register('cover_done_date')} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="publish_date">{t('contentPlan.publishDate')}</Label>
