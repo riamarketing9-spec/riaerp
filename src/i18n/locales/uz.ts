@@ -155,6 +155,7 @@ export const uz = {
     dateTo: 'Sanagacha',
     resetDateFilter: 'Sanani tozalash',
     eisenhower: 'Prioritet (Eyzenxauer matritsasi)',
+    recurrence: 'Takrorlanishi',
     quadrantDoNow: 'Shoshilinch va muhim',
     quadrantSchedule: 'Shoshilinch emas, lekin muhim',
     quadrantDelegate: 'Shoshilinch, lekin muhim emas',

@@ -36,6 +36,7 @@ const schema = z.object({
   deliverable_text: z.string().optional(),
   term_type_id: z.string().optional(),
   quadrant_id: z.string().optional(),
+  recurrence_id: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -108,6 +109,15 @@ export function TaskSheet({
         .from('task_priority_quadrants')
         .select('id, slug, label_ru, label_uz')
         .order('sort_order')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: recurrenceTypes } = useQuery({
+    queryKey: ['recurrence_types'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('recurrence_types').select('id, slug, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -262,6 +272,7 @@ export function TaskSheet({
         deliverable_text: existing.deliverable_text ?? '',
         term_type_id: existing.term_type_id ?? '',
         quadrant_id: existing.quadrant_id ?? '',
+        recurrence_id: existing.recurrence_id ?? '',
       })
     }
   }, [existing, reset])
@@ -292,6 +303,7 @@ export function TaskSheet({
       deliverable_text: values.deliverable_text || null,
       term_type_id: values.term_type_id || null,
       quadrant_id: values.quadrant_id || null,
+      recurrence_id: values.recurrence_id || null,
     }
 
     let currentTaskId = effectiveId
@@ -551,6 +563,28 @@ export function TaskSheet({
                   )}
                 >
                   {pickLabel(q, i18n.language)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('tasks.recurrence')}</Label>
+            <div className="flex gap-2">
+              {recurrenceTypes?.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  disabled={isOwnTaskOnly}
+                  onClick={() => setValue('recurrence_id', r.id)}
+                  className={cn(
+                    'flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                    watch('recurrence_id') === r.id
+                      ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
+                      : 'border-border text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {pickLabel(r, i18n.language)}
                 </button>
               ))}
             </div>

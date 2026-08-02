@@ -155,6 +155,7 @@ export const ru = {
     dateTo: 'По дату',
     resetDateFilter: 'Сбросить даты',
     eisenhower: 'Приоритет (матрица Эйзенхауэра)',
+    recurrence: 'Повторяемость',
     quadrantDoNow: 'Срочно и важно',
     quadrantSchedule: 'Не срочно, но важно',
     quadrantDelegate: 'Срочно, но не важно',
