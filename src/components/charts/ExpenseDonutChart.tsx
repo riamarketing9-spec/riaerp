@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const SIZE = 176
 const STROKE = 26
@@ -37,6 +37,14 @@ export function ExpenseDonutChart({
   tableToggleLabel: string
 }) {
   const [tableOpen, setTableOpen] = useState(false)
+  // Each arc sweeps in from zero, staggered, instead of appearing whole.
+  const [grown, setGrown] = useState(false)
+  useEffect(() => {
+    setGrown(false)
+    const id = requestAnimationFrame(() => setGrown(true))
+    return () => cancelAnimationFrame(id)
+  }, [slices.length])
+
   const total = slices.reduce((sum, s) => sum + s.value, 0)
   let cursor = 0
   const arcs = slices.map((s, i) => {
@@ -44,7 +52,8 @@ export function ExpenseDonutChart({
     const start = cursor
     const end = cursor + span
     cursor = end + GAP_DEG
-    return { ...s, start, end, color: SLICE_COLORS[i] ?? SLICE_COLORS[SLICE_COLORS.length - 1] }
+    const arcLen = ((span * Math.PI) / 180) * RADIUS
+    return { ...s, start, end, arcLen, color: SLICE_COLORS[i] ?? SLICE_COLORS[SLICE_COLORS.length - 1] }
   })
 
   return (
@@ -59,7 +68,17 @@ export function ExpenseDonutChart({
           role="button"
           aria-expanded={tableOpen}
         >
-          {arcs.map((a) =>
+          <defs>
+            <filter id="donut-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <circle cx={CENTER} cy={CENTER} r={RADIUS} fill="none" stroke="var(--muted)" strokeWidth={STROKE} opacity={0.4} />
+          {arcs.map((a, i) =>
             a.end > a.start ? (
               <path
                 key={a.label}
@@ -68,22 +87,36 @@ export function ExpenseDonutChart({
                 stroke={a.color}
                 strokeWidth={STROKE}
                 strokeLinecap="round"
-                className="transition-opacity duration-200 hover:opacity-80"
+                filter="url(#donut-glow)"
+                className="origin-center transition-[opacity,transform] duration-200 hover:scale-[1.035] hover:opacity-90"
+                style={{
+                  transformBox: 'fill-box',
+                  strokeDasharray: a.arcLen,
+                  strokeDashoffset: grown ? 0 : a.arcLen,
+                  transition: `stroke-dashoffset 750ms var(--ease-out-strong) ${i * 120}ms, opacity 200ms, transform 200ms`,
+                }}
               />
             ) : null
           )}
-          <text x={CENTER} y={CENTER - 4} textAnchor="middle" className="fill-foreground text-2xl font-bold" fontSize={22}>
+          <text
+            x={CENTER}
+            y={CENTER - 4}
+            textAnchor="middle"
+            className="fill-foreground text-2xl font-extrabold animate-pop-in"
+            fontSize={22}
+            style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+          >
             {formatMoney(total)}
           </text>
-          <text x={CENTER} y={CENTER + 16} textAnchor="middle" className="fill-muted-foreground" fontSize={11}>
+          <text x={CENTER} y={CENTER + 16} textAnchor="middle" className="fill-muted-foreground font-medium" fontSize={11}>
             {totalLabel}
           </text>
         </svg>
         <div className="flex flex-col gap-2">
           {arcs.map((a) => (
             <div key={a.label} className="flex items-center gap-2 text-sm">
-              <span className="size-2.5 shrink-0 rounded-full" style={{ background: a.color }} />
-              <span className="text-foreground">{a.label}</span>
+              <span className="size-2.5 shrink-0 rounded-full" style={{ background: a.color, boxShadow: `0 0 6px ${a.color}` }} />
+              <span className="font-medium text-foreground">{a.label}</span>
               <span className="text-muted-foreground">
                 {total > 0 ? Math.round((a.value / total) * 100) : 0}%
               </span>

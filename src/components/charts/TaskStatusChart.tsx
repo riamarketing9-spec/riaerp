@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DeadlineBadge } from './DeadlineBadge'
 
 export type TaskStatusBucket = {
@@ -10,7 +10,7 @@ export type TaskStatusBucket = {
 }
 
 const WIDTH = 320
-const HEIGHT = 140
+const HEIGHT = 148
 const BAR_GAP = 24
 
 // A small status-colored bar chart (in progress / overdue / due soon) --
@@ -24,9 +24,17 @@ export function TaskStatusChart({
   onItemClick?: (id: string) => void
 }) {
   const [openKey, setOpenKey] = useState<string | null>(null)
+  // Bars grow in from zero on mount instead of appearing fully-formed --
+  // one deliberate entrance moment reads as "alive", not scattered fidgets.
+  const [grown, setGrown] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setGrown(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+
   const max = Math.max(1, ...buckets.map((b) => b.count))
   const barW = (WIDTH - BAR_GAP * (buckets.length - 1)) / buckets.length
-  const plotH = HEIGHT - 24
+  const plotH = HEIGHT - 30
 
   return (
     <div>
@@ -35,37 +43,64 @@ export function TaskStatusChart({
           {buckets.map((b) => (
             <linearGradient key={b.key} id={`taskbar-${b.key}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={b.color} stopOpacity={1} />
-              <stop offset="100%" stopColor={b.color} stopOpacity={0.72} />
+              <stop offset="100%" stopColor={b.color} stopOpacity={0.55} />
             </linearGradient>
           ))}
+          <filter id="taskbar-glow" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
         {buckets.map((b, i) => {
-          const h = (b.count / max) * plotH
+          const h = grown ? (b.count / max) * plotH : 0
           const x = i * (barW + BAR_GAP)
           const y = plotH - h
           return (
             <g
               key={b.key}
-              className="cursor-pointer transition-opacity hover:opacity-80"
+              className="group cursor-pointer"
               onClick={() => setOpenKey((k) => (k === b.key ? null : b.key))}
               role="button"
               aria-expanded={openKey === b.key}
             >
               {/* faint full-height track so short bars aren't floating with no baseline reference */}
-              <rect x={x} y={0} width={barW} height={plotH} rx={6} className="fill-muted/50" />
+              <rect x={x} y={0} width={barW} height={plotH} rx={8} className="fill-muted/40" />
+              {b.count > 0 && (
+                <ellipse
+                  cx={x + barW / 2}
+                  cy={plotH}
+                  rx={barW / 2}
+                  ry={4}
+                  fill={b.color}
+                  opacity={grown ? 0.35 : 0}
+                  style={{ transition: 'opacity 700ms var(--ease-out-strong) 200ms' }}
+                />
+              )}
               <rect
                 x={x}
                 y={y}
                 width={barW}
-                height={Math.max(h, 3)}
-                rx={6}
+                height={Math.max(h, b.count > 0 ? 4 : 0)}
+                rx={8}
                 fill={`url(#taskbar-${b.key})`}
-                style={{ transition: 'height 500ms var(--ease-out-strong), y 500ms var(--ease-out-strong)' }}
+                filter="url(#taskbar-glow)"
+                className="transition-[filter] duration-200 group-hover:brightness-110"
+                style={{ transition: 'height 700ms var(--ease-spring), y 700ms var(--ease-spring)' }}
               />
-              <text x={x + barW / 2} y={y - 8} textAnchor="middle" className="fill-foreground text-sm font-bold" fontSize={16}>
+              <text
+                x={x + barW / 2}
+                y={y - 10}
+                textAnchor="middle"
+                className="fill-foreground text-sm font-extrabold transition-opacity duration-500"
+                fontSize={18}
+                style={{ opacity: grown ? 1 : 0, transitionDelay: '400ms' }}
+              >
                 {b.count}
               </text>
-              <text x={x + barW / 2} y={HEIGHT - 6} textAnchor="middle" className="fill-muted-foreground font-medium" fontSize={11}>
+              <text x={x + barW / 2} y={HEIGHT - 8} textAnchor="middle" className="fill-muted-foreground font-semibold uppercase tracking-wide" fontSize={10}>
                 {b.label}
               </text>
             </g>
@@ -75,7 +110,7 @@ export function TaskStatusChart({
 
       {buckets.map((b) =>
         openKey === b.key ? (
-          <div key={b.key} className="mt-2 flex flex-col gap-1 rounded-md border border-border p-2">
+          <div key={b.key} className="mt-2 flex animate-fade-in-up flex-col gap-1 rounded-lg border border-border bg-muted/20 p-2">
             {b.tasks.length === 0 ? (
               <p className="px-1 text-xs text-muted-foreground">—</p>
             ) : (

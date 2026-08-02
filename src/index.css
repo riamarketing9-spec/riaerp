@@ -215,6 +215,58 @@
   color: transparent;
 }
 
+/* Real motion, not just color -- an entrance moment for anything that just
+   appeared (a revealed drill-down list, a freshly loaded card, a popped
+   number), and a slow ambient pulse for "this is live right now" markers
+   (already used inline for the working-now dot in CabinetPage). */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.85); }
+  60% { opacity: 1; transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@utility animate-fade-in-up {
+  animation: fade-in-up 320ms var(--ease-out-strong) both;
+}
+@utility animate-pop-in {
+  animation: pop-in 480ms var(--ease-spring) both;
+}
+@utility animate-glow-pulse {
+  animation: glow-pulse 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up, .animate-pop-in, .animate-glow-pulse {
+    animation: none !important;
+  }
+}
+
+/* Stat tiles (FinanceSection headline row, KPI cards) -- a soft brand-tinted
+   gradient card instead of flat white, with a decorative oversized number
+   ghosted in the corner for depth. Opt-in via className, doesn't touch the
+   plain Card look used everywhere else. */
+.stat-tile {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(155deg, color-mix(in oklch, var(--color-brand-400), transparent 90%), var(--card) 55%);
+}
+.stat-tile::after {
+  content: '';
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle, color-mix(in oklch, var(--color-brand-400), transparent 78%), transparent 70%);
+  pointer-events: none;
+}
+
 /* Org chart connectors (OrgStructurePage) -- the classic pure-CSS tree
    recipe: each <li> draws its own left/right half of the horizontal line to
    its siblings via ::before/::after, and only a *nested* <ul> (a node's own

@@ -12,7 +12,7 @@ import { ContentItemSheet } from './ContentItemSheet'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
 import { formatLocalDate, pickLabel } from '@/lib/localizedLabel'
 import { Button } from '@/components/ui/button'
-import { Trash2, Plus } from 'lucide-react'
+import { Trash2, Plus, Wallet, FolderKanban, AlertTriangle, Gauge } from 'lucide-react'
 import { telegramDeepLink } from '@/lib/telegram'
 import { TimeTrackerWidget } from '@/components/TimeTrackerWidget'
 import { TaskStatusChart, type TaskStatusBucket } from '@/components/charts/TaskStatusChart'
@@ -179,7 +179,10 @@ function IdleTeamWidget() {
             </span>
           </div>
           <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-brand-500 transition-[width]" style={{ width: `${idlePct}%` }} />
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-300 shadow-[0_0_12px_-1px_var(--color-brand-400)] transition-[width] duration-700 ease-out"
+              style={{ width: `${idlePct}%` }}
+            />
           </div>
         </button>
 
@@ -545,6 +548,36 @@ function monthKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+// A gradient-tinted tile with a colored icon badge, replacing the old plain
+// "Label: value · Label: value" text line -- the same 4 numbers, but each
+// one now reads as its own headline instead of buried mid-sentence.
+function FinanceStatTile({
+  icon: Icon,
+  label,
+  value,
+  accent,
+}: {
+  icon: typeof Wallet
+  label: string
+  value: string | number
+  accent: string
+}) {
+  return (
+    <div className="stat-tile flex flex-col gap-2 rounded-xl border border-border p-3.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+      <div
+        className="flex size-8 items-center justify-center rounded-lg"
+        style={{ background: `color-mix(in oklch, ${accent}, transparent 85%)`, color: accent }}
+      >
+        <Icon className="size-4" strokeWidth={2} />
+      </div>
+      <div>
+        <p className="text-lg font-extrabold tracking-tight text-foreground">{value}</p>
+        <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+      </div>
+    </div>
+  )
+}
+
 // Moved in from the retired /kpi page: same charts, same queries, now living
 // where the CEO already spends their time instead of a separate visit.
 function FinanceSection() {
@@ -682,15 +715,12 @@ function FinanceSection() {
         <BackupExportButton />
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        {t('kpi.mrr')}: <span className="font-medium text-foreground">{formatMoney(dashboard?.mrr ?? 0)}</span>
-        {' · '}
-        {t('kpi.activeProjects')}: <span className="font-medium text-foreground">{dashboard?.active_projects ?? 0}</span>
-        {' · '}
-        {t('kpi.overdueTasks')}: <span className="font-medium text-foreground">{dashboard?.overdue_tasks ?? 0}</span>
-        {' · '}
-        {t('kpi.overloadedEmployees')}: <span className="font-medium text-foreground">{dashboard?.overloaded_employees ?? 0}</span>
-      </p>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <FinanceStatTile icon={Wallet} label={t('kpi.mrr')} value={formatMoney(dashboard?.mrr ?? 0)} accent="var(--color-brand-500)" />
+        <FinanceStatTile icon={FolderKanban} label={t('kpi.activeProjects')} value={dashboard?.active_projects ?? 0} accent="var(--color-sky-accent)" />
+        <FinanceStatTile icon={AlertTriangle} label={t('kpi.overdueTasks')} value={dashboard?.overdue_tasks ?? 0} accent="var(--destructive)" />
+        <FinanceStatTile icon={Gauge} label={t('kpi.overloadedEmployees')} value={dashboard?.overloaded_employees ?? 0} accent="var(--color-amber-accent)" />
+      </div>
 
       <Card>
         <CardHeader>

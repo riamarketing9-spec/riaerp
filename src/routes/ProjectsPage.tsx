@@ -309,7 +309,7 @@ export function ProjectsPage() {
                     className="relative h-5 w-full overflow-hidden rounded-full bg-muted"
                   >
                     <div
-                      className="h-full rounded-full bg-brand-600 transition-[width]"
+                      className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-300 shadow-[0_0_12px_-1px_var(--color-brand-400)] transition-[width] duration-700 ease-out"
                       style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
                     />
                     <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
