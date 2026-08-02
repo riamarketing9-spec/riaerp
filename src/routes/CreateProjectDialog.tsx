@@ -86,6 +86,10 @@ export function ProjectDialog({
     })
   }
 
+  const [newTypeOpen, setNewTypeOpen] = useState(false)
+  const [newTypeLabelRu, setNewTypeLabelRu] = useState('')
+  const [newTypeLabelUz, setNewTypeLabelUz] = useState('')
+
   const { data: projectTypes } = useQuery({
     queryKey: ['project_types'],
     queryFn: async () => {
@@ -159,6 +163,27 @@ export function ProjectDialog({
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
   const watchedClientId = watch('client_id')
+
+  const newTypeMutation = useMutation({
+    mutationFn: async () => {
+      const slug = newTypeLabelRu.trim().toLowerCase().replace(/\s+/g, '_')
+      const { data, error } = await supabase
+        .from('project_types')
+        .insert({ slug, label_ru: newTypeLabelRu.trim(), label_uz: newTypeLabelUz.trim() || newTypeLabelRu.trim() })
+        .select('id')
+        .single()
+      if (error) throw error
+      return data.id
+    },
+    onSuccess: (id: string) => {
+      queryClient.invalidateQueries({ queryKey: ['project_types'] })
+      setValue('project_type_id', id)
+      setNewTypeLabelRu('')
+      setNewTypeLabelUz('')
+      setNewTypeOpen(false)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
 
   const { data: existingContract } = useQuery({
     queryKey: ['contract-for-client', watchedClientId],
@@ -389,23 +414,58 @@ export function ProjectDialog({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label>{t('projects.type')}</Label>
-              <Select
-                value={watch('project_type_id')}
-                onValueChange={(v: string | null) => setValue('project_type_id', v ?? '')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="—">
-                    {() => pickLabel(projectTypes?.find((pt) => pt.id === watch('project_type_id')), i18n.language)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {projectTypes?.map((pt) => (
-                    <SelectItem key={pt.id} value={pt.id}>
-                      {pickLabel(pt, i18n.language)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-1.5">
+                <Select
+                  value={watch('project_type_id')}
+                  onValueChange={(v: string | null) => setValue('project_type_id', v ?? '')}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="—">
+                      {() => pickLabel(projectTypes?.find((pt) => pt.id === watch('project_type_id')), i18n.language)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projectTypes?.map((pt) => (
+                      <SelectItem key={pt.id} value={pt.id}>
+                        {pickLabel(pt, i18n.language)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  title={t('projects.newType')}
+                  onClick={() => setNewTypeOpen((v) => !v)}
+                >
+                  <Plus className="size-4" />
+                </Button>
+              </div>
+              {newTypeOpen && (
+                <div className="flex flex-col gap-1.5 rounded-lg border border-border p-2">
+                  <Input
+                    placeholder={t('team.departmentNameRu')}
+                    value={newTypeLabelRu}
+                    onChange={(e) => setNewTypeLabelRu(e.target.value)}
+                    className="h-8"
+                  />
+                  <Input
+                    placeholder={t('team.departmentNameUz')}
+                    value={newTypeLabelUz}
+                    onChange={(e) => setNewTypeLabelUz(e.target.value)}
+                    className="h-8"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!newTypeLabelRu.trim() || newTypeMutation.isPending}
+                    onClick={() => newTypeMutation.mutate()}
+                  >
+                    {t('common.create')}
+                  </Button>
+                </div>
+              )}
               {errors.project_type_id && (
                 <p className="text-xs text-destructive">{errors.project_type_id.message}</p>
               )}

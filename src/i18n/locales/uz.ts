@@ -114,6 +114,7 @@ export const uz = {
     logo: 'Logotip',
     status: 'Holati',
     type: 'Turi',
+    newType: 'Yangi tur',
     pm: 'PM',
     goal: 'Maqsad',
     audience: 'Maqsadli auditoriya (matn)',

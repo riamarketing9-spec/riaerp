@@ -114,6 +114,7 @@ export const ru = {
     logo: 'Логотип',
     status: 'Статус',
     type: 'Тип',
+    newType: 'Новый тип',
     pm: 'PM',
     goal: 'Цель',
     audience: 'Целевая аудитория (текст)',
