@@ -26,6 +26,7 @@ const CAPABILITIES = [
   { slug: 'cabinets.read_all', labelKey: 'team.capCabinetsReadAll' },
   { slug: 'projects.manage', labelKey: 'team.capProjectsManage' },
   { slug: 'projects.read_scoped', labelKey: 'team.capProjectsReadScoped' },
+  { slug: 'content_plan.manage', labelKey: 'team.capContentPlanManage' },
   { slug: 'sales.read', labelKey: 'team.capSalesRead' },
   { slug: 'sales.manage', labelKey: 'team.capSalesManage' },
   { slug: 'org.structure_manage', labelKey: 'team.capOrgStructureManage' },

@@ -389,6 +389,7 @@ export const ru = {
     capCabinetsReadAll: 'Просмотр всех сотрудников/шкафчиков',
     capProjectsManage: 'Управление проектами',
     capProjectsReadScoped: 'Просмотр своих проектов',
+    capContentPlanManage: 'Полный доступ к контент-плану (все проекты)',
     capSalesRead: 'Просмотр продаж',
     capSalesManage: 'Управление продажами',
     capOrgStructureManage: 'Редактирование орг. структуры',

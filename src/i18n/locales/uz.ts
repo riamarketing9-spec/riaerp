@@ -389,6 +389,7 @@ export const uz = {
     capCabinetsReadAll: "Barcha xodimlar/kabinetlarni ko'rish",
     capProjectsManage: 'Loyihalarni boshqarish',
     capProjectsReadScoped: "O'z loyihalarini ko'rish",
+    capContentPlanManage: "Kontent-rejaga to'liq kirish (barcha loyihalar)",
     capSalesRead: "Sotuvlarni ko'rish",
     capSalesManage: 'Sotuvlarni boshqarish',
     capOrgStructureManage: 'Tashkiliy tuzilmani tahrirlash',
