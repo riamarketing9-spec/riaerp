@@ -66,11 +66,13 @@ export function ContentTableView({
   const [formatFilter, setFormatFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
 
-  const filtered = useMemo(() => {
+  // Platform/format only, no status/project narrowing beyond project itself
+  // -- shared base for the table (adds statusFilter) and the per-status
+  // stats strip (needs every status's count, so it can't be pre-narrowed).
+  const itemsForStats = useMemo(() => {
     return items.filter((item) => {
       if (projectFilter && item.project_id !== projectFilter) return false
       if (formatFilter && item.format_id !== formatFilter) return false
-      if (statusFilter && item.status_id !== statusFilter) return false
       if (platformFilter) {
         const hasPlatform = (itemPlatforms ?? []).some(
           (ip) => ip.content_plan_item_id === item.id && ip.platform_id === platformFilter
@@ -79,7 +81,21 @@ export function ContentTableView({
       }
       return true
     })
-  }, [items, projectFilter, platformFilter, formatFilter, statusFilter, itemPlatforms])
+  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms])
+
+  const filtered = useMemo(
+    () => itemsForStats.filter((item) => !statusFilter || item.status_id === statusFilter),
+    [itemsForStats, statusFilter]
+  )
+
+  // Only meaningful once a single project is selected -- a cross-project
+  // breakdown mixed together isn't a useful number.
+  const statusCounts = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!projectFilter) return map
+    for (const item of itemsForStats) map.set(item.status_id, (map.get(item.status_id) ?? 0) + 1)
+    return map
+  }, [itemsForStats, projectFilter])
 
   const projectName = (id: string) => projects?.find((p) => p.id === id)?.name ?? '—'
   const statusLabel = (id: string) => pickLabel(statuses?.find((s) => s.id === id), i18n.language) ?? '—'
@@ -124,6 +140,29 @@ export function ContentTableView({
           placeholder={t('contentPlan.allStatuses')}
         />
       </div>
+
+      {projectFilter && (
+        <div className="flex flex-wrap gap-2">
+          {statuses?.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === s.id ? '' : s.id)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                statusFilter === s.id
+                  ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
+                  : 'border-border text-muted-foreground hover:bg-muted'
+              )}
+            >
+              {pickLabel(s, i18n.language)}
+              <Badge variant="secondary" className="text-[10px]">
+                {statusCounts.get(s.id) ?? 0}
+              </Badge>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-border">
         <Table>

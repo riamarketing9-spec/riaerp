@@ -232,6 +232,30 @@ export function ContentCalendarView({
     return map
   }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms])
 
+  // Same per-status breakdown as the folders view, scoped to the currently
+  // displayed month grid and the platform/format filters (not status, since
+  // status is the axis being broken down) -- only meaningful once a single
+  // project is selected, a cross-project count would just be noise.
+  const statusCounts = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!projectFilter) return map
+    const rangeStart = format(days[0], 'yyyy-MM-dd')
+    const rangeEnd = format(days[days.length - 1], 'yyyy-MM-dd')
+    for (const item of items) {
+      if (item.project_id !== projectFilter) continue
+      if (!item.publish_date || item.publish_date < rangeStart || item.publish_date > rangeEnd) continue
+      if (formatFilter && item.format_id !== formatFilter) continue
+      if (platformFilter) {
+        const hasPlatform = (itemPlatforms ?? []).some(
+          (ip) => ip.content_plan_item_id === item.id && ip.platform_id === platformFilter
+        )
+        if (!hasPlatform) continue
+      }
+      map.set(item.status_id, (map.get(item.status_id) ?? 0) + 1)
+    }
+    return map
+  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms, days])
+
   const statusOf = (id: string) => statuses?.find((s) => s.id === id)
   const statusLabel = (id: string) => pickLabel(statusOf(id), i18n.language)
   const platformsFor = (itemId: string) =>
@@ -306,6 +330,22 @@ export function ContentCalendarView({
           </Button>
         </div>
       </div>
+
+      {projectFilter && (
+        <div className="flex flex-wrap gap-2">
+          {statuses?.map((s) => (
+            <div
+              key={s.id}
+              className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground"
+            >
+              {pickLabel(s, i18n.language)}
+              <Badge variant="secondary" className="text-[10px]">
+                {statusCounts.get(s.id) ?? 0}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="grid grid-cols-7 overflow-hidden rounded-lg border border-border [&>*]:border-b [&>*]:border-r [&>*:nth-child(7n)]:border-r-0">
