@@ -308,6 +308,9 @@ type DocumentRow = {
   category_id: string | null
   uploaded_by: string | null
   is_org_wide: boolean
+  profile_id: string | null
+  note: string | null
+  kind: 'document' | 'contract'
   created_at: string
 }
 
