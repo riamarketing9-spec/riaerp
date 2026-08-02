@@ -80,28 +80,34 @@ async function buildEmployeeTaskReport(admin: any, profileId: string): Promise<s
     return projectName ? `${escapeHtml(task.title)} <i>(${escapeHtml(projectName)})</i>` : escapeHtml(task.title)
   }
 
-  const lines: string[] = []
+  // Blank line between each task (incl. its own checklist right under it,
+  // never the next task's) so a multi-task report doesn't read as one
+  // run-on block -- "-" for not-done instead of "▫️", which read as an
+  // unlabeled blank square rather than "not done".
+  const blocks: string[] = []
 
   for (const task of doneTodayTasks ?? []) {
     const taskItems = itemsFor(task.id)
-    lines.push(`✅ <b>${taskLabel(task)}</b> — bajarildi`)
+    const block = [`✅ <b>${taskLabel(task)}</b> — bajarildi`]
     if (taskItems.length > 0) {
-      lines.push(`   ✅ barcha chek-list bandlari bajarildi: ${taskItems.map((i: { title: string }) => escapeHtml(i.title)).join(', ')}`)
+      block.push(`   ✅ barcha chek-list bandlari bajarildi: ${taskItems.map((i: { title: string }) => escapeHtml(i.title)).join(', ')}`)
     }
+    blocks.push(block.join('\n'))
   }
 
   for (const task of openTasks ?? []) {
     const taskItems = itemsFor(task.id)
-    lines.push(`📋 <b>${taskLabel(task)}</b>`)
+    const block = [`📋 <b>${taskLabel(task)}</b>`]
     if (taskItems.length > 0) {
       const done = taskItems.filter((i: { is_done: boolean }) => i.is_done).map((i: { title: string }) => escapeHtml(i.title))
       const notDone = taskItems.filter((i: { is_done: boolean }) => !i.is_done).map((i: { title: string }) => escapeHtml(i.title))
-      if (done.length > 0) lines.push(`   ✅ ${done.join(', ')}`)
-      if (notDone.length > 0) lines.push(`   ▫️ ${notDone.join(', ')}`)
+      if (done.length > 0) block.push(`   ✅ ${done.join(', ')}`)
+      if (notDone.length > 0) block.push(`   - ${notDone.join(', ')}`)
     }
+    blocks.push(block.join('\n'))
   }
 
-  return lines.join('\n')
+  return blocks.join('\n\n')
 }
 
 Deno.serve(async (req) => {
