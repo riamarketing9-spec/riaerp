@@ -126,6 +126,8 @@ export const uz = {
     resultVideo: 'YouTube video',
     resultEdits: 'Qilingan montajlar',
     resultShoots: 'Qilingan syomkalar',
+    progressDetail: 'Bu oyda nima qilindi',
+    progressDetailEmpty: "Hozircha hech narsa",
     pm: 'PM',
     goal: 'Maqsad',
     audience: 'Maqsadli auditoriya (matn)',

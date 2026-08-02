@@ -4,11 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabaseClient'
 import { Card } from '@/components/ui/card'
 import { Avatar } from '@/components/Avatar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { BarChart3 } from 'lucide-react'
 import { CreateProjectDialog, ProjectDialog } from './CreateProjectDialog'
 import { ProjectResultDialog } from './ProjectResultDialog'
-import { pickLabel } from '@/lib/localizedLabel'
+import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
 
 // Which "ish turi" (deliverable type) label counts toward the target quota
 // -- matched by label_uz since new types get added through the lookup
@@ -33,10 +35,120 @@ function monthRange(date: Date) {
   return { start, end }
 }
 
+type ProgressDetailItem = { id: string; topic: string; publish_date: string | null }
+type ProgressDetailTask = { id: string; title: string; completed_at: string | null }
+
+function ProgressDetailSection({
+  label,
+  target,
+  statusLabel,
+  emptyLabel,
+  items,
+}: {
+  label: string
+  target: number
+  statusLabel: string
+  emptyLabel: string
+  items: ProgressDetailItem[]
+}) {
+  const { i18n } = useTranslation()
+  if (target === 0) return null
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between text-sm font-medium">
+        <span>{label}</span>
+        <span className="text-muted-foreground">
+          {items.length} / {target}
+        </span>
+      </div>
+      {items.length === 0 && <p className="text-xs text-muted-foreground">{emptyLabel}</p>}
+      {items.map((item) => (
+        <div key={item.id} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
+          <span className="text-muted-foreground">{formatLocalDate(item.publish_date, i18n.language)}</span>
+          <span className="flex-1 truncate">{item.topic}</span>
+          <Badge variant="secondary" className="shrink-0 text-[10px]">
+            {statusLabel}
+          </Badge>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ProjectProgressDetailDialog({
+  open,
+  onOpenChange,
+  projectName,
+  detail,
+  publishedStatusLabel,
+  doneStatusLabel,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  projectName?: string
+  detail: { goal: { target_posts: number; target_stories: number; target_ads: boolean }; postsItems: ProgressDetailItem[]; storiesItems: ProgressDetailItem[]; targetTasks: ProgressDetailTask[] } | null
+  publishedStatusLabel: string
+  doneStatusLabel: string
+}) {
+  const { t, i18n } = useTranslation()
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {t('projects.progressDetail')} {projectName ? `— ${projectName}` : ''}
+          </DialogTitle>
+        </DialogHeader>
+        {detail && (
+          <div className="flex flex-col gap-4">
+            <ProgressDetailSection
+              label={t('kpi.monthPosts')}
+              target={detail.goal.target_posts}
+              statusLabel={publishedStatusLabel}
+              emptyLabel={t('projects.progressDetailEmpty')}
+              items={detail.postsItems}
+            />
+            <ProgressDetailSection
+              label={t('kpi.monthStories')}
+              target={detail.goal.target_stories}
+              statusLabel={publishedStatusLabel}
+              emptyLabel={t('projects.progressDetailEmpty')}
+              items={detail.storiesItems}
+            />
+            {detail.goal.target_ads && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-sm font-medium">
+                  <span>{t('kpi.monthTarget')}</span>
+                  <span className="text-muted-foreground">
+                    {detail.targetTasks.length > 0 ? t('common.yes') : t('common.no')}
+                  </span>
+                </div>
+                {detail.targetTasks.length === 0 && (
+                  <p className="text-xs text-muted-foreground">{t('projects.progressDetailEmpty')}</p>
+                )}
+                {detail.targetTasks.map((tsk) => (
+                  <div key={tsk.id} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
+                    <span className="text-muted-foreground">{formatLocalDate(tsk.completed_at, i18n.language)}</span>
+                    <span className="flex-1 truncate">{tsk.title}</span>
+                    <Badge variant="secondary" className="shrink-0 text-[10px]">
+                      {doneStatusLabel}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function ProjectsPage() {
   const { t, i18n } = useTranslation()
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
   const [resultProjectId, setResultProjectId] = useState<string | null>(null)
+  const [progressDetailProjectId, setProgressDetailProjectId] = useState<string | null>(null)
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ['projects'],
@@ -68,14 +180,19 @@ export function ProjectsPage() {
     },
   })
 
-  const { data: doneStatusId } = useQuery({
-    queryKey: ['task_statuses-done-id'],
+  const { data: doneStatus } = useQuery({
+    queryKey: ['task_statuses-done'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('task_statuses').select('id, slug').eq('slug', 'done').maybeSingle()
+      const { data, error } = await supabase
+        .from('task_statuses')
+        .select('id, label_ru, label_uz')
+        .eq('slug', 'done')
+        .maybeSingle()
       if (error) throw error
-      return data?.id ?? null
+      return data
     },
   })
+  const doneStatusId = doneStatus?.id ?? null
 
   const { data: deliverableTypes } = useQuery({
     queryKey: ['deliverable_types-lookup'],
@@ -108,14 +225,19 @@ export function ProjectsPage() {
     },
   })
 
-  const { data: publishedStatusId } = useQuery({
-    queryKey: ['content_statuses-published-id'],
+  const { data: publishedStatus } = useQuery({
+    queryKey: ['content_statuses-published'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('content_statuses').select('id').eq('slug', 'published').maybeSingle()
+      const { data, error } = await supabase
+        .from('content_statuses')
+        .select('id, label_ru, label_uz')
+        .eq('slug', 'published')
+        .maybeSingle()
       if (error) throw error
-      return data?.id ?? null
+      return data
     },
   })
+  const publishedStatusId = publishedStatus?.id ?? null
 
   const { data: contentFormats } = useQuery({
     queryKey: ['content_formats'],
@@ -135,7 +257,7 @@ export function ProjectsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('content_plan_items')
-        .select('id, project_id, format_id')
+        .select('id, project_id, format_id, topic, publish_date')
         .in('project_id', projectIds)
         .eq('status_id', publishedStatusId!)
         .gte('publish_date', monthKeyRef.start.slice(0, 10))
@@ -153,7 +275,7 @@ export function ProjectsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id, project_id')
+        .select('id, project_id, title, completed_at')
         .in('project_id', projectIds)
         .eq('status_id', doneStatusId!)
         .gte('completed_at', monthKeyRef.start)
@@ -208,6 +330,33 @@ export function ProjectsPage() {
       (goal.target_ads && targetDone ? 1 : 0)
 
     return Math.round((doneTotal / quotaTotal) * 100)
+  }
+
+  // Drill-down behind the progress bar: exactly which cards/tasks counted
+  // toward this month's %, grouped by the same categories as the goal
+  // (only categories with a nonzero target show up -- a project with no
+  // story target shouldn't display an empty "Stories: 0" section).
+  const progressDetailFor = (project: { id: string }) => {
+    const goal = monthlyGoalByProject?.get(project.id)
+    if (!goal) return null
+
+    const formatSlug = (formatId: string) => contentFormats?.find((f) => f.id === formatId)?.slug
+    const labelFor = (deliverableTypeId: string) =>
+      deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''
+
+    const projectItems = (monthPublishedItems ?? []).filter((i) => i.project_id === project.id)
+    const postsItems = projectItems.filter((i) => ['post', 'reels', 'carousel'].includes(formatSlug(i.format_id) ?? ''))
+    const storiesItems = projectItems.filter((i) => formatSlug(i.format_id) === 'stories')
+
+    const projectDoneTasks = (monthDoneTasks ?? []).filter((tsk) => tsk.project_id === project.id)
+    const targetTasks = projectDoneTasks.filter((tsk) => {
+      const labels = (taskDeliverables ?? [])
+        .filter((td) => td.task_id === tsk.id)
+        .map((td) => labelFor(td.deliverable_type_id))
+      return labels.some((l) => TARGET_LABELS.includes(l))
+    })
+
+    return { goal, postsItems, storiesItems, targetTasks }
   }
 
   const { data: assistantsByProject } = useQuery({
@@ -269,7 +418,14 @@ export function ProjectsPage() {
                 </div>
 
                 {progress !== null && (
-                  <div className="relative h-5 w-full overflow-hidden rounded-full bg-muted">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setProgressDetailProjectId(project.id)
+                    }}
+                    className="relative h-5 w-full overflow-hidden rounded-full bg-muted"
+                  >
                     <div
                       className="h-full rounded-full bg-brand-600 transition-[width]"
                       style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
@@ -277,7 +433,7 @@ export function ProjectsPage() {
                     <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
                       {progress}%
                     </span>
-                  </div>
+                  </button>
                 )}
 
                 <div className="flex items-center justify-between gap-2">
@@ -322,6 +478,14 @@ export function ProjectsPage() {
         projectName={projects?.find((p) => p.id === resultProjectId)?.name}
         open={!!resultProjectId}
         onOpenChange={(open) => !open && setResultProjectId(null)}
+      />
+      <ProjectProgressDetailDialog
+        open={!!progressDetailProjectId}
+        onOpenChange={(open) => !open && setProgressDetailProjectId(null)}
+        projectName={projects?.find((p) => p.id === progressDetailProjectId)?.name}
+        detail={progressDetailProjectId ? progressDetailFor({ id: progressDetailProjectId }) : null}
+        publishedStatusLabel={pickLabel(publishedStatus, i18n.language) ?? ''}
+        doneStatusLabel={pickLabel(doneStatus, i18n.language) ?? ''}
       />
     </div>
   )

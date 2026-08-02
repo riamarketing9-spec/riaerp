@@ -126,6 +126,8 @@ export const ru = {
     resultVideo: 'YouTube видео',
     resultEdits: 'Монтажей сделано',
     resultShoots: 'Съёмок сделано',
+    progressDetail: 'Что сделано в этом месяце',
+    progressDetailEmpty: 'Пока ничего',
     pm: 'PM',
     goal: 'Цель',
     audience: 'Целевая аудитория (текст)',
