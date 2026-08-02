@@ -21,6 +21,7 @@ import { ProjectProfitChart } from '@/components/charts/ProjectProfitChart'
 import { RevenueProfitChart } from '@/components/charts/RevenueProfitChart'
 import { ExpenseDonutChart } from '@/components/charts/ExpenseDonutChart'
 import { BackupExportButton } from './BackupExportButton'
+import { cn } from '@/lib/utils'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
@@ -278,14 +279,24 @@ function AttendanceTodayWidget() {
       <CardHeader>
         <CardTitle className="text-base font-medium">{t('attendance.todayTitle')}</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-1.5">
+      <CardContent className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         {profiles?.map((p) => {
           const entry = entryFor(p.id)
+          const working = !!entry && !entry.ended_at
           return (
-            <div key={p.id} className="flex items-center justify-between gap-2 rounded-md bg-muted/30 px-2 py-1.5">
-              <span className="text-sm">{p.full_name}</span>
+            <div
+              key={p.id}
+              className={cn(
+                'flex items-center justify-between gap-2 rounded-md px-2 py-1.5 transition-colors',
+                working ? 'bg-brand-50 dark:bg-brand-500/10' : 'bg-muted/30'
+              )}
+            >
+              <span className="flex items-center gap-1.5 text-sm">
+                {working && <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-brand-500" />}
+                {p.full_name}
+              </span>
               {entry ? (
-                <span className="text-xs text-muted-foreground">
+                <span className="shrink-0 text-xs text-muted-foreground">
                   {new Date(entry.started_at).toLocaleTimeString(i18n.language.startsWith('uz') ? 'uz-Latn-UZ' : 'ru-RU', {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -301,7 +312,7 @@ function AttendanceTodayWidget() {
                     : t('attendance.working')}
                 </span>
               ) : (
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="shrink-0 text-[10px]">
                   {t('attendance.notArrived')}
                 </Badge>
               )}
@@ -430,14 +441,13 @@ function TaskChartsSection({
     (tsk) => tsk.deadline && new Date(tsk.deadline).getTime() >= now && new Date(tsk.deadline).getTime() <= soon
   )
 
-  // Monochrome brand-green ramp instead of blue/red/amber: dark green reads
-  // as the healthy state (in progress), pale green flags what needs
-  // attention (overdue) -- matches the ERP's own palette rather than a
-  // generic traffic-light scheme.
+  // Status semantics, not a monochrome ramp: overdue must read as the
+  // alarming one at a glance, which a pale green never did (the lightest
+  // color in a ramp reads as "least important", the opposite of the intent).
   const buckets: TaskStatusBucket[] = [
-    { key: 'in_progress', label: t('dashboard.inProgress'), count: openTasks.length, color: '#0a4235', tasks: toBucketTasks(openTasks) },
-    { key: 'due_soon', label: t('dashboard.dueSoon'), count: dueSoonTasks.length, color: '#468f76', tasks: toBucketTasks(dueSoonTasks) },
-    { key: 'overdue', label: t('dashboard.overdue'), count: overdueTasks.length, color: '#a3c9bc', tasks: toBucketTasks(overdueTasks) },
+    { key: 'in_progress', label: t('dashboard.inProgress'), count: openTasks.length, color: 'var(--color-brand-500)', tasks: toBucketTasks(openTasks) },
+    { key: 'due_soon', label: t('dashboard.dueSoon'), count: dueSoonTasks.length, color: 'var(--color-amber-accent)', tasks: toBucketTasks(dueSoonTasks) },
+    { key: 'overdue', label: t('dashboard.overdue'), count: overdueTasks.length, color: 'var(--destructive)', tasks: toBucketTasks(overdueTasks) },
   ]
 
   const projectBars: ProjectTaskBar[] = useMemo(() => {
@@ -493,7 +503,7 @@ function TaskChartsSection({
   }, [contentItems, projects])
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-medium">
@@ -522,7 +532,7 @@ function TaskChartsSection({
           {/* Same bar-list type as "по проектам" but a different shade -- a
               donut/pie stops being readable once there are more than a
               handful of projects, since every slice needs its own hue. */}
-          <ProjectTasksChart bars={contentBars} color="#468f76" onItemClick={onContentClick} />
+          <ProjectTasksChart bars={contentBars} color="var(--color-sky-accent)" onItemClick={onContentClick} />
         </CardContent>
       </Card>
     </div>
@@ -682,20 +692,21 @@ function FinanceSection() {
         {t('kpi.overloadedEmployees')}: <span className="font-medium text-foreground">{dashboard?.overloaded_employees ?? 0}</span>
       </p>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-medium">{t('kpi.revenueProfitTrend')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RevenueProfitChart
-              data={chartData}
-              revenueLabel={t('kpi.mrr')}
-              profitLabel={t('dashboard.netProfit')}
-              tableToggleLabel={t('dashboard.showTable')}
-            />
-          </CardContent>
-        </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-medium">{t('kpi.revenueProfitTrend')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RevenueProfitChart
+            data={chartData}
+            revenueLabel={t('kpi.mrr')}
+            profitLabel={t('dashboard.netProfit')}
+            tableToggleLabel={t('dashboard.showTable')}
+          />
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-medium">{t('kpi.expenseBreakdown')}</CardTitle>
@@ -1108,11 +1119,13 @@ export function CabinetPage() {
       </div>
 
       {canSeeTeamWidgets && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
           <DeadlinesWidget />
           <IdleTeamWidget />
           <TodayContentWidget />
-          <AttendanceTodayWidget />
+          <div className="sm:col-span-2">
+            <AttendanceTodayWidget />
+          </div>
         </div>
       )}
 

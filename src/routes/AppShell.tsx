@@ -49,16 +49,22 @@ function NavItem({
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors duration-150',
+          'group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-150',
           isActive
-            ? 'bg-muted text-foreground'
-            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+            ? 'bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground hover:pl-3'
         )
       }
     >
       {({ isActive }) => (
         <>
-          <Icon className={cn('size-4.5 shrink-0', isActive ? 'text-foreground' : 'text-muted-foreground')} strokeWidth={1.75} />
+          {isActive && (
+            <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-brand-500" />
+          )}
+          <Icon
+            className={cn('size-4.5 shrink-0 transition-transform duration-150 group-hover:scale-110', isActive ? 'text-brand-600 dark:text-brand-300' : 'text-muted-foreground')}
+            strokeWidth={1.75}
+          />
           {label}
         </>
       )}
@@ -184,7 +190,9 @@ export function AppShell() {
     <>
       <div className="mb-4 flex items-center justify-between gap-2 px-1.5">
         <div className="flex items-center gap-2">
-          <img src="/riaerp/logo.png" alt="RIA" className="h-7 w-auto" />
+          <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 p-1 shadow-sm">
+            <img src="/riaerp/logo.png" alt="RIA" className="h-full w-full object-contain" />
+          </div>
           <span className="text-base font-semibold tracking-tight">RIA ERP</span>
         </div>
         <div className="flex items-center gap-1">

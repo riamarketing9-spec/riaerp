@@ -25,7 +25,7 @@ function arcPath(startDeg: number, endDeg: number) {
 // "Other" bucket -- a donut shows every pair of slices at once, and only the
 // first three categorical slots in the palette clear the CVD/normal-vision
 // floor for all-pairs comparison (see the dataviz skill's palette notes).
-const SLICE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#9b9a97']
+const SLICE_COLORS = ['var(--color-sky-accent)', 'var(--color-amber-accent)', 'var(--color-brand-500)', 'var(--color-muted-foreground)']
 
 export function ExpenseDonutChart({
   slices,
@@ -68,6 +68,7 @@ export function ExpenseDonutChart({
                 stroke={a.color}
                 strokeWidth={STROKE}
                 strokeLinecap="round"
+                className="transition-opacity duration-200 hover:opacity-80"
               />
             ) : null
           )}

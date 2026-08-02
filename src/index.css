@@ -6,17 +6,27 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
 
-  /* RIA brand teal, derived from the logo mark */
-  --color-brand-50: #eaf3f0;
-  --color-brand-100: #cfe4dd;
-  --color-brand-200: #a3c9bc;
-  --color-brand-300: #74ad99;
-  --color-brand-400: #468f76;
-  --color-brand-500: #0f5d4c;
-  --color-brand-600: #0d5142;
-  --color-brand-700: #0a4235;
-  --color-brand-800: #073328;
-  --color-brand-900: #05261d;
+  /* RIA brand teal-green, re-tuned for more life: a touch more saturation
+     through the mid-range so accent fills/badges/charts read as "green",
+     not "gray with a green tint" (the old 500/600 were nearly desaturated). */
+  --color-brand-50: #eafaf3;
+  --color-brand-100: #cdf1e0;
+  --color-brand-200: #9de4c4;
+  --color-brand-300: #62cf9f;
+  --color-brand-400: #2fb27e;
+  --color-brand-500: #0e9463;
+  --color-brand-600: #0a7a52;
+  --color-brand-700: #086142;
+  --color-brand-800: #074934;
+  --color-brand-900: #053626;
+
+  /* Small warm/cool companions so charts and status pills aren't limited to
+     one hue -- categorical order for dataviz: brand, amber, sky, violet,
+     rose, then repeat with the 300 step. Fixed order, never cycled per-row. */
+  --color-amber-accent: #d97a1f;
+  --color-sky-accent: #1b84c9;
+  --color-violet-accent: #7c5cd6;
+  --color-rose-accent: #d94f6b;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -38,96 +48,100 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* Notion's own scale: tight and crisp, not soft/generous. Overriding the
-     built-in sm/md/lg/xl/2xl theme vars reshapes every rounded-* utility
-     app-wide (Card/Dialog/Sheet/Select/...) without touching those files. */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 10px;
-  --radius-2xl: 12px;
+  /* Slightly more generous than the old razor-flat scale -- reads as a
+     considered product, not a spreadsheet, while staying well short of
+     bubbly/toylike. Overriding the built-in sm/md/lg/xl/2xl theme vars
+     reshapes every rounded-* utility app-wide without touching those files. */
+  --radius-sm: 7px;
+  --radius-md: 9px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
 
-  /* Notion shadows are practically nonexistent -- separation comes from
-     hairline borders, not elevation. Keep a slightly bigger tier only for
-     true overlays (dialogs/menus) that need to visually float. */
-  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.04);
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
-  --shadow-md: 0 2px 8px rgb(0 0 0 / 0.06);
-  --shadow-lg: 0 4px 16px rgb(0 0 0 / 0.08);
+  /* Elevation now carries a faint brand tint instead of pure black, so cards
+     feel like they belong to this product's palette even at rest -- and a
+     visible (not near-zero) lift on hover is what makes the UI feel alive
+     rather than flat/inert. */
+  --shadow-xs: 0 1px 2px rgb(15 60 45 / 0.05);
+  --shadow-sm: 0 1px 3px rgb(15 60 45 / 0.07), 0 1px 2px rgb(15 60 45 / 0.05);
+  --shadow-md: 0 4px 14px rgb(15 60 45 / 0.08), 0 1px 3px rgb(15 60 45 / 0.06);
+  --shadow-lg: 0 12px 28px rgb(15 60 45 / 0.12), 0 2px 6px rgb(15 60 45 / 0.06);
+  --shadow-glow: 0 0 0 1px rgb(14 148 99 / 0.12), 0 8px 24px rgb(14 148 99 / 0.16);
 
   /* Strong ease-out: starts fast, settles gently -- reads as "responsive"
      instead of the sluggish feel of ease-in on the same duration. */
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #37352f;
+  --background: #fbfcfb;
+  --foreground: #1c2622;
   --card: #ffffff;
-  --card-foreground: #37352f;
+  --card-foreground: #1c2622;
   --popover: #ffffff;
-  --popover-foreground: #37352f;
-  --primary: #0f5d4c;
+  --popover-foreground: #1c2622;
+  --primary: #0a7a52;
   --primary-foreground: #ffffff;
-  --secondary: #f7f7f5;
-  --secondary-foreground: #37352f;
-  --muted: #f7f7f5;
-  --muted-foreground: #787774;
-  --accent: #f3f3f2;
-  --accent-foreground: #37352f;
-  --destructive: #b3261e;
+  --secondary: #f2f8f5;
+  --secondary-foreground: #1c2622;
+  --muted: #f2f8f5;
+  --muted-foreground: #66746d;
+  --accent: #eaf5ef;
+  --accent-foreground: #0a7a52;
+  --destructive: #c22b30;
   --destructive-foreground: #ffffff;
-  --border: #ebebea;
-  --input: #ebebea;
-  --ring: #468f76;
+  --border: #e4ece7;
+  --input: #e4ece7;
+  --ring: #2fb27e;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --background: #191919;
-    --foreground: #ededec;
-    --card: #202020;
-    --card-foreground: #ededec;
-    --popover: #202020;
-    --popover-foreground: #ededec;
-    --primary: #74ad99;
-    --primary-foreground: #0a2019;
-    --secondary: #202020;
-    --secondary-foreground: #ededec;
-    --muted: #202020;
-    --muted-foreground: #9b9a97;
-    --accent: #2a2a2a;
-    --accent-foreground: #ededec;
+    --background: #101512;
+    --foreground: #eef4f0;
+    --card: #171d19;
+    --card-foreground: #eef4f0;
+    --popover: #171d19;
+    --popover-foreground: #eef4f0;
+    --primary: #4fcb98;
+    --primary-foreground: #06241a;
+    --secondary: #1b2320;
+    --secondary-foreground: #eef4f0;
+    --muted: #1b2320;
+    --muted-foreground: #93a49b;
+    --accent: #1a2b23;
+    --accent-foreground: #6bdba8;
     --destructive: #e0665c;
     --destructive-foreground: #1f0a08;
-    --border: rgba(255, 255, 255, 0.09);
-    --input: rgba(255, 255, 255, 0.09);
-    --ring: #74ad99;
+    --border: rgba(255, 255, 255, 0.08);
+    --input: rgba(255, 255, 255, 0.08);
+    --ring: #4fcb98;
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --background: #191919;
-  --foreground: #ededec;
-  --card: #202020;
-  --card-foreground: #ededec;
-  --popover: #202020;
-  --popover-foreground: #ededec;
-  --primary: #74ad99;
-  --primary-foreground: #0a2019;
-  --secondary: #202020;
-  --secondary-foreground: #ededec;
-  --muted: #202020;
-  --muted-foreground: #9b9a97;
-  --accent: #2a2a2a;
-  --accent-foreground: #ededec;
+  --background: #101512;
+  --foreground: #eef4f0;
+  --card: #171d19;
+  --card-foreground: #eef4f0;
+  --popover: #171d19;
+  --popover-foreground: #eef4f0;
+  --primary: #4fcb98;
+  --primary-foreground: #06241a;
+  --secondary: #1b2320;
+  --secondary-foreground: #eef4f0;
+  --muted: #1b2320;
+  --muted-foreground: #93a49b;
+  --accent: #1a2b23;
+  --accent-foreground: #6bdba8;
   --destructive: #e0665c;
   --destructive-foreground: #1f0a08;
-  --border: rgba(255, 255, 255, 0.09);
-  --input: rgba(255, 255, 255, 0.09);
-  --ring: #74ad99;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #4fcb98;
   color-scheme: dark;
 }
 
@@ -141,6 +155,13 @@
   body {
     margin: 0;
     background: var(--background);
+    /* A faint, fixed brand-tinted wash instead of a flat fill -- the app
+       reads as inhabited rather than a blank spreadsheet canvas, without
+       competing with content (opacity stays under 5%). */
+    background-image:
+      radial-gradient(1100px 560px at 100% -10%, color-mix(in oklch, var(--color-brand-400), transparent 93%), transparent),
+      radial-gradient(900px 500px at -10% 10%, color-mix(in oklch, var(--color-brand-300), transparent 95%), transparent);
+    background-attachment: fixed;
     color: var(--foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -154,11 +175,44 @@
     letter-spacing: -0.015em;
   }
 
-  /* Notion doesn't lift cards on hover -- a flat background tint reads as
-     "clickable" without motion. */
-  [data-slot="card"].cursor-pointer:hover {
-    background-color: var(--accent);
+  /* Cards lift and their border tints toward brand on hover -- motion +
+     color is what reads as "clickable and alive", a flat tint alone reads
+     inert. Respects reduced-motion below. */
+  [data-slot="card"].cursor-pointer {
+    transition: transform 180ms var(--ease-out-strong), box-shadow 180ms var(--ease-out-strong), border-color 180ms var(--ease-out-strong);
   }
+  [data-slot="card"].cursor-pointer:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: color-mix(in oklch, var(--color-brand-400), transparent 55%);
+  }
+  [data-slot="card"].cursor-pointer:active {
+    transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-slot="card"].cursor-pointer,
+    [data-slot="card"].cursor-pointer:hover {
+      transition: none;
+      transform: none;
+    }
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--color-brand-400), transparent 70%);
+  }
+}
+
+/* Reusable "alive" accents -- a few named utilities instead of one-off
+   inline gradients scattered per page, so the effect stays consistent. */
+@utility surface-glow {
+  box-shadow: var(--shadow-glow);
+}
+@utility text-gradient-brand {
+  background: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-300));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
 }
 
 /* Org chart connectors (OrgStructurePage) -- the classic pure-CSS tree

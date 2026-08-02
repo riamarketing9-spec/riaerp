@@ -66,7 +66,7 @@ export function RevenueProfitChart({
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="w-full cursor-pointer"
-        style={{ ['--chart-revenue' as string]: '#0a4235', ['--chart-profit' as string]: '#74ad99' }}
+        style={{ ['--chart-revenue' as string]: 'var(--color-brand-600)', ['--chart-profit' as string]: 'var(--color-amber-accent)' }}
         onMouseLeave={() => setHoverIndex(null)}
         onClick={() => setTableOpen((v) => !v)}
         role="button"
@@ -74,7 +74,7 @@ export function RevenueProfitChart({
       >
         <defs>
           <linearGradient id="revenue-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--chart-revenue)" stopOpacity="0.18" />
+            <stop offset="0%" stopColor="var(--chart-revenue)" stopOpacity="0.28" />
             <stop offset="100%" stopColor="var(--chart-revenue)" stopOpacity="0" />
           </linearGradient>
         </defs>
@@ -84,8 +84,8 @@ export function RevenueProfitChart({
         ))}
 
         <path d={revenueArea} fill="url(#revenue-fill)" stroke="none" />
-        <path d={revenuePath} fill="none" stroke="var(--chart-revenue)" strokeWidth={2} strokeLinecap="round" />
-        <path d={profitPath} fill="none" stroke="var(--chart-profit)" strokeWidth={2} strokeLinecap="round" />
+        <path d={revenuePath} fill="none" stroke="var(--chart-revenue)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={profitPath} fill="none" stroke="var(--chart-profit)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
 
         {data.map((d, i) => (
           <g key={d.monthLabel}>

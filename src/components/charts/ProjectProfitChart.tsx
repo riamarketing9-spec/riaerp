@@ -1,5 +1,7 @@
-const POSITIVE_COLOR = '#0a4235'
-const NEGATIVE_COLOR = '#a3c9bc'
+// Diverging pair (profit vs. loss), not two shades of the same green -- a
+// losing project should read as unambiguously "warm/negative" at a glance.
+const POSITIVE_COLOR = 'var(--color-brand-500)'
+const NEGATIVE_COLOR = 'var(--color-rose-accent)'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(Math.round(n))
@@ -20,14 +22,17 @@ export function ProjectProfitChart({ data }: { data: { projectId: string; name: 
         const widthPct = (Math.abs(d.profit) / maxAbs) * 100
         return (
           <div key={d.projectId} className="flex items-center gap-2">
-            <span className="w-28 shrink-0 truncate text-xs text-foreground">{d.name}</span>
-            <span className="h-4 flex-1 overflow-hidden rounded bg-muted">
+            <span className="w-28 shrink-0 truncate text-xs font-medium text-foreground">{d.name}</span>
+            <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
               <span
-                className="block h-full rounded"
-                style={{ width: `${widthPct}%`, background: isPositive ? POSITIVE_COLOR : NEGATIVE_COLOR }}
+                className="block h-full rounded-full transition-[width] duration-500 ease-out"
+                style={{ width: `${Math.max(widthPct, 4)}%`, background: isPositive ? POSITIVE_COLOR : NEGATIVE_COLOR }}
               />
             </span>
-            <span className="w-20 shrink-0 text-right text-xs font-medium text-foreground">
+            <span
+              className="w-20 shrink-0 text-right text-xs font-semibold"
+              style={{ color: isPositive ? POSITIVE_COLOR : NEGATIVE_COLOR }}
+            >
               {formatMoney(d.profit)}
             </span>
           </div>

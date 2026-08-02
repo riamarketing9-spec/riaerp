@@ -30,7 +30,15 @@ export function TaskStatusChart({
 
   return (
     <div>
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full max-w-xs">
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full max-w-xs overflow-visible">
+        <defs>
+          {buckets.map((b) => (
+            <linearGradient key={b.key} id={`taskbar-${b.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={b.color} stopOpacity={1} />
+              <stop offset="100%" stopColor={b.color} stopOpacity={0.72} />
+            </linearGradient>
+          ))}
+        </defs>
         {buckets.map((b, i) => {
           const h = (b.count / max) * plotH
           const x = i * (barW + BAR_GAP)
@@ -38,16 +46,26 @@ export function TaskStatusChart({
           return (
             <g
               key={b.key}
-              className="cursor-pointer"
+              className="cursor-pointer transition-opacity hover:opacity-80"
               onClick={() => setOpenKey((k) => (k === b.key ? null : b.key))}
               role="button"
               aria-expanded={openKey === b.key}
             >
-              <rect x={x} y={y} width={barW} height={Math.max(h, 2)} rx={4} fill={b.color} />
-              <text x={x + barW / 2} y={y - 6} textAnchor="middle" className="fill-foreground text-sm font-bold" fontSize={16}>
+              {/* faint full-height track so short bars aren't floating with no baseline reference */}
+              <rect x={x} y={0} width={barW} height={plotH} rx={6} className="fill-muted/50" />
+              <rect
+                x={x}
+                y={y}
+                width={barW}
+                height={Math.max(h, 3)}
+                rx={6}
+                fill={`url(#taskbar-${b.key})`}
+                style={{ transition: 'height 500ms var(--ease-out-strong), y 500ms var(--ease-out-strong)' }}
+              />
+              <text x={x + barW / 2} y={y - 8} textAnchor="middle" className="fill-foreground text-sm font-bold" fontSize={16}>
                 {b.count}
               </text>
-              <text x={x + barW / 2} y={HEIGHT - 6} textAnchor="middle" className="fill-muted-foreground" fontSize={11}>
+              <text x={x + barW / 2} y={HEIGHT - 6} textAnchor="middle" className="fill-muted-foreground font-medium" fontSize={11}>
                 {b.label}
               </text>
             </g>
