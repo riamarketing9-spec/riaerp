@@ -159,6 +159,7 @@ export const ru = {
     eisenhower: 'Приоритет (матрица Эйзенхауэра)',
     recurrence: 'Повторяемость',
     checklist: 'Чек-лист',
+    statusDurations: 'Время по этапам (видно PM/CEO)',
     quadrantDoNow: 'Срочно и важно',
     quadrantSchedule: 'Не срочно, но важно',
     quadrantDelegate: 'Срочно, но не важно',

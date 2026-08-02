@@ -58,6 +58,13 @@ function toDatetimeLocalValue(iso: string | null | undefined): string {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
+function formatDurationMs(ms: number): string {
+  const totalMinutes = Math.round(ms / 60000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return `${hours}h ${minutes}m`
+}
+
 export function TaskSheet({
   open,
   onOpenChange,
@@ -224,6 +231,22 @@ export function TaskSheet({
   // themselves earlier; a task assigned to them BY someone else is already
   // locked entirely via isOwnTaskOnly above, so it's excluded here.
   const assigneeLockedToSelf = !canManageTask && (!isEdit || isSelfCreatedOwnTask)
+
+  // PM/CEO only, per RLS on task_status_log -- a plain assignee's request
+  // just comes back empty, this only avoids the wasted fetch.
+  const { data: statusLog } = useQuery({
+    queryKey: ['task_status_log', taskId],
+    enabled: !!taskId && open && canManageTask,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_status_log')
+        .select('status_id, changed_at')
+        .eq('task_id', taskId!)
+        .order('changed_at')
+      if (error) throw error
+      return data
+    },
+  })
 
   const { data: existingDeliverableTypes } = useQuery({
     queryKey: ['task_deliverable_types', taskId],
@@ -728,6 +751,25 @@ export function TaskSheet({
                 >
                   <Plus className="size-3.5" />
                 </Button>
+              </div>
+            </div>
+          )}
+
+          {isEdit && canManageTask && statusLog && statusLog.length > 1 && (
+            <div className="flex flex-col gap-1.5">
+              <Label>{t('tasks.statusDurations')}</Label>
+              <div className="flex flex-col gap-1 rounded-lg border border-border p-2">
+                {statusLog.slice(1).map((entry, i) => {
+                  const prev = statusLog[i]
+                  const fromLabel = pickLabel(statuses?.find((s) => s.id === prev.status_id), i18n.language)
+                  const toLabel = pickLabel(statuses?.find((s) => s.id === entry.status_id), i18n.language)
+                  const durationMs = new Date(entry.changed_at).getTime() - new Date(prev.changed_at).getTime()
+                  return (
+                    <p key={entry.changed_at} className="text-xs text-muted-foreground">
+                      {fromLabel} → {toLabel}: <span className="font-medium text-foreground">{formatDurationMs(durationMs)}</span>
+                    </p>
+                  )
+                })}
               </div>
             </div>
           )}

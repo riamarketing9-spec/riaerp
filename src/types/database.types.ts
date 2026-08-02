@@ -176,6 +176,8 @@ type TaskCommentRow = {
   created_at: string
 }
 
+type TaskStatusLogRow = { id: string; task_id: string; status_id: string; changed_at: string }
+
 type ContentFormatRow = { id: string; slug: string; label_ru: string; label_uz: string }
 
 type PlatformRow = { id: string; slug: string; label_ru: string; label_uz: string }
@@ -480,6 +482,7 @@ export type Database = {
       contract_types: ReturnType<typeof table<ContractTypeRow, 'slug'>>
       contracts: ReturnType<typeof table<ContractRow, 'contract_type_id' | 'storage_path'>>
       task_comments: ReturnType<typeof table<TaskCommentRow, 'task_id' | 'author_profile_id' | 'body'>>
+      task_status_log: ReturnType<typeof table<TaskStatusLogRow, 'task_id' | 'status_id'>>
       task_deliverable_types: { Row: TaskDeliverableTypeRow; Insert: TaskDeliverableTypeRow; Update: Partial<TaskDeliverableTypeRow>; Relationships: [] }
       content_formats: ReturnType<typeof table<ContentFormatRow, 'slug' | 'label_ru' | 'label_uz'>>
       content_rubrics: ReturnType<typeof table<ContentRubricRow, 'slug' | 'label_ru' | 'label_uz'>>
