@@ -174,6 +174,42 @@ export function WorkloadPage() {
     },
   })
 
+  // Counted the same way as the per-employee dialog (anything not 'done'),
+  // so the badge on the card always matches what "Faol" shows when opened —
+  // v_employee_workload.open_task_count excludes backlog too and drifted
+  // from that per-task count.
+  const { data: statuses } = useQuery({
+    queryKey: ['task_statuses'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_statuses').select('id, slug')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: allTasks } = useQuery({
+    queryKey: ['workload-all-tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('v_task_queue').select('assignee_profile_id, status_id')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const doneStatusIds = useMemo(
+    () => new Set((statuses ?? []).filter((s) => s.slug === 'done').map((s) => s.id)),
+    [statuses]
+  )
+
+  const activeCountByProfile = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const task of allTasks ?? []) {
+      if (!task.assignee_profile_id || doneStatusIds.has(task.status_id)) continue
+      map.set(task.assignee_profile_id, (map.get(task.assignee_profile_id) ?? 0) + 1)
+    }
+    return map
+  }, [allTasks, doneStatusIds])
+
   const { data: startedTasks } = useQuery({
     queryKey: ['tasks-started', startsAfter],
     enabled: !!startsAfter,
@@ -200,8 +236,12 @@ export function WorkloadPage() {
 
   const openProfileName = visibleWorkload.find((w) => w.profile_id === openProfileId)?.full_name
 
+  const activeCountFor = (profileId: string) => activeCountByProfile.get(profileId) ?? 0
+
   // Most-loaded first, so overload is visible without scanning the grid.
-  const sortedWorkload = [...visibleWorkload].sort((a, b) => b.open_task_count - a.open_task_count)
+  const sortedWorkload = [...visibleWorkload].sort(
+    (a, b) => activeCountFor(b.profile_id) - activeCountFor(a.profile_id)
+  )
 
   // Border-only tiering (card stays white/neutral otherwise): 0-1 open
   // tasks reads as free, 2-3 as getting busy (yellow), 4+ as overloaded
@@ -251,7 +291,8 @@ export function WorkloadPage() {
         {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
         {sortedWorkload.map((row) => {
           const employeeKpi = kpiFor(row.profile_id)
-          const tier = loadTier(row.open_task_count)
+          const openCount = activeCountFor(row.profile_id)
+          const tier = loadTier(openCount)
           return (
             <button
               key={row.profile_id}
@@ -281,7 +322,7 @@ export function WorkloadPage() {
                     tier.badge
                   )}
                 >
-                  {row.open_task_count}
+                  {openCount}
                 </span>
               </div>
 
