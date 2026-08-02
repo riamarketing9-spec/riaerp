@@ -173,8 +173,9 @@ export function ProjectsPage() {
     const labelFor = (deliverableTypeId: string) =>
       deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''
 
+    // "Post" quota counts reels + post + carousel together, per spec.
     const projectItems = (monthPublishedItems ?? []).filter((i) => i.project_id === project.id)
-    const postsDone = projectItems.filter((i) => formatSlug(i.format_id) === 'post').length
+    const postsDone = projectItems.filter((i) => ['post', 'reels', 'carousel'].includes(formatSlug(i.format_id) ?? '')).length
     const reelsDone = projectItems.filter((i) => formatSlug(i.format_id) === 'reels').length
 
     const doneTaskIds = new Set((monthDoneTasks ?? []).filter((t) => t.project_id === project.id).map((t) => t.id))
