@@ -322,6 +322,7 @@ export const ru = {
     searchProjects: 'Поиск по названию проекта',
     allPlatforms: 'Все платформы',
     allFormats: 'Все форматы',
+    allStatuses: 'Все статусы',
     dateFrom: 'С даты',
     dateTo: 'По дату',
     resetFilters: 'Сбросить',

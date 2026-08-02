@@ -173,6 +173,15 @@ export function WorkloadPage() {
 
   const openProfileName = visibleWorkload.find((w) => w.profile_id === openProfileId)?.full_name
 
+  // Load-based tint so overload is visible at a glance across the whole
+  // grid, not just in the count badge: 4+ open tasks reads as overloaded
+  // (red), 2-3 as getting busy (yellow), 0-1 stays neutral/free.
+  function loadTint(count: number) {
+    if (count > 3) return 'bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-950/60'
+    if (count >= 2) return 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-950/50'
+    return 'hover:bg-accent'
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-4xl font-bold tracking-tight">{t('workload.title')}</h1>
@@ -196,7 +205,7 @@ export function WorkloadPage() {
           return (
             <Card
               key={row.profile_id}
-              className="cursor-pointer transition-colors hover:bg-accent"
+              className={`cursor-pointer transition-colors ${loadTint(row.open_task_count)}`}
               onClick={() => setOpenProfileId(row.profile_id)}
             >
               <CardContent className="flex flex-col gap-2 py-3">

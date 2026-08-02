@@ -105,7 +105,7 @@ insert into content_formats (slug, label_ru, label_uz) values
   ('reels', 'Reels', 'Reels'),
   ('post', 'Пост', 'Post'),
   ('stories', 'Сторис', 'Stories'),
-  ('video', 'Видео', 'Video'),
+  ('video', 'YouTube видео', 'YouTube video'),
   ('fb_ads', 'FB реклама', 'FB reklama')
 on conflict (slug) do nothing;
 

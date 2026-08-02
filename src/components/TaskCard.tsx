@@ -56,6 +56,11 @@ export function TaskCard({
   const overdue = !!deadline && new Date(deadline) < new Date() && !isDone
   const dueSoon =
     !!deadline && !overdue && !isDone && new Date(deadline).getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000
+  const now = new Date()
+  const isDueToday = !!deadline && !isDone && new Date(deadline).toDateString() === now.toDateString()
+  // Deadline already passed or falls today -- flash the whole card, not
+  // just the date badge, so it can't be missed scrolling past a list.
+  const isUrgentDeadline = !isDone && (overdue || isDueToday)
 
   // Color follows the task's actual status, not just subtask %: a task
   // manually moved to "Готово/Tayyor" must read as done immediately, even
@@ -75,6 +80,7 @@ export function TaskCard({
     <div
       className={cn(
         'flex flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm',
+        isUrgentDeadline && 'animate-pulse border-red-400 bg-red-50 dark:border-red-600 dark:bg-red-950/30',
         className
       )}
     >

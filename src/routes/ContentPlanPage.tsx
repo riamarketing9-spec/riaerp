@@ -67,6 +67,7 @@ export function ContentPlanPage() {
   const [createDate, setCreateDate] = useState<string | null>(null)
   const [folderSearch, setFolderSearch] = useState('')
   const [platformFilter, setPlatformFilter] = useState<string>('')
+  const [statusFilter, setStatusFilter] = useState<string>('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
@@ -184,11 +185,12 @@ export function ContentPlanPage() {
           .map((ip) => ip.platform_id)
         if (!ids.includes(platformFilter)) return false
       }
+      if (statusFilter && item.status_id !== statusFilter) return false
       if (dateFrom && (!item.publish_date || item.publish_date < dateFrom)) return false
       if (dateTo && (!item.publish_date || item.publish_date > dateTo)) return false
       return true
     })
-  }, [itemsForSelectedProject, itemPlatforms, platformFilter, dateFrom, dateTo])
+  }, [itemsForSelectedProject, itemPlatforms, platformFilter, statusFilter, dateFrom, dateTo])
 
   function openCreate() {
     setEditingId(null)
@@ -211,11 +213,12 @@ export function ContentPlanPage() {
   function backToFolders() {
     setSelectedProjectId(null)
     setPlatformFilter('')
+    setStatusFilter('')
     setDateFrom('')
     setDateTo('')
   }
 
-  const hasNestedFilters = platformFilter || dateFrom || dateTo
+  const hasNestedFilters = platformFilter || statusFilter || dateFrom || dateTo
   const selectedProjectName = projects?.find((p) => p.id === selectedProjectId)?.name
 
   return (
@@ -282,6 +285,23 @@ export function ContentPlanPage() {
                       {platforms?.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {pickLabel(p, i18n.language)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-muted-foreground">{t('contentPlan.status')}</span>
+                  <Select value={statusFilter} onValueChange={(v: string | null) => setStatusFilter(v ?? '')}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder={t('contentPlan.allStatuses')}>
+                        {() => pickLabel(statuses?.find((s) => s.id === statusFilter), i18n.language)}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statuses?.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {pickLabel(s, i18n.language)}
                         </SelectItem>
                       ))}
                     </SelectContent>

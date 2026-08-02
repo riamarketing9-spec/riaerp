@@ -64,11 +64,13 @@ export function ContentTableView({
   const [projectFilter, setProjectFilter] = useState('')
   const [platformFilter, setPlatformFilter] = useState('')
   const [formatFilter, setFormatFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
       if (projectFilter && item.project_id !== projectFilter) return false
       if (formatFilter && item.format_id !== formatFilter) return false
+      if (statusFilter && item.status_id !== statusFilter) return false
       if (platformFilter) {
         const hasPlatform = (itemPlatforms ?? []).some(
           (ip) => ip.content_plan_item_id === item.id && ip.platform_id === platformFilter
@@ -77,7 +79,7 @@ export function ContentTableView({
       }
       return true
     })
-  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms])
+  }, [items, projectFilter, platformFilter, formatFilter, statusFilter, itemPlatforms])
 
   const projectName = (id: string) => projects?.find((p) => p.id === id)?.name ?? '—'
   const statusLabel = (id: string) => pickLabel(statuses?.find((s) => s.id === id), i18n.language) ?? '—'
@@ -113,6 +115,13 @@ export function ContentTableView({
           value={formatFilter}
           onChange={setFormatFilter}
           placeholder={t('contentPlan.allFormats')}
+        />
+        <Combobox
+          className="w-40"
+          options={(statuses ?? []).map((s) => ({ value: s.id, label: pickLabel(s, i18n.language) ?? '' }))}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          placeholder={t('contentPlan.allStatuses')}
         />
       </div>
 
