@@ -238,6 +238,7 @@ export const uz = {
     empty: "Tashkiliy tuzilma hali to'ldirilmagan",
     vacant: "Bo'sh o'rin",
     addSubordinate: "Bo'ysunuvchi qo'shish",
+    addSibling: "Shu darajaga qo'shish",
     dragHandle: "Ko'chirish",
     dropToRoot: "Rahbarni olib tashlash uchun shu yerga tashlang",
     moved: "Lavozim ko'chirildi",

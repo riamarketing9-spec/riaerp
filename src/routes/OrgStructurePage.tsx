@@ -51,6 +51,7 @@ function OrgNodeCard({
   canManage,
   onEdit,
   onAddChild,
+  onAddSibling,
   isDragBlocked,
 }: {
   position: OrgPosition
@@ -60,6 +61,7 @@ function OrgNodeCard({
   canManage: boolean
   onEdit: (id: string) => void
   onAddChild: (parentId: string) => void
+  onAddSibling: (parentId: string | null) => void
   isDragBlocked: boolean
 }) {
   const { t } = useTranslation()
@@ -147,6 +149,23 @@ function OrgNodeCard({
             <Plus className="size-4" />
           </button>
         )}
+
+        {canManage && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onAddSibling(position.parent_position_id)
+            }}
+            title={t('org.addSibling')}
+            className={cn(
+              'absolute top-1/2 -right-3 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground opacity-0 shadow-sm transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100',
+              isRoot && 'border-white/40 bg-brand-600 text-white hover:bg-brand-700 hover:text-white'
+            )}
+          >
+            <Plus className="size-4" />
+          </button>
+        )}
       </div>
     </div>
   )
@@ -160,6 +179,7 @@ function OrgTreeLi({
   canManage,
   onEdit,
   onAddChild,
+  onAddSibling,
   dragActiveId,
 }: {
   position: OrgPosition
@@ -169,6 +189,7 @@ function OrgTreeLi({
   canManage: boolean
   onEdit: (id: string) => void
   onAddChild: (parentId: string) => void
+  onAddSibling: (parentId: string | null) => void
   dragActiveId: string | null
 }) {
   const children = childrenOf.get(position.id) ?? []
@@ -186,6 +207,7 @@ function OrgTreeLi({
         canManage={canManage}
         onEdit={onEdit}
         onAddChild={onAddChild}
+        onAddSibling={onAddSibling}
         isDragBlocked={isDragBlocked}
       />
       {children.length > 0 && (
@@ -200,6 +222,7 @@ function OrgTreeLi({
               canManage={canManage}
               onEdit={onEdit}
               onAddChild={onAddChild}
+              onAddSibling={onAddSibling}
               dragActiveId={dragActiveId}
             />
           ))}
@@ -345,6 +368,7 @@ export function OrgStructurePage() {
                   canManage={canManage}
                   onEdit={setEditingId}
                   onAddChild={(parentId) => setNewPositionParentId(parentId)}
+                  onAddSibling={(parentId) => setNewPositionParentId(parentId)}
                   dragActiveId={dragActiveId}
                 />
               ))}
