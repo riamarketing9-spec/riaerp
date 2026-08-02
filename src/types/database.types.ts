@@ -290,6 +290,15 @@ type OrgPositionRow = {
   created_at: string
 }
 
+type OrgPositionsViewRow = {
+  id: string
+  title: string
+  parent_position_id: string | null
+  profile_id: string | null
+  full_name: string | null
+  avatar_url: string | null
+}
+
 type DocumentCategoryRow = { id: string; slug: string; label_ru: string; label_uz: string }
 
 type DocumentRow = {
@@ -526,6 +535,7 @@ export type Database = {
       v_project_kpi: { Row: ProjectKpiViewRow; Relationships: [] }
       v_ceo_dashboard: { Row: CeoDashboardViewRow; Relationships: [] }
       v_employee_kpi: { Row: EmployeeKpiViewRow; Relationships: [] }
+      v_org_positions: { Row: OrgPositionsViewRow; Relationships: [] }
     }
     Functions: {
       notify_task_assigned_now: { Args: { p_task_id: string }; Returns: void }
