@@ -76,6 +76,7 @@ function CalendarItemCard({
   statusSlug,
   statusLabel,
   platformLabels,
+  formatLabels,
   logoUrl,
   projectName,
   onOpen,
@@ -85,6 +86,7 @@ function CalendarItemCard({
   statusSlug?: string
   statusLabel?: string
   platformLabels: string[]
+  formatLabels: string[]
   logoUrl?: string | null
   projectName?: string
   onOpen: () => void
@@ -136,6 +138,15 @@ function CalendarItemCard({
         >
           {statusLabel}
         </Badge>
+        {formatLabels.map((label) => (
+          <Badge
+            key={label}
+            variant="outline"
+            className="border-brand-300 px-2 py-0.5 text-[11px] text-brand-700 dark:border-brand-700 dark:text-brand-300"
+          >
+            {label}
+          </Badge>
+        ))}
         {platformLabels.map((label) => (
           <Badge key={label} variant="outline" className="px-2 py-0.5 text-[11px]">
             {label}
@@ -188,6 +199,7 @@ export function ContentCalendarView({
   statuses,
   itemPlatforms,
   platforms,
+  itemFormats,
   contentFormats,
   onOpen,
   onCreate,
@@ -207,6 +219,7 @@ export function ContentCalendarView({
   statuses?: StatusLookup[]
   itemPlatforms?: { content_plan_item_id: string; platform_id: string }[]
   platforms?: { id: string; label_ru: string; label_uz: string }[]
+  itemFormats?: { content_plan_item_id: string; format_id: string }[]
   contentFormats?: FormatLookup[]
   onOpen: (id: string) => void
   onCreate: (publishDate: string) => void
@@ -227,12 +240,15 @@ export function ContentCalendarView({
     return eachDayOfInterval({ start, end })
   }, [month])
 
+  const formatIdsFor = (itemId: string) =>
+    (itemFormats ?? []).filter((f) => f.content_plan_item_id === itemId).map((f) => f.format_id)
+
   const itemsByDate = useMemo(() => {
     const map = new Map<string, ContentItem[]>()
     for (const item of items) {
       if (!item.publish_date) continue
       if (projectFilter && item.project_id !== projectFilter) continue
-      if (formatFilter && item.format_id !== formatFilter) continue
+      if (formatFilter && !formatIdsFor(item.id).includes(formatFilter)) continue
       if (platformFilter) {
         const hasPlatform = (itemPlatforms ?? []).some(
           (ip) => ip.content_plan_item_id === item.id && ip.platform_id === platformFilter
@@ -244,7 +260,8 @@ export function ContentCalendarView({
       map.set(item.publish_date, list)
     }
     return map
-  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms, itemFormats])
 
   // Same per-status breakdown as the folders view. Smart default: with no
   // explicit page-level date filter, scoped to the currently displayed
@@ -259,7 +276,7 @@ export function ContentCalendarView({
     for (const item of items) {
       if (item.project_id !== projectFilter) continue
       if (!item.publish_date || item.publish_date < rangeStart || item.publish_date > rangeEnd) continue
-      if (formatFilter && item.format_id !== formatFilter) continue
+      if (formatFilter && !formatIdsFor(item.id).includes(formatFilter)) continue
       if (platformFilter) {
         const hasPlatform = (itemPlatforms ?? []).some(
           (ip) => ip.content_plan_item_id === item.id && ip.platform_id === platformFilter
@@ -269,7 +286,8 @@ export function ContentCalendarView({
       map.set(item.status_id, (map.get(item.status_id) ?? 0) + 1)
     }
     return map
-  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms, days, dateFrom, dateTo])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms, itemFormats, days, dateFrom, dateTo])
 
   const statusOf = (id: string) => statuses?.find((s) => s.id === id)
   const statusLabel = (id: string) => pickLabel(statusOf(id), i18n.language)
@@ -277,6 +295,10 @@ export function ContentCalendarView({
     (itemPlatforms ?? [])
       .filter((ip) => ip.content_plan_item_id === itemId)
       .map((ip) => pickLabel(platforms?.find((p) => p.id === ip.platform_id), i18n.language))
+      .filter((l): l is string => !!l)
+  const formatLabelsFor = (itemId: string) =>
+    formatIdsFor(itemId)
+      .map((id) => pickLabel(contentFormats?.find((f) => f.id === id), i18n.language))
       .filter((l): l is string => !!l)
   const logoFor = (projectId: string) => projects?.find((p) => p.id === projectId)?.logo_url
   const projectNameFor = (projectId: string) => projects?.find((p) => p.id === projectId)?.name
@@ -399,6 +421,7 @@ export function ContentCalendarView({
                       statusSlug={statusOf(item.status_id)?.slug}
                       statusLabel={statusLabel(item.status_id)}
                       platformLabels={platformsFor(item.id)}
+                      formatLabels={formatLabelsFor(item.id)}
                       logoUrl={logoFor(item.project_id)}
                       projectName={projectNameFor(item.project_id)}
                       onOpen={() => onOpen(item.id)}
@@ -416,6 +439,7 @@ export function ContentCalendarView({
               statusSlug={statusOf(activeItem.status_id)?.slug}
               statusLabel={statusLabel(activeItem.status_id)}
               platformLabels={platformsFor(activeItem.id)}
+              formatLabels={formatLabelsFor(activeItem.id)}
               logoUrl={logoFor(activeItem.project_id)}
               projectName={projectNameFor(activeItem.project_id)}
               onOpen={() => {}}

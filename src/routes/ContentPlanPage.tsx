@@ -96,6 +96,17 @@ export function ContentPlanPage() {
     },
   })
 
+  const { data: itemFormats } = useQuery({
+    queryKey: ['content_plan_formats-all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('content_plan_formats')
+        .select('content_plan_item_id, format_id')
+      if (error) throw error
+      return data
+    },
+  })
+
   const { data: projects } = useQuery({
     queryKey: ['projects-lookup'],
     queryFn: async () => {
@@ -448,6 +459,7 @@ export function ContentPlanPage() {
             statuses={statuses}
             itemPlatforms={itemPlatforms}
             platforms={platforms}
+            itemFormats={itemFormats}
             contentFormats={contentFormats}
             onOpen={openEdit}
             onCreate={openCreateWithDate}
@@ -466,6 +478,7 @@ export function ContentPlanPage() {
             statuses={statuses}
             itemPlatforms={itemPlatforms}
             platforms={platforms}
+            itemFormats={itemFormats}
             contentFormats={contentFormats}
             contentRubrics={contentRubrics}
             onOpen={openEdit}

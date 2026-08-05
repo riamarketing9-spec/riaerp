@@ -37,14 +37,12 @@ function ProjectProgressDetailDialog({
   projectName,
   detail,
   publishedStatusLabel,
-  doneStatusLabel,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   projectName?: string
   detail: MonthlyProgressDetail | null
   publishedStatusLabel: string
-  doneStatusLabel: string
 }) {
   const { t } = useTranslation()
   return (
@@ -55,11 +53,7 @@ function ProjectProgressDetailDialog({
             {t('projects.progressDetail')} {projectName ? `— ${projectName}` : ''}
           </DialogTitle>
         </DialogHeader>
-        <MonthlyProgressBreakdown
-          detail={detail}
-          publishedStatusLabel={publishedStatusLabel}
-          doneStatusLabel={doneStatusLabel}
-        />
+        <MonthlyProgressBreakdown detail={detail} publishedStatusLabel={publishedStatusLabel} />
       </DialogContent>
     </Dialog>
   )
@@ -101,48 +95,55 @@ export function ProjectsPage() {
     },
   })
 
-  const { data: doneStatus } = useQuery({
-    queryKey: ['task_statuses-done'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('task_statuses')
-        .select('id, label_ru, label_uz')
-        .eq('slug', 'done')
-        .maybeSingle()
-      if (error) throw error
-      return data
-    },
-  })
-  const doneStatusId = doneStatus?.id ?? null
-
-  const { data: deliverableTypes } = useQuery({
-    queryKey: ['deliverable_types-lookup'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('deliverable_types').select('id, label_uz')
-      if (error) throw error
-      return data
-    },
-  })
-
   const projectIds = useMemo(() => (projects ?? []).map((p) => p.id), [projects])
 
   const monthKeyRef = useMemo(() => monthRange(new Date()), [])
   const currentMonthKey = monthKeyRef.start
 
-  // This month's structured goal (target_posts/target_stories/target_ads)
-  // per project -- replaces the old always-on projects.monthly_quota_*
-  // columns, which never actually varied month to month.
+  // This month's goal row per project (id only -- the flexible per-format
+  // targets are a separate child table, fetched below once we know which
+  // goal rows exist).
   const { data: monthlyGoalByProject } = useQuery({
     queryKey: ['projects-monthly-goals', projectIds, currentMonthKey],
     enabled: projectIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('project_monthly_goals')
-        .select('project_id, target_posts, target_stories, target_ads')
+        .select('id, project_id')
         .in('project_id', projectIds)
         .eq('month', currentMonthKey)
       if (error) throw error
       return new Map(data.map((row) => [row.project_id, row]))
+    },
+  })
+
+  const goalIds = useMemo(() => [...(monthlyGoalByProject?.values() ?? [])].map((g) => g.id), [monthlyGoalByProject])
+
+  const { data: goalTargetsByGoalId } = useQuery({
+    queryKey: ['project_monthly_goal_targets-batch', goalIds],
+    enabled: goalIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('project_monthly_goal_targets')
+        .select('goal_id, format_id, target_count')
+        .in('goal_id', goalIds)
+      if (error) throw error
+      const map = new Map<string, { format_id: string; target_count: number }[]>()
+      for (const row of data) {
+        const list = map.get(row.goal_id) ?? []
+        list.push({ format_id: row.format_id, target_count: row.target_count })
+        map.set(row.goal_id, list)
+      }
+      return map
+    },
+  })
+
+  const { data: contentFormats } = useQuery({
+    queryKey: ['content_formats'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('content_formats').select('id, label_ru, label_uz')
+      if (error) throw error
+      return data
     },
   })
 
@@ -160,25 +161,16 @@ export function ProjectsPage() {
   })
   const publishedStatusId = publishedStatus?.id ?? null
 
-  const { data: contentFormats } = useQuery({
-    queryKey: ['content_formats'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('content_formats').select('id, slug')
-      if (error) throw error
-      return data
-    },
-  })
-
-  // This month's published content-plan items per project, by format -- the
-  // progress bar now reflects what actually shipped in the content plan
-  // (posts/reels quota), not task completion.
+  // This month's published content-plan items per project, with every work
+  // type (иш тури) each one has selected -- the progress bar reflects what
+  // actually shipped in the content plan, strictly by work type.
   const { data: monthPublishedItems } = useQuery({
     queryKey: ['projects-quota-content', projectIds, publishedStatusId, monthKeyRef.start],
     enabled: projectIds.length > 0 && !!publishedStatusId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('content_plan_items')
-        .select('id, project_id, format_id, topic, publish_date')
+        .select('id, project_id, topic, publish_date')
         .in('project_id', projectIds)
         .eq('status_id', publishedStatusId!)
         .gte('publish_date', monthKeyRef.start.slice(0, 10))
@@ -188,42 +180,22 @@ export function ProjectsPage() {
     },
   })
 
-  // Target quota still comes from tasks -- content plan has no "target"
-  // format, that work is tracked as a deliverable type on tasks instead.
-  const { data: monthDoneTasks } = useQuery({
-    queryKey: ['projects-quota-tasks', projectIds, doneStatusId, monthKeyRef.start],
-    enabled: projectIds.length > 0 && !!doneStatusId,
+  const publishedItemIds = useMemo(() => (monthPublishedItems ?? []).map((i) => i.id), [monthPublishedItems])
+
+  const { data: publishedItemFormats } = useQuery({
+    queryKey: ['projects-quota-content-formats', publishedItemIds],
+    enabled: publishedItemIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('tasks')
-        .select('id, project_id, title, completed_at')
-        .in('project_id', projectIds)
-        .eq('status_id', doneStatusId!)
-        .gte('completed_at', monthKeyRef.start)
-        .lt('completed_at', monthKeyRef.end)
+        .from('content_plan_formats')
+        .select('content_plan_item_id, format_id')
+        .in('content_plan_item_id', publishedItemIds)
       if (error) throw error
       return data
     },
   })
 
-  const taskIdsForQuota = useMemo(() => (monthDoneTasks ?? []).map((t) => t.id), [monthDoneTasks])
-
-  const { data: taskDeliverables } = useQuery({
-    queryKey: ['task_deliverable_types-for-quota', taskIdsForQuota],
-    enabled: taskIdsForQuota.length > 0,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('task_deliverable_types')
-        .select('task_id, deliverable_type_id')
-        .in('task_id', taskIdsForQuota)
-      if (error) throw error
-      return data
-    },
-  })
-
-  const formatSlugOf = (formatId: string) => contentFormats?.find((f) => f.id === formatId)?.slug
-  const deliverableLabelOf = (deliverableTypeId: string) =>
-    deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''
+  const formatLabelOf = (formatId: string) => pickLabel(contentFormats?.find((f) => f.id === formatId), i18n.language) ?? ''
 
   // No goal set for the current month at all -> don't show a progress bar
   // (per spec: nothing to measure against, so no misleading 0%/percent).
@@ -231,14 +203,16 @@ export function ProjectsPage() {
   // so the % and "what counted toward it" list can never disagree.
   const progressDetailFor = (project: { id: string }) => {
     const goal = monthlyGoalByProject?.get(project.id)
-    return computeMonthlyProgress({
-      goal,
-      items: (monthPublishedItems ?? []).filter((i) => i.project_id === project.id),
-      doneTasks: (monthDoneTasks ?? []).filter((tsk) => tsk.project_id === project.id),
-      taskDeliverables: taskDeliverables ?? [],
-      formatSlugOf,
-      deliverableLabelOf,
-    })
+    const targets = goal ? goalTargetsByGoalId?.get(goal.id) : undefined
+    const items = (monthPublishedItems ?? [])
+      .filter((i) => i.project_id === project.id)
+      .map((i) => ({
+        ...i,
+        formatIds: (publishedItemFormats ?? [])
+          .filter((f) => f.content_plan_item_id === i.id)
+          .map((f) => f.format_id),
+      }))
+    return computeMonthlyProgress({ targets, items, formatLabelOf })
   }
 
   const { data: assistantsByProject } = useQuery({
@@ -367,7 +341,6 @@ export function ProjectsPage() {
         projectName={projects?.find((p) => p.id === progressDetailProjectId)?.name}
         detail={progressDetailProjectId ? progressDetailFor({ id: progressDetailProjectId }) : null}
         publishedStatusLabel={pickLabel(publishedStatus, i18n.language) ?? ''}
-        doneStatusLabel={pickLabel(doneStatus, i18n.language) ?? ''}
       />
     </div>
   )

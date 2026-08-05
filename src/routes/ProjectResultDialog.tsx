@@ -63,7 +63,7 @@ export function ProjectResultDialog({
     queryFn: async () => {
       let query = supabase
         .from('content_plan_items')
-        .select('id, format_id, publish_date')
+        .select('id, publish_date')
         .eq('project_id', projectId!)
         .eq('status_id', publishedStatusId!)
       if (dateFrom) query = query.gte('publish_date', dateFrom)
@@ -82,6 +82,19 @@ export function ProjectResultDialog({
       const { data, error } = await supabase
         .from('content_plan_platforms')
         .select('content_plan_item_id, platform_id')
+        .in('content_plan_item_id', itemIds)
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: itemFormats } = useQuery({
+    queryKey: ['project-result-formats', itemIds],
+    enabled: itemIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('content_plan_formats')
+        .select('content_plan_item_id, format_id')
         .in('content_plan_item_id', itemIds)
       if (error) throw error
       return data
@@ -138,14 +151,20 @@ export function ProjectResultDialog({
     },
   })
 
-  const formatSlug = (formatId: string) => contentFormats?.find((f) => f.id === formatId)?.slug
+  const formatSlugsFor = (itemId: string) =>
+    (itemFormats ?? [])
+      .filter((f) => f.content_plan_item_id === itemId)
+      .map((f) => contentFormats?.find((cf) => cf.id === f.format_id)?.slug)
+      .filter((s): s is string => !!s)
   const passesPlatform = (itemId: string) =>
     !platformFilter || (itemPlatforms ?? []).some((ip) => ip.content_plan_item_id === itemId && ip.platform_id === platformFilter)
 
+  // A single item now counts toward every work type it has selected --
+  // stories + post both checked means +1 to each, not one or the other.
   const filteredItems = (items ?? []).filter((i) => passesPlatform(i.id))
-  const storiesCount = filteredItems.filter((i) => formatSlug(i.format_id) === 'stories').length
-  const postsCount = filteredItems.filter((i) => ['post', 'reels', 'carousel'].includes(formatSlug(i.format_id) ?? '')).length
-  const videoCount = filteredItems.filter((i) => formatSlug(i.format_id) === 'video').length
+  const storiesCount = filteredItems.filter((i) => formatSlugsFor(i.id).includes('stories')).length
+  const postsCount = filteredItems.filter((i) => formatSlugsFor(i.id).some((s) => ['post', 'reels', 'carousel'].includes(s))).length
+  const videoCount = filteredItems.filter((i) => formatSlugsFor(i.id).includes('video')).length
 
   const deliverableLabelFor = (deliverableTypeId: string) =>
     deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''

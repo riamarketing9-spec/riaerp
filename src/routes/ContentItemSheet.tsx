@@ -28,13 +28,9 @@ import { ExternalLink } from 'lucide-react'
 const schema = z.object({
   project_id: z.string().min(1, 'Обязательное поле'),
   topic: z.string().min(1, 'Обязательное поле'),
-  format_id: z.string().min(1, 'Обязательное поле'),
   status_id: z.string().min(1, 'Обязательное поле'),
   deliverable_type_id: z.string().optional(),
-  shooter_profile_id: z.string().optional(),
-  editor_profile_id: z.string().optional(),
   responsible_profile_id: z.string().optional(),
-  smm_profile_id: z.string().optional(),
   shoot_date: z.string().optional(),
   edit_done_date: z.string().optional(),
   cover_done_date: z.string().optional(),
@@ -145,17 +141,18 @@ export function ContentItemSheet({
     },
   })
 
-  function profilesByRoleSlugs(slugs: string[]) {
-    const roleIds = new Set((rolesForFiltering ?? []).filter((r) => slugs.includes(r.slug)).map((r) => r.id))
+  // Generalized version of the old fixed per-role pickers (Syomkachi/
+  // Montajchi/SMMchi): pick any role, get everyone in it (primary role or
+  // "Qo'shimcha lavozimlar" secondary role), same underlying data as before
+  // just keyed by an arbitrary role_id chosen in the UI instead of 3
+  // hardcoded slug lists.
+  function profilesByRoleId(roleId: string) {
+    if (!roleId) return []
     const secondaryProfileIds = new Set(
-      (employeeRoles ?? []).filter((er) => roleIds.has(er.role_id)).map((er) => er.profile_id)
+      (employeeRoles ?? []).filter((er) => er.role_id === roleId).map((er) => er.profile_id)
     )
-    return (profilesWithRoles ?? []).filter((p) => roleIds.has(p.role_id) || secondaryProfileIds.has(p.id))
+    return (profilesWithRoles ?? []).filter((p) => p.role_id === roleId || secondaryProfileIds.has(p.id))
   }
-
-  const shooterOptions = profilesByRoleSlugs(['syomkachi', 'mobilograf'])
-  const editorOptions = profilesByRoleSlugs(['montajchi'])
-  const smmOptions = profilesByRoleSlugs(['smm_manager'])
 
   // A previously-assigned person whose role no longer matches the filter
   // (reassigned, or the item predates this filtering) must still show up as
@@ -212,6 +209,19 @@ export function ContentItemSheet({
     },
   })
 
+  const { data: existingFormatIds } = useQuery({
+    queryKey: ['content_plan_formats', itemId],
+    enabled: !!itemId && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('content_plan_formats')
+        .select('format_id')
+        .eq('content_plan_item_id', itemId!)
+      if (error) throw error
+      return data.map((r) => r.format_id)
+    },
+  })
+
   const {
     register,
     handleSubmit,
@@ -222,27 +232,37 @@ export function ContentItemSheet({
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
   const selectedPlatforms = watch('_platforms' as never) as string[] | undefined
+  const selectedFormats = watch('_formats' as never) as string[] | undefined
+  const [assigneeRoleId, setAssigneeRoleId] = useState('')
 
   useEffect(() => {
     if (open && !isEdit) {
       reset({ project_id: defaultProjectId ?? '', publish_date: defaultPublishDate ?? '' })
       setValue('_platforms' as never, [] as never)
+      setValue('_formats' as never, [] as never)
+      setAssigneeRoleId('')
       setDraftId(null)
     }
   }, [open, isEdit, defaultProjectId, defaultPublishDate, reset, setValue])
 
   useEffect(() => {
     if (existing) {
+      // Old items assigned via the retired shooter/editor/smm fields fall
+      // back into the one flexible "responsible" field the first time
+      // they're opened/saved under the new UI, instead of appearing
+      // unassigned.
+      const legacyResponsible =
+        existing.responsible_profile_id ||
+        existing.shooter_profile_id ||
+        existing.editor_profile_id ||
+        existing.smm_profile_id ||
+        ''
       reset({
         project_id: existing.project_id,
         topic: existing.topic,
-        format_id: existing.format_id,
         status_id: existing.status_id,
         deliverable_type_id: existing.deliverable_type_id ?? '',
-        shooter_profile_id: existing.shooter_profile_id ?? '',
-        editor_profile_id: existing.editor_profile_id ?? '',
-        responsible_profile_id: existing.responsible_profile_id ?? '',
-        smm_profile_id: existing.smm_profile_id ?? '',
+        responsible_profile_id: legacyResponsible,
         shoot_date: existing.shoot_date ?? '',
         edit_done_date: existing.edit_done_date ?? '',
         cover_done_date: existing.cover_done_date ?? '',
@@ -262,11 +282,40 @@ export function ContentItemSheet({
     }
   }, [existingPlatformIds, setValue])
 
+  useEffect(() => {
+    if (existingFormatIds) {
+      setValue('_formats' as never, existingFormatIds as never)
+    }
+  }, [existingFormatIds, setValue])
+
+  // Derive which role the current "Ответственный" belongs to, once, so
+  // reopening a card shows the same role+person the CEO picked -- not
+  // re-run once the CEO starts actively picking a different role/person.
+  useEffect(() => {
+    if (!existing || !profilesWithRoles || assigneeRoleId) return
+    const respId =
+      existing.responsible_profile_id ||
+      existing.shooter_profile_id ||
+      existing.editor_profile_id ||
+      existing.smm_profile_id
+    if (!respId) return
+    const person = profilesWithRoles.find((p) => p.id === respId)
+    if (person) setAssigneeRoleId(person.role_id)
+  }, [existing, profilesWithRoles, assigneeRoleId])
+
   function togglePlatform(id: string, checked: boolean) {
     const current = selectedPlatforms ?? []
     setValue(
       '_platforms' as never,
       (checked ? [...current, id] : current.filter((p) => p !== id)) as never
+    )
+  }
+
+  function toggleFormat(id: string, checked: boolean) {
+    const current = selectedFormats ?? []
+    setValue(
+      '_formats' as never,
+      (checked ? [...current, id] : current.filter((f) => f !== id)) as never
     )
   }
 
@@ -277,16 +326,20 @@ export function ContentItemSheet({
   const effectiveId = itemId ?? draftId
 
   async function performSave(values: FormValues) {
+    const formatIds = selectedFormats ?? []
     const payload = {
       project_id: values.project_id,
       topic: values.topic,
-      format_id: values.format_id,
+      // Kept in sync as "the first selected work type" for any code that
+      // still reads the single legacy column -- content_plan_formats is
+      // the actual source of truth now.
+      format_id: formatIds[0] ?? null,
       status_id: values.status_id,
       deliverable_type_id: values.deliverable_type_id || null,
-      shooter_profile_id: values.shooter_profile_id || null,
-      editor_profile_id: values.editor_profile_id || null,
       responsible_profile_id: values.responsible_profile_id || null,
-      smm_profile_id: values.smm_profile_id || null,
+      shooter_profile_id: null,
+      editor_profile_id: null,
+      smm_profile_id: null,
       shoot_date: values.shoot_date || null,
       edit_done_date: values.edit_done_date || null,
       cover_done_date: values.cover_done_date || null,
@@ -321,12 +374,20 @@ export function ContentItemSheet({
       )
     }
 
-    // Not this sheet's own ['content_plan_platforms', id] here -- refetching
-    // it while still open re-triggers the effect that populates the
-    // platform checkboxes, reverting whatever the user just toggled before
-    // it's saved. Invalidated in mutation.onSuccess instead, once closing.
+    await supabase.from('content_plan_formats').delete().eq('content_plan_item_id', id)
+    if (formatIds.length > 0) {
+      await supabase.from('content_plan_formats').insert(
+        formatIds.map((format_id) => ({ content_plan_item_id: id!, format_id }))
+      )
+    }
+
+    // Not this sheet's own ['content_plan_platforms'/'content_plan_formats', id]
+    // here -- refetching while still open re-triggers the effect that
+    // populates the checkboxes, reverting whatever the user just toggled
+    // before it's saved. Invalidated in mutation.onSuccess instead, once closing.
     queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_platforms-all'] })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_formats-all'] })
   }
 
   const mutation = useMutation({
@@ -334,13 +395,19 @@ export function ContentItemSheet({
     onSuccess: () => {
       toast.success(isEdit ? 'Сохранено' : 'Добавлено в контент-план')
       queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', itemId] })
+      queryClient.invalidateQueries({ queryKey: ['content_plan_formats', itemId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
   const watched = watch()
-  const canAutosave = !!(watched.project_id && watched.topic && watched.format_id && watched.status_id)
+  const canAutosave = !!(
+    watched.project_id &&
+    watched.topic &&
+    watched.status_id &&
+    (selectedFormats ?? []).length > 0
+  )
   const autosaveStatus = useAutosave(
     watched,
     async (values) => {
@@ -431,46 +498,43 @@ export function ContentItemSheet({
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('contentPlan.format')}</Label>
-              <Select
-                value={watch('format_id')}
-                onValueChange={(v: string | null) => setValue('format_id', v ?? '')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="—">
-                    {() => pickLabel(formats?.find((f) => f.id === watch('format_id')), i18n.language)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {formats?.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {pickLabel(f, i18n.language)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('contentPlan.status')}</Label>
-              <Select
-                value={watch('status_id')}
-                onValueChange={(v: string | null) => setValue('status_id', v ?? '')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="—">
-                    {() => pickLabel(statuses?.find((s) => s.id === watch('status_id')), i18n.language)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {statuses?.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {pickLabel(s, i18n.language)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('contentPlan.status')}</Label>
+            <Select
+              value={watch('status_id')}
+              onValueChange={(v: string | null) => setValue('status_id', v ?? '')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="—">
+                  {() => pickLabel(statuses?.find((s) => s.id === watch('status_id')), i18n.language)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {statuses?.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {pickLabel(s, i18n.language)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('contentPlan.format')}</Label>
+            <p className="text-xs text-muted-foreground">{t('contentPlan.formatHint')}</p>
+            <div className="flex flex-wrap gap-3 rounded-lg border border-border p-3">
+              {formats?.map((f) => (
+                <div key={f.id} className="flex items-center gap-1.5">
+                  <Checkbox
+                    id={`format-${f.id}`}
+                    checked={(selectedFormats ?? []).includes(f.id)}
+                    onCheckedChange={(checked) => toggleFormat(f.id, checked === true)}
+                  />
+                  <Label htmlFor={`format-${f.id}`} className="font-normal">
+                    {pickLabel(f, i18n.language)}
+                  </Label>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -492,38 +556,24 @@ export function ContentItemSheet({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('contentPlan.shooter')}</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('contentPlan.responsible')}</Label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Combobox
-                options={withCurrentSelection(shooterOptions, watch('shooter_profile_id')).map((p) => ({
-                  value: p.id,
-                  label: p.full_name,
-                }))}
-                value={watch('shooter_profile_id') ?? ''}
-                onChange={(v) => setValue('shooter_profile_id', v)}
+                options={(rolesForFiltering ?? []).map((r) => ({ value: r.id, label: pickLabel(r, i18n.language) ?? '' }))}
+                value={assigneeRoleId}
+                onChange={(v) => {
+                  setAssigneeRoleId(v)
+                  setValue('responsible_profile_id', '')
+                }}
+                placeholder={t('team.role')}
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('contentPlan.editor')}</Label>
               <Combobox
-                options={withCurrentSelection(editorOptions, watch('editor_profile_id')).map((p) => ({
-                  value: p.id,
-                  label: p.full_name,
-                }))}
-                value={watch('editor_profile_id') ?? ''}
-                onChange={(v) => setValue('editor_profile_id', v)}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('contentPlan.smm')}</Label>
-              <Combobox
-                options={withCurrentSelection(smmOptions, watch('smm_profile_id')).map((p) => ({
-                  value: p.id,
-                  label: p.full_name,
-                }))}
-                value={watch('smm_profile_id') ?? ''}
-                onChange={(v) => setValue('smm_profile_id', v)}
+                options={withCurrentSelection(profilesByRoleId(assigneeRoleId), watch('responsible_profile_id')).map(
+                  (p) => ({ value: p.id, label: p.full_name })
+                )}
+                value={watch('responsible_profile_id') ?? ''}
+                onChange={(v) => setValue('responsible_profile_id', v)}
               />
             </div>
           </div>

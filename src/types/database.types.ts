@@ -186,7 +186,7 @@ type ContentPlanItemRow = {
   id: string
   project_id: string
   topic: string
-  format_id: string
+  format_id: string | null
   script: string | null
   tor_text: string | null
   rubric_id: string | null
@@ -279,6 +279,13 @@ type ProjectMonthlyGoalRow = {
   target_stories: number
   target_ads: boolean
   created_at: string
+}
+
+type ProjectMonthlyGoalTargetRow = {
+  id: string
+  goal_id: string
+  format_id: string
+  target_count: number
 }
 
 type OrgPositionRow = {
@@ -403,6 +410,7 @@ type CeoDashboardViewRow = {
 }
 
 type ContentPlanPlatformRow = { content_plan_item_id: string; platform_id: string }
+type ContentPlanFormatRow = { content_plan_item_id: string; format_id: string }
 
 type KbArticleRow = {
   id: string
@@ -499,7 +507,7 @@ export type Database = {
       content_rubrics: ReturnType<typeof table<ContentRubricRow, 'slug' | 'label_ru' | 'label_uz'>>
       platforms: ReturnType<typeof table<PlatformRow, 'slug' | 'label_ru' | 'label_uz'>>
       content_statuses: ReturnType<typeof table<ContentStatusRow, 'slug' | 'label_ru' | 'label_uz'>>
-      content_plan_items: ReturnType<typeof table<ContentPlanItemRow, 'project_id' | 'topic' | 'format_id' | 'status_id'>>
+      content_plan_items: ReturnType<typeof table<ContentPlanItemRow, 'project_id' | 'topic' | 'status_id'>>
       checklist_cadences: { Row: ChecklistCadenceRow; Insert: ChecklistCadenceRow; Update: Partial<ChecklistCadenceRow>; Relationships: [] }
       checklist_templates: ReturnType<typeof table<ChecklistTemplateRow, 'cadence_id' | 'title'>>
       checklist_template_items: ReturnType<typeof table<ChecklistTemplateItemRow, 'template_id' | 'label_ru' | 'label_uz'>>
@@ -513,6 +521,7 @@ export type Database = {
       org_positions: ReturnType<typeof table<OrgPositionRow, 'title'>>
       client_interactions: ReturnType<typeof table<ClientInteractionRow, 'client_id' | 'note'>>
       project_monthly_goals: ReturnType<typeof table<ProjectMonthlyGoalRow, 'project_id' | 'month'>>
+      project_monthly_goal_targets: ReturnType<typeof table<ProjectMonthlyGoalTargetRow, 'goal_id' | 'format_id'>>
       document_categories: ReturnType<typeof table<DocumentCategoryRow, 'slug' | 'label_ru' | 'label_uz'>>
       documents: ReturnType<typeof table<DocumentRow, 'title' | 'storage_path'>>
       document_visibility: { Row: DocumentVisibilityRow; Insert: Pick<DocumentVisibilityRow, 'document_id' | 'profile_id'> & Partial<DocumentVisibilityRow>; Update: Partial<DocumentVisibilityRow>; Relationships: [] }
@@ -526,6 +535,7 @@ export type Database = {
       payroll_runs: ReturnType<typeof table<PayrollRunRow, 'period_month'>>
       payroll_run_lines: ReturnType<typeof table<PayrollRunLineRow, 'payroll_run_id' | 'profile_id'>>
       content_plan_platforms: { Row: ContentPlanPlatformRow; Insert: ContentPlanPlatformRow; Update: Partial<ContentPlanPlatformRow>; Relationships: [] }
+      content_plan_formats: { Row: ContentPlanFormatRow; Insert: ContentPlanFormatRow; Update: Partial<ContentPlanFormatRow>; Relationships: [] }
       kb_articles: ReturnType<typeof table<KbArticleRow, 'title'>>
       time_entries: ReturnType<typeof table<TimeEntryRow, 'profile_id'>>
       profile_telegram_links: { Row: ProfileTelegramLinkRow; Insert: Pick<ProfileTelegramLinkRow, 'profile_id' | 'chat_id'> & Partial<ProfileTelegramLinkRow>; Update: Partial<ProfileTelegramLinkRow>; Relationships: [] }

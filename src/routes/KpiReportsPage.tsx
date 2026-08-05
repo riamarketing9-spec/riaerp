@@ -201,7 +201,7 @@ function ProjectKpiTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('project_monthly_goals')
-        .select('target_posts, target_stories, target_ads')
+        .select('id')
         .eq('project_id', projectId)
         .eq('month', monthKeyRef.start)
         .maybeSingle()
@@ -210,10 +210,23 @@ function ProjectKpiTab() {
     },
   })
 
+  const { data: goalTargets } = useQuery({
+    queryKey: ['kpi-project-monthly-goal-targets', monthlyGoal?.id],
+    enabled: !!monthlyGoal,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('project_monthly_goal_targets')
+        .select('format_id, target_count')
+        .eq('goal_id', monthlyGoal!.id)
+      if (error) throw error
+      return data
+    },
+  })
+
   const { data: contentFormats } = useQuery({
     queryKey: ['content_formats'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('content_formats').select('id, slug')
+      const { data, error } = await supabase.from('content_formats').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -232,26 +245,13 @@ function ProjectKpiTab() {
     },
   })
 
-  const { data: doneStatus } = useQuery({
-    queryKey: ['task_statuses-done'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('task_statuses')
-        .select('id, label_ru, label_uz')
-        .eq('slug', 'done')
-        .maybeSingle()
-      if (error) throw error
-      return data
-    },
-  })
-
   const { data: monthItems } = useQuery({
     queryKey: ['kpi-project-month-items', projectId, publishedStatus?.id, monthKeyRef.start],
     enabled: !!projectId && !!publishedStatus,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('content_plan_items')
-        .select('id, topic, format_id, publish_date')
+        .select('id, topic, publish_date')
         .eq('project_id', projectId)
         .eq('status_id', publishedStatus!.id)
         .gte('publish_date', monthKeyRef.start)
@@ -261,56 +261,29 @@ function ProjectKpiTab() {
     },
   })
 
-  const { data: deliverableTypes } = useQuery({
-    queryKey: ['deliverable_types-lookup'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('deliverable_types').select('id, label_uz')
-      if (error) throw error
-      return data
-    },
-  })
-
-  const { data: monthDoneTasks } = useQuery({
-    queryKey: ['kpi-project-month-tasks', projectId, doneStatus?.id, monthKeyRef.start],
-    enabled: !!projectId && !!doneStatus,
+  const monthItemIds = useMemo(() => (monthItems ?? []).map((i) => i.id), [monthItems])
+  const { data: monthItemFormats } = useQuery({
+    queryKey: ['kpi-project-month-item-formats', monthItemIds],
+    enabled: monthItemIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('tasks')
-        .select('id, title, completed_at')
-        .eq('project_id', projectId)
-        .eq('status_id', doneStatus!.id)
-        .gte('completed_at', monthKeyRef.start)
-        .lt('completed_at', monthKeyRef.end)
+        .from('content_plan_formats')
+        .select('content_plan_item_id, format_id')
+        .in('content_plan_item_id', monthItemIds)
       if (error) throw error
       return data
     },
   })
 
-  const taskIds = useMemo(() => (monthDoneTasks ?? []).map((t) => t.id), [monthDoneTasks])
-  const { data: taskDeliverables } = useQuery({
-    queryKey: ['task_deliverable_types-for-kpi', taskIds],
-    enabled: taskIds.length > 0,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('task_deliverable_types')
-        .select('task_id, deliverable_type_id')
-        .in('task_id', taskIds)
-      if (error) throw error
-      return data
-    },
-  })
-
-  const formatSlugOf = (formatId: string) => contentFormats?.find((f) => f.id === formatId)?.slug
-  const deliverableLabelOf = (deliverableTypeId: string) =>
-    deliverableTypes?.find((d) => d.id === deliverableTypeId)?.label_uz.trim().toLowerCase() ?? ''
+  const formatLabelOf = (formatId: string) => pickLabel(contentFormats?.find((f) => f.id === formatId), i18n.language) ?? ''
 
   const detail = computeMonthlyProgress({
-    goal: monthlyGoal ?? undefined,
-    items: monthItems ?? [],
-    doneTasks: monthDoneTasks ?? [],
-    taskDeliverables: taskDeliverables ?? [],
-    formatSlugOf,
-    deliverableLabelOf,
+    targets: goalTargets,
+    items: (monthItems ?? []).map((i) => ({
+      ...i,
+      formatIds: (monthItemFormats ?? []).filter((f) => f.content_plan_item_id === i.id).map((f) => f.format_id),
+    })),
+    formatLabelOf,
   })
 
   return (
@@ -348,7 +321,6 @@ function ProjectKpiTab() {
               <MonthlyProgressBreakdown
                 detail={detail}
                 publishedStatusLabel={pickLabel(publishedStatus, i18n.language) ?? ''}
-                doneStatusLabel={pickLabel(doneStatus, i18n.language) ?? ''}
               />
             </CardContent>
           </Card>

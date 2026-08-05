@@ -52,6 +52,7 @@ export function ContentTableView({
   statuses,
   itemPlatforms,
   platforms,
+  itemFormats,
   contentFormats,
   contentRubrics,
   onOpen,
@@ -65,6 +66,7 @@ export function ContentTableView({
   statuses?: Lookup[]
   itemPlatforms?: { content_plan_item_id: string; platform_id: string }[]
   platforms?: Lookup[]
+  itemFormats?: { content_plan_item_id: string; format_id: string }[]
   contentFormats?: Lookup[]
   contentRubrics?: Lookup[]
   onOpen: (id: string) => void
@@ -75,13 +77,16 @@ export function ContentTableView({
   const [formatFilter, setFormatFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
 
+  const formatIdsFor = (itemId: string) =>
+    (itemFormats ?? []).filter((f) => f.content_plan_item_id === itemId).map((f) => f.format_id)
+
   // Platform/format only, no status/project narrowing beyond project itself
   // -- shared base for the table (adds statusFilter) and the per-status
   // stats strip (needs every status's count, so it can't be pre-narrowed).
   const itemsForStats = useMemo(() => {
     return items.filter((item) => {
       if (projectFilter && item.project_id !== projectFilter) return false
-      if (formatFilter && item.format_id !== formatFilter) return false
+      if (formatFilter && !formatIdsFor(item.id).includes(formatFilter)) return false
       if (platformFilter) {
         const hasPlatform = (itemPlatforms ?? []).some(
           (ip) => ip.content_plan_item_id === item.id && ip.platform_id === platformFilter
@@ -90,7 +95,8 @@ export function ContentTableView({
       }
       return true
     })
-  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms, itemFormats])
 
   const filtered = useMemo(
     () => itemsForStats.filter((item) => !statusFilter || item.status_id === statusFilter),
@@ -109,7 +115,10 @@ export function ContentTableView({
   const projectName = (id: string) => projects?.find((p) => p.id === id)?.name ?? '—'
   const statusLabel = (id: string) => pickLabel(statuses?.find((s) => s.id === id), i18n.language) ?? '—'
   const statusSlug = (id: string) => statuses?.find((s) => s.id === id)?.slug
-  const formatLabel = (id?: string | null) => (id ? pickLabel(contentFormats?.find((f) => f.id === id), i18n.language) : null)
+  const formatLabelsFor = (itemId: string) =>
+    formatIdsFor(itemId)
+      .map((id) => pickLabel(contentFormats?.find((f) => f.id === id), i18n.language))
+      .filter((l): l is string => !!l)
   const rubricLabel = (id?: string | null) => (id ? pickLabel(contentRubrics?.find((r) => r.id === id), i18n.language) : null)
   const platformsFor = (itemId: string) =>
     (itemPlatforms ?? [])
@@ -209,7 +218,16 @@ export function ContentTableView({
                     {statusLabel(item.status_id)}
                   </Badge>
                 </TableCell>
-                <TableCell>{formatLabel(item.format_id) ?? '—'}</TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {formatLabelsFor(item.id).map((label) => (
+                      <Badge key={label} variant="secondary" className="text-[11px]">
+                        {label}
+                      </Badge>
+                    ))}
+                    {formatLabelsFor(item.id).length === 0 && '—'}
+                  </div>
+                </TableCell>
                 <TableCell>{formatLocalDate(item.publish_date, i18n.language)}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">

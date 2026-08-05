@@ -1,59 +1,46 @@
 // Shared by ProjectsPage (card progress bar + its drill-down dialog) and
 // KpiReportsPage (Loyiha bo'yicha tab) so "how much of this month's goal is
 // done" is computed exactly once, not reimplemented twice and drifting.
+//
+// Percent is computed strictly per work type (ish turi): each target row
+// is a (format_id, target_count) pair, and each published content-plan
+// item counts toward EVERY work type it has selected (via
+// content_plan_formats), not just one bucket -- an item with both
+// "carousel" and "reels" selected counts once toward each target
+// independently. Nothing outside content-plan formats feeds into this
+// number anymore (no task-deliverable-label "ads/target" component).
 
-// "Post" target counts reels + post + carousel together, per spec.
-export const POST_BUCKET_FORMAT_SLUGS = ['post', 'reels', 'carousel']
+export type FormatTarget = { format_id: string; target_count: number }
+export type MonthlyContentItem = { id: string; topic: string; publish_date: string | null; formatIds: string[] }
 
-// Which "ish turi" (deliverable type) label counts toward the target quota
-// -- matched by label_uz since new types get added through the lookup
-// admin UI with auto-generated, unpredictable slugs.
-export const TARGET_TASK_LABELS = ['target sozlash', "voronka bo'yicha ishlash"]
-
-export type MonthlyGoal = { target_posts: number; target_stories: number; target_ads: boolean }
-export type MonthlyContentItem = { id: string; format_id: string; topic: string; publish_date: string | null }
-export type MonthlyDoneTask = { id: string; title: string; completed_at: string | null }
-
-export type TaskDeliverableLink = { task_id: string; deliverable_type_id: string }
+export type MonthlyProgressFormatDetail = {
+  format_id: string
+  label: string
+  target: number
+  items: MonthlyContentItem[]
+}
 
 export function computeMonthlyProgress({
-  goal,
+  targets,
   items,
-  doneTasks,
-  taskDeliverables,
-  formatSlugOf,
-  deliverableLabelOf,
+  formatLabelOf,
 }: {
-  goal: MonthlyGoal | undefined
+  targets: FormatTarget[] | undefined
   items: MonthlyContentItem[]
-  doneTasks: MonthlyDoneTask[]
-  taskDeliverables: TaskDeliverableLink[]
-  formatSlugOf: (formatId: string) => string | undefined
-  deliverableLabelOf: (deliverableTypeId: string) => string
+  formatLabelOf: (formatId: string) => string
 }) {
-  if (!goal) return null
+  if (!targets || targets.length === 0) return null
 
-  const postsItems = items.filter((i) => POST_BUCKET_FORMAT_SLUGS.includes(formatSlugOf(i.format_id) ?? ''))
-  const storiesItems = items.filter((i) => formatSlugOf(i.format_id) === 'stories')
+  const perFormat: MonthlyProgressFormatDetail[] = targets.map((t) => ({
+    format_id: t.format_id,
+    label: formatLabelOf(t.format_id),
+    target: t.target_count,
+    items: items.filter((i) => i.formatIds.includes(t.format_id)),
+  }))
 
-  const targetTasks = doneTasks.filter((tsk) => {
-    const labels = taskDeliverables
-      .filter((td) => td.task_id === tsk.id)
-      .map((td) => deliverableLabelOf(td.deliverable_type_id))
-    return labels.some((l) => TARGET_TASK_LABELS.includes(l))
-  })
+  const quotaTotal = perFormat.reduce((sum, f) => sum + f.target, 0)
+  const doneTotal = perFormat.reduce((sum, f) => sum + Math.min(f.items.length, f.target), 0)
+  const percent = quotaTotal === 0 ? null : Math.round((doneTotal / quotaTotal) * 100)
 
-  const quotaTotal = goal.target_posts + goal.target_stories + (goal.target_ads ? 1 : 0)
-  const percent =
-    quotaTotal === 0
-      ? null
-      : Math.round(
-          ((Math.min(postsItems.length, goal.target_posts) +
-            Math.min(storiesItems.length, goal.target_stories) +
-            (goal.target_ads && targetTasks.length > 0 ? 1 : 0)) /
-            quotaTotal) *
-            100
-        )
-
-  return { percent, quotaTotal, postsItems, storiesItems, targetTasks, goal }
+  return { percent, quotaTotal, perFormat }
 }
