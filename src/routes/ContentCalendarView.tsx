@@ -378,7 +378,7 @@ export function ContentCalendarView({
                 key={key}
                 dateKey={key}
                 onClick={() => onCreate(key)}
-                className={cn(!isSameMonth(day, month) && 'bg-muted/20 text-muted-foreground')}
+                className={cn(!isSameMonth(day, month) && 'text-muted-foreground')}
               >
                 <div className="flex items-center justify-between">
                   <span
