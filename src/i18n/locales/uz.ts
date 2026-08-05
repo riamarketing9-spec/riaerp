@@ -437,7 +437,7 @@ export const uz = {
     departmentAdded: "Bo'lim qo'shildi",
     departmentDeactivated: "Bo'lim faolsizlantirildi",
     secondaryRoles: "Qo'shimcha lavozimlar",
-    secondaryRolesHint: "Agar xodim bir nechta rolni bajarsa — shu yerda belgilang (ruxsatlarga ta'sir qilmaydi, faqat hisobga olish uchun)",
+    secondaryRolesHint: "Agar xodim bir nechta rolni bajarsa — shu yerda belgilang. Har bir belgilangan lavozimning ruxsatlari asosiy rol ruxsatlariga qo'shiladi",
     permissions: 'Ruxsatlar',
     permissionsHint: "Standart holatda — roli bo'yicha ruxsatlar; ushbu xodim uchun aniq bir ruxsatni qo'shish yoki olib tashlash uchun belgilang",
     permissionFromRole: "roli bo'yicha",

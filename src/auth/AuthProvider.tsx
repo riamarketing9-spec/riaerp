@@ -33,10 +33,18 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null)
 
 async function loadCapabilities(profileId: string, roleId: string): Promise<Set<string>> {
+  // Secondary positions ("Qo'shimcha lavozimlar") now grant their role's
+  // capabilities too, same as the primary role -- see migration 0064.
+  const { data: secondaryRoleRows } = await supabase
+    .from('employee_roles')
+    .select('role_id')
+    .eq('profile_id', profileId)
+  const roleIds = [roleId, ...(secondaryRoleRows ?? []).map((r) => r.role_id)]
+
   const { data: capRows } = await supabase
     .from('role_capabilities')
     .select('capability')
-    .eq('role_id', roleId)
+    .in('role_id', roleIds)
 
   const effective = new Set((capRows ?? []).map((c) => c.capability))
 
@@ -146,7 +154,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // only took effect after the employee logged out and back in, which
   // read as "permissions don't work" even though the write succeeded.
   // Realtime push (not polling) -- the affected row's own INSERT/UPDATE/
-  // DELETE on profile_capability_overrides triggers an instant recheck.
+  // DELETE on profile_capability_overrides OR employee_roles (secondary
+  // positions now grant their role's capabilities too, see migration 0064)
+  // triggers an instant recheck.
   useEffect(() => {
     if (!profile) return
 
@@ -164,6 +174,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           event: '*',
           schema: 'public',
           table: 'profile_capability_overrides',
+          filter: `profile_id=eq.${profile.id}`,
+        },
+        refresh
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'employee_roles',
           filter: `profile_id=eq.${profile.id}`,
         },
         refresh

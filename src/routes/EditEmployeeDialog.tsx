@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -101,14 +101,21 @@ export function EditEmployeeDialog({
     },
   })
 
+  // Secondary positions grant their role's capabilities too (migration
+  // 0064), so the "default" set a capability is compared against for the
+  // "roli bo'yicha" label / autosave diff has to include every checked
+  // secondary role, not just the primary one -- keyed off the live
+  // secondaryRoleIds state so toggling a secondary role in this dialog
+  // updates it immediately, not just after save+reopen.
+  const roleIdsForDefaults = [roleId, ...secondaryRoleIds].filter(Boolean).sort()
   const { data: roleDefaults } = useQuery({
-    queryKey: ['role_capabilities', roleId],
-    enabled: !!roleId,
+    queryKey: ['role_capabilities', roleIdsForDefaults],
+    enabled: roleIdsForDefaults.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('role_capabilities')
         .select('capability')
-        .eq('role_id', roleId)
+        .in('role_id', roleIdsForDefaults)
       if (error) throw error
       return new Set(data.map((r) => r.capability))
     },
@@ -149,15 +156,51 @@ export function EditEmployeeDialog({
     }
   }, [profileRow])
 
+  // First run (prevRoleDefaultsRef still null, both queries loaded): apply
+  // role defaults + overrides wholesale, same as before. Every later run
+  // (the CEO checks/unchecks a secondary role mid-edit) only applies the
+  // DELTA against what role_capabilities used to grant, so a capability the
+  // CEO manually toggled in this same session isn't clobbered -- an
+  // explicit override still wins either way, matching has_capability()'s
+  // coalesce(override, role) precedence.
+  const prevRoleDefaultsRef = useRef<Set<string> | null>(null)
+
   useEffect(() => {
-    if (!roleDefaults) return
-    const next = new Set(roleDefaults)
-    for (const o of overrides ?? []) {
-      if (o.granted) next.add(o.capability)
-      else next.delete(o.capability)
+    if (!roleDefaults || overrides === undefined) return
+    const prev = prevRoleDefaultsRef.current
+    const overrideFor = (cap: string) => overrides.find((o) => o.capability === cap)
+
+    if (prev === null) {
+      const next = new Set(roleDefaults)
+      for (const o of overrides) {
+        if (o.granted) next.add(o.capability)
+        else next.delete(o.capability)
+      }
+      setEffectiveCaps(next)
+    } else {
+      setEffectiveCaps((current) => {
+        const next = new Set(current)
+        for (const cap of roleDefaults) {
+          if (!prev.has(cap)) {
+            const override = overrideFor(cap)
+            if (!override || override.granted) next.add(cap)
+          }
+        }
+        for (const cap of prev) {
+          if (!roleDefaults.has(cap)) {
+            const override = overrideFor(cap)
+            if (!override || !override.granted) next.delete(cap)
+          }
+        }
+        return next
+      })
     }
-    setEffectiveCaps(next)
+    prevRoleDefaultsRef.current = roleDefaults
   }, [roleDefaults, overrides])
+
+  useEffect(() => {
+    prevRoleDefaultsRef.current = null
+  }, [profileId])
 
   useEffect(() => {
     setSecondaryRoleIds(new Set((employeeRoles ?? []).map((r) => r.role_id)))
