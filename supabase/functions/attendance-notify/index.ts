@@ -28,6 +28,11 @@ function tashkentMidnightUtc(): Date {
   return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), -TASHKENT_OFFSET_HOURS, 0, 0))
 }
 
+function tashkentDateStr(): string {
+  const t = new Date(Date.now() + TASHKENT_OFFSET_HOURS * 60 * 60 * 1000)
+  return t.toISOString().slice(0, 10)
+}
+
 function formatDuration(ms: number): string {
   const totalMinutes = Math.floor(ms / 60000)
   const hours = Math.floor(totalMinutes / 60)
@@ -110,6 +115,64 @@ async function buildEmployeeTaskReport(admin: any, profileId: string): Promise<s
   return blocks.join('\n\n')
 }
 
+// General (not employee-specific) roll-up appended to every clock-out
+// report: what shipped today across ALL projects, from content-plan ish
+// тури (deliverable_type) selections, counting only items whose status is
+// "жойланди" (published) with today's publish_date -- each selected work
+// type on an item counts on its own, same granularity as the content-plan
+// card's own percent calc.
+// deno-lint-ignore no-explicit-any
+async function buildProjectsPublishedReport(admin: any): Promise<string> {
+  const { data: publishedStatus } = await admin.from('content_statuses').select('id').eq('slug', 'published').maybeSingle()
+  const publishedId = publishedStatus?.id
+  if (!publishedId) return ''
+
+  const today = tashkentDateStr()
+  const { data: items } = await admin
+    .from('content_plan_items')
+    .select('id, project_id')
+    .eq('status_id', publishedId)
+    .eq('publish_date', today)
+  if (!items || items.length === 0) return ''
+
+  const itemIds = items.map((i: { id: string }) => i.id)
+  const { data: itemTypes } = await admin
+    .from('content_plan_deliverable_types')
+    .select('content_plan_item_id, deliverable_type_id')
+    .in('content_plan_item_id', itemIds)
+  const { data: deliverableTypes } = await admin.from('deliverable_types').select('id, label_uz')
+  const { data: projects } = await admin.from('projects').select('id, name')
+
+  const typeLabel = (id: string) =>
+    (deliverableTypes ?? []).find((d: { id: string }) => d.id === id)?.label_uz ?? '—'
+  const projectName = (id: string | null) =>
+    (projects ?? []).find((p: { id: string }) => p.id === id)?.name ?? '—'
+
+  const byProject = new Map<string, Map<string, number>>()
+  for (const item of items as { id: string; project_id: string | null }[]) {
+    const types = (itemTypes ?? []).filter((t: { content_plan_item_id: string }) => t.content_plan_item_id === item.id)
+    const key = item.project_id ?? '—'
+    const typeMap = byProject.get(key) ?? new Map<string, number>()
+    if (types.length === 0) {
+      typeMap.set('—', (typeMap.get('—') ?? 0) + 1)
+    } else {
+      for (const t of types as { deliverable_type_id: string }[]) {
+        const label = typeLabel(t.deliverable_type_id)
+        typeMap.set(label, (typeMap.get(label) ?? 0) + 1)
+      }
+    }
+    byProject.set(key, typeMap)
+  }
+
+  const lines: string[] = []
+  for (const [projectId, typeMap] of byProject) {
+    const parts = [...typeMap.entries()].map(([label, count]) => `${escapeHtml(label)} ×${count}`)
+    lines.push(`<b>${escapeHtml(projectName(projectId === '—' ? null : projectId))}</b>: ${parts.join(', ')}`)
+  }
+
+  return `📁 <b>Loyihalar bo'yicha bugungi natija:</b>\n${lines.join('\n')}`
+}
+
 Deno.serve(async (req) => {
   const cronSecret = req.headers.get('x-cron-secret')
   if (!cronSecret || cronSecret !== Deno.env.get('CRON_SECRET')) {
@@ -136,6 +199,8 @@ Deno.serve(async (req) => {
   if (event === 'stop') {
     const report = await buildEmployeeTaskReport(admin, profile_id)
     if (report) text += `\n\n${report}`
+    const projectsReport = await buildProjectsPublishedReport(admin)
+    if (projectsReport) text += `\n\n${projectsReport}`
   }
 
   const { data: profiles } = await admin.from('profiles').select('id')
