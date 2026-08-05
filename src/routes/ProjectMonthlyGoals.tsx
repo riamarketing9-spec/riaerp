@@ -17,11 +17,11 @@ function monthLabel(monthValue: string, language: string) {
   })
 }
 
-type TargetRow = { format_id: string; target_count: string }
+type TargetRow = { deliverable_type_id: string; target_count: string }
 
 // Flexible per-work-type goal, same idea as the иш тури field itself: pick
-// any content_formats row and type a number next to it, add as many rows
-// as needed -- instead of a fixed posts/stories/ads list.
+// any deliverable_types row and type a number next to it, add as many
+// rows as needed -- instead of a fixed posts/stories/ads list.
 export function ProjectMonthlyGoals({ projectId }: { projectId: string }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -30,10 +30,10 @@ export function ProjectMonthlyGoals({ projectId }: { projectId: string }) {
   const [note, setNote] = useState('')
   const [rows, setRows] = useState<TargetRow[]>([])
 
-  const { data: contentFormats } = useQuery({
-    queryKey: ['content_formats'],
+  const { data: deliverableTypes } = useQuery({
+    queryKey: ['deliverable_types'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('content_formats').select('id, label_ru, label_uz')
+      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -59,20 +59,20 @@ export function ProjectMonthlyGoals({ projectId }: { projectId: string }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('project_monthly_goal_targets')
-        .select('goal_id, format_id, target_count')
+        .select('goal_id, deliverable_type_id, target_count')
         .in('goal_id', goalIds)
       if (error) throw error
-      const map = new Map<string, { format_id: string; target_count: number }[]>()
+      const map = new Map<string, { deliverable_type_id: string; target_count: number }[]>()
       for (const row of data) {
         const list = map.get(row.goal_id) ?? []
-        list.push({ format_id: row.format_id, target_count: row.target_count })
+        list.push({ deliverable_type_id: row.deliverable_type_id, target_count: row.target_count })
         map.set(row.goal_id, list)
       }
       return map
     },
   })
 
-  const formatLabel = (id: string) => pickLabel(contentFormats?.find((f) => f.id === id), i18n.language) ?? ''
+  const deliverableTypeLabel = (id: string) => pickLabel(deliverableTypes?.find((f) => f.id === id), i18n.language) ?? ''
 
   useEffect(() => {
     if (!editingMonth) return
@@ -81,13 +81,13 @@ export function ProjectMonthlyGoals({ projectId }: { projectId: string }) {
     const existingTargets = existing ? targetsByGoalId?.get(existing.id) : undefined
     setRows(
       existingTargets && existingTargets.length > 0
-        ? existingTargets.map((t) => ({ format_id: t.format_id, target_count: String(t.target_count) }))
-        : [{ format_id: '', target_count: '' }]
+        ? existingTargets.map((t) => ({ deliverable_type_id: t.deliverable_type_id, target_count: String(t.target_count) }))
+        : [{ deliverable_type_id: '', target_count: '' }]
     )
   }, [editingMonth, goals, targetsByGoalId])
 
   function addRow() {
-    setRows((prev) => [...prev, { format_id: '', target_count: '' }])
+    setRows((prev) => [...prev, { deliverable_type_id: '', target_count: '' }])
   }
   function removeRow(index: number) {
     setRows((prev) => prev.filter((_, i) => i !== index))
@@ -106,10 +106,10 @@ export function ProjectMonthlyGoals({ projectId }: { projectId: string }) {
       if (goalErr) throw goalErr
 
       await supabase.from('project_monthly_goal_targets').delete().eq('goal_id', goal.id)
-      const validRows = rows.filter((r) => r.format_id && Number(r.target_count) > 0)
+      const validRows = rows.filter((r) => r.deliverable_type_id && Number(r.target_count) > 0)
       if (validRows.length > 0) {
         const { error: targetsErr } = await supabase.from('project_monthly_goal_targets').insert(
-          validRows.map((r) => ({ goal_id: goal.id, format_id: r.format_id, target_count: Number(r.target_count) }))
+          validRows.map((r) => ({ goal_id: goal.id, deliverable_type_id: r.deliverable_type_id, target_count: Number(r.target_count) }))
         )
         if (targetsErr) throw targetsErr
       }
@@ -143,7 +143,7 @@ export function ProjectMonthlyGoals({ projectId }: { projectId: string }) {
               <span className="text-muted-foreground">
                 {targets.length === 0
                   ? '—'
-                  : targets.map((tr) => `${formatLabel(tr.format_id)}: ${tr.target_count}`).join(' · ')}
+                  : targets.map((tr) => `${deliverableTypeLabel(tr.deliverable_type_id)}: ${tr.target_count}`).join(' · ')}
               </span>
               {g.note && <span className="text-muted-foreground">{g.note}</span>}
             </div>
@@ -167,10 +167,10 @@ export function ProjectMonthlyGoals({ projectId }: { projectId: string }) {
               <div key={i} className="flex items-center gap-1.5">
                 <Combobox
                   className="h-8 flex-1"
-                  options={(contentFormats ?? []).map((f) => ({ value: f.id, label: pickLabel(f, i18n.language) ?? '' }))}
-                  value={row.format_id}
-                  onChange={(v) => updateRow(i, { format_id: v })}
-                  placeholder={t('contentPlan.format')}
+                  options={(deliverableTypes ?? []).map((f) => ({ value: f.id, label: pickLabel(f, i18n.language) ?? '' }))}
+                  value={row.deliverable_type_id}
+                  onChange={(v) => updateRow(i, { deliverable_type_id: v })}
+                  placeholder={t('payroll.deliverableType')}
                 />
                 <Input
                   type="number"

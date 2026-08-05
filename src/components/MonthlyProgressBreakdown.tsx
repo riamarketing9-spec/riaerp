@@ -22,8 +22,8 @@ export function MonthlyProgressBreakdown({
   if (!detail) return null
   return (
     <div className="flex flex-col gap-4">
-      {detail.perFormat.map((f) => (
-        <div key={f.format_id} className="flex flex-col gap-1.5">
+      {detail.perType.map((f) => (
+        <div key={f.deliverable_type_id} className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-sm font-medium">
             <span>{f.label}</span>
             <span className="text-muted-foreground">

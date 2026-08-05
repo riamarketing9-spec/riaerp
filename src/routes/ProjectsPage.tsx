@@ -125,23 +125,23 @@ export function ProjectsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('project_monthly_goal_targets')
-        .select('goal_id, format_id, target_count')
+        .select('goal_id, deliverable_type_id, target_count')
         .in('goal_id', goalIds)
       if (error) throw error
-      const map = new Map<string, { format_id: string; target_count: number }[]>()
+      const map = new Map<string, { deliverable_type_id: string; target_count: number }[]>()
       for (const row of data) {
         const list = map.get(row.goal_id) ?? []
-        list.push({ format_id: row.format_id, target_count: row.target_count })
+        list.push({ deliverable_type_id: row.deliverable_type_id, target_count: row.target_count })
         map.set(row.goal_id, list)
       }
       return map
     },
   })
 
-  const { data: contentFormats } = useQuery({
-    queryKey: ['content_formats'],
+  const { data: deliverableTypes } = useQuery({
+    queryKey: ['deliverable_types'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('content_formats').select('id, label_ru, label_uz')
+      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -182,20 +182,20 @@ export function ProjectsPage() {
 
   const publishedItemIds = useMemo(() => (monthPublishedItems ?? []).map((i) => i.id), [monthPublishedItems])
 
-  const { data: publishedItemFormats } = useQuery({
-    queryKey: ['projects-quota-content-formats', publishedItemIds],
+  const { data: publishedItemDeliverableTypes } = useQuery({
+    queryKey: ['projects-quota-content-deliverable-types', publishedItemIds],
     enabled: publishedItemIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('content_plan_formats')
-        .select('content_plan_item_id, format_id')
+        .from('content_plan_deliverable_types')
+        .select('content_plan_item_id, deliverable_type_id')
         .in('content_plan_item_id', publishedItemIds)
       if (error) throw error
       return data
     },
   })
 
-  const formatLabelOf = (formatId: string) => pickLabel(contentFormats?.find((f) => f.id === formatId), i18n.language) ?? ''
+  const deliverableTypeLabelOf = (id: string) => pickLabel(deliverableTypes?.find((f) => f.id === id), i18n.language) ?? ''
 
   // No goal set for the current month at all -> don't show a progress bar
   // (per spec: nothing to measure against, so no misleading 0%/percent).
@@ -208,11 +208,11 @@ export function ProjectsPage() {
       .filter((i) => i.project_id === project.id)
       .map((i) => ({
         ...i,
-        formatIds: (publishedItemFormats ?? [])
+        deliverableTypeIds: (publishedItemDeliverableTypes ?? [])
           .filter((f) => f.content_plan_item_id === i.id)
-          .map((f) => f.format_id),
+          .map((f) => f.deliverable_type_id),
       }))
-    return computeMonthlyProgress({ targets, items, formatLabelOf })
+    return computeMonthlyProgress({ targets, items, deliverableTypeLabelOf })
   }
 
   const { data: assistantsByProject } = useQuery({

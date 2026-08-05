@@ -28,8 +28,8 @@ import { ExternalLink } from 'lucide-react'
 const schema = z.object({
   project_id: z.string().min(1, 'Обязательное поле'),
   topic: z.string().min(1, 'Обязательное поле'),
+  format_id: z.string().min(1, 'Обязательное поле'),
   status_id: z.string().min(1, 'Обязательное поле'),
-  deliverable_type_id: z.string().optional(),
   responsible_profile_id: z.string().optional(),
   shoot_date: z.string().optional(),
   edit_done_date: z.string().optional(),
@@ -209,16 +209,16 @@ export function ContentItemSheet({
     },
   })
 
-  const { data: existingFormatIds } = useQuery({
-    queryKey: ['content_plan_formats', itemId],
+  const { data: existingDeliverableTypeIds } = useQuery({
+    queryKey: ['content_plan_deliverable_types', itemId],
     enabled: !!itemId && open,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('content_plan_formats')
-        .select('format_id')
+        .from('content_plan_deliverable_types')
+        .select('deliverable_type_id')
         .eq('content_plan_item_id', itemId!)
       if (error) throw error
-      return data.map((r) => r.format_id)
+      return data.map((r) => r.deliverable_type_id)
     },
   })
 
@@ -232,14 +232,14 @@ export function ContentItemSheet({
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
   const selectedPlatforms = watch('_platforms' as never) as string[] | undefined
-  const selectedFormats = watch('_formats' as never) as string[] | undefined
+  const selectedDeliverableTypes = watch('_deliverableTypes' as never) as string[] | undefined
   const [assigneeRoleId, setAssigneeRoleId] = useState('')
 
   useEffect(() => {
     if (open && !isEdit) {
       reset({ project_id: defaultProjectId ?? '', publish_date: defaultPublishDate ?? '' })
       setValue('_platforms' as never, [] as never)
-      setValue('_formats' as never, [] as never)
+      setValue('_deliverableTypes' as never, [] as never)
       setAssigneeRoleId('')
       setDraftId(null)
     }
@@ -260,8 +260,8 @@ export function ContentItemSheet({
       reset({
         project_id: existing.project_id,
         topic: existing.topic,
+        format_id: existing.format_id ?? '',
         status_id: existing.status_id,
-        deliverable_type_id: existing.deliverable_type_id ?? '',
         responsible_profile_id: legacyResponsible,
         shoot_date: existing.shoot_date ?? '',
         edit_done_date: existing.edit_done_date ?? '',
@@ -283,10 +283,10 @@ export function ContentItemSheet({
   }, [existingPlatformIds, setValue])
 
   useEffect(() => {
-    if (existingFormatIds) {
-      setValue('_formats' as never, existingFormatIds as never)
+    if (existingDeliverableTypeIds) {
+      setValue('_deliverableTypes' as never, existingDeliverableTypeIds as never)
     }
-  }, [existingFormatIds, setValue])
+  }, [existingDeliverableTypeIds, setValue])
 
   // Derive which role the current "Ответственный" belongs to, once, so
   // reopening a card shows the same role+person the CEO picked -- not
@@ -311,10 +311,10 @@ export function ContentItemSheet({
     )
   }
 
-  function toggleFormat(id: string, checked: boolean) {
-    const current = selectedFormats ?? []
+  function toggleDeliverableType(id: string, checked: boolean) {
+    const current = selectedDeliverableTypes ?? []
     setValue(
-      '_formats' as never,
+      '_deliverableTypes' as never,
       (checked ? [...current, id] : current.filter((f) => f !== id)) as never
     )
   }
@@ -326,16 +326,16 @@ export function ContentItemSheet({
   const effectiveId = itemId ?? draftId
 
   async function performSave(values: FormValues) {
-    const formatIds = selectedFormats ?? []
+    const deliverableTypeIds = selectedDeliverableTypes ?? []
     const payload = {
       project_id: values.project_id,
       topic: values.topic,
-      // Kept in sync as "the first selected work type" for any code that
-      // still reads the single legacy column -- content_plan_formats is
-      // the actual source of truth now.
-      format_id: formatIds[0] ?? null,
+      format_id: values.format_id,
       status_id: values.status_id,
-      deliverable_type_id: values.deliverable_type_id || null,
+      // Kept in sync as "the first selected work type" for any code that
+      // still reads the single legacy column -- content_plan_deliverable_
+      // types is the actual source of truth now.
+      deliverable_type_id: deliverableTypeIds[0] ?? null,
       responsible_profile_id: values.responsible_profile_id || null,
       shooter_profile_id: null,
       editor_profile_id: null,
@@ -374,20 +374,20 @@ export function ContentItemSheet({
       )
     }
 
-    await supabase.from('content_plan_formats').delete().eq('content_plan_item_id', id)
-    if (formatIds.length > 0) {
-      await supabase.from('content_plan_formats').insert(
-        formatIds.map((format_id) => ({ content_plan_item_id: id!, format_id }))
+    await supabase.from('content_plan_deliverable_types').delete().eq('content_plan_item_id', id)
+    if (deliverableTypeIds.length > 0) {
+      await supabase.from('content_plan_deliverable_types').insert(
+        deliverableTypeIds.map((deliverable_type_id) => ({ content_plan_item_id: id!, deliverable_type_id }))
       )
     }
 
-    // Not this sheet's own ['content_plan_platforms'/'content_plan_formats', id]
+    // Not this sheet's own ['content_plan_platforms'/'content_plan_deliverable_types', id]
     // here -- refetching while still open re-triggers the effect that
     // populates the checkboxes, reverting whatever the user just toggled
     // before it's saved. Invalidated in mutation.onSuccess instead, once closing.
     queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_platforms-all'] })
-    queryClient.invalidateQueries({ queryKey: ['content_plan_formats-all'] })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types-all'] })
   }
 
   const mutation = useMutation({
@@ -395,19 +395,14 @@ export function ContentItemSheet({
     onSuccess: () => {
       toast.success(isEdit ? 'Сохранено' : 'Добавлено в контент-план')
       queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', itemId] })
-      queryClient.invalidateQueries({ queryKey: ['content_plan_formats', itemId] })
+      queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types', itemId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
   const watched = watch()
-  const canAutosave = !!(
-    watched.project_id &&
-    watched.topic &&
-    watched.status_id &&
-    (selectedFormats ?? []).length > 0
-  )
+  const canAutosave = !!(watched.project_id && watched.topic && watched.format_id && watched.status_id)
   const autosaveStatus = useAutosave(
     watched,
     async (values) => {
@@ -498,40 +493,62 @@ export function ContentItemSheet({
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label>{t('contentPlan.status')}</Label>
-            <Select
-              value={watch('status_id')}
-              onValueChange={(v: string | null) => setValue('status_id', v ?? '')}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="—">
-                  {() => pickLabel(statuses?.find((s) => s.id === watch('status_id')), i18n.language)}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {statuses?.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {pickLabel(s, i18n.language)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>{t('contentPlan.format')}</Label>
+              <Select
+                value={watch('format_id')}
+                onValueChange={(v: string | null) => setValue('format_id', v ?? '')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="—">
+                    {() => pickLabel(formats?.find((f) => f.id === watch('format_id')), i18n.language)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {formats?.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {pickLabel(f, i18n.language)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>{t('contentPlan.status')}</Label>
+              <Select
+                value={watch('status_id')}
+                onValueChange={(v: string | null) => setValue('status_id', v ?? '')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="—">
+                    {() => pickLabel(statuses?.find((s) => s.id === watch('status_id')), i18n.language)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {statuses?.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {pickLabel(s, i18n.language)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>{t('contentPlan.format')}</Label>
-            <p className="text-xs text-muted-foreground">{t('contentPlan.formatHint')}</p>
+            <Label>{t('payroll.deliverableType')}</Label>
+            <p className="text-xs text-muted-foreground">{t('contentPlan.deliverableTypeHint')}</p>
             <div className="flex flex-wrap gap-3 rounded-lg border border-border p-3">
-              {formats?.map((f) => (
-                <div key={f.id} className="flex items-center gap-1.5">
+              {deliverableTypes?.map((d) => (
+                <div key={d.id} className="flex items-center gap-1.5">
                   <Checkbox
-                    id={`format-${f.id}`}
-                    checked={(selectedFormats ?? []).includes(f.id)}
-                    onCheckedChange={(checked) => toggleFormat(f.id, checked === true)}
+                    id={`dtype-${d.id}`}
+                    checked={(selectedDeliverableTypes ?? []).includes(d.id)}
+                    onCheckedChange={(checked) => toggleDeliverableType(d.id, checked === true)}
                   />
-                  <Label htmlFor={`format-${f.id}`} className="font-normal">
-                    {pickLabel(f, i18n.language)}
+                  <Label htmlFor={`dtype-${d.id}`} className="font-normal">
+                    {pickLabel(d, i18n.language)}
                   </Label>
                 </div>
               ))}
@@ -576,32 +593,6 @@ export function ContentItemSheet({
                 onChange={(v) => setValue('responsible_profile_id', v)}
               />
             </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label>{t('payroll.deliverableType')}</Label>
-            <Select
-              value={watch('deliverable_type_id')}
-              onValueChange={(v: string | null) => setValue('deliverable_type_id', v ?? '')}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="—">
-                  {() =>
-                    pickLabel(
-                      deliverableTypes?.find((d) => d.id === watch('deliverable_type_id')),
-                      i18n.language
-                    )
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {deliverableTypes?.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {pickLabel(d, i18n.language)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

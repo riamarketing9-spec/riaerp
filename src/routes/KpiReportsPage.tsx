@@ -216,17 +216,17 @@ function ProjectKpiTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('project_monthly_goal_targets')
-        .select('format_id, target_count')
+        .select('deliverable_type_id, target_count')
         .eq('goal_id', monthlyGoal!.id)
       if (error) throw error
       return data
     },
   })
 
-  const { data: contentFormats } = useQuery({
-    queryKey: ['content_formats'],
+  const { data: deliverableTypes } = useQuery({
+    queryKey: ['deliverable_types'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('content_formats').select('id, label_ru, label_uz')
+      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru, label_uz')
       if (error) throw error
       return data
     },
@@ -262,28 +262,30 @@ function ProjectKpiTab() {
   })
 
   const monthItemIds = useMemo(() => (monthItems ?? []).map((i) => i.id), [monthItems])
-  const { data: monthItemFormats } = useQuery({
-    queryKey: ['kpi-project-month-item-formats', monthItemIds],
+  const { data: monthItemDeliverableTypes } = useQuery({
+    queryKey: ['kpi-project-month-item-deliverable-types', monthItemIds],
     enabled: monthItemIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('content_plan_formats')
-        .select('content_plan_item_id, format_id')
+        .from('content_plan_deliverable_types')
+        .select('content_plan_item_id, deliverable_type_id')
         .in('content_plan_item_id', monthItemIds)
       if (error) throw error
       return data
     },
   })
 
-  const formatLabelOf = (formatId: string) => pickLabel(contentFormats?.find((f) => f.id === formatId), i18n.language) ?? ''
+  const deliverableTypeLabelOf = (id: string) => pickLabel(deliverableTypes?.find((f) => f.id === id), i18n.language) ?? ''
 
   const detail = computeMonthlyProgress({
     targets: goalTargets,
     items: (monthItems ?? []).map((i) => ({
       ...i,
-      formatIds: (monthItemFormats ?? []).filter((f) => f.content_plan_item_id === i.id).map((f) => f.format_id),
+      deliverableTypeIds: (monthItemDeliverableTypes ?? [])
+        .filter((f) => f.content_plan_item_id === i.id)
+        .map((f) => f.deliverable_type_id),
     })),
-    formatLabelOf,
+    deliverableTypeLabelOf,
   })
 
   return (

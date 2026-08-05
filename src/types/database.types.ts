@@ -284,7 +284,7 @@ type ProjectMonthlyGoalRow = {
 type ProjectMonthlyGoalTargetRow = {
   id: string
   goal_id: string
-  format_id: string
+  deliverable_type_id: string
   target_count: number
 }
 
@@ -411,6 +411,7 @@ type CeoDashboardViewRow = {
 
 type ContentPlanPlatformRow = { content_plan_item_id: string; platform_id: string }
 type ContentPlanFormatRow = { content_plan_item_id: string; format_id: string }
+type ContentPlanDeliverableTypeRow = { content_plan_item_id: string; deliverable_type_id: string }
 
 type KbArticleRow = {
   id: string
@@ -521,7 +522,7 @@ export type Database = {
       org_positions: ReturnType<typeof table<OrgPositionRow, 'title'>>
       client_interactions: ReturnType<typeof table<ClientInteractionRow, 'client_id' | 'note'>>
       project_monthly_goals: ReturnType<typeof table<ProjectMonthlyGoalRow, 'project_id' | 'month'>>
-      project_monthly_goal_targets: ReturnType<typeof table<ProjectMonthlyGoalTargetRow, 'goal_id' | 'format_id'>>
+      project_monthly_goal_targets: ReturnType<typeof table<ProjectMonthlyGoalTargetRow, 'goal_id' | 'deliverable_type_id'>>
       document_categories: ReturnType<typeof table<DocumentCategoryRow, 'slug' | 'label_ru' | 'label_uz'>>
       documents: ReturnType<typeof table<DocumentRow, 'title' | 'storage_path'>>
       document_visibility: { Row: DocumentVisibilityRow; Insert: Pick<DocumentVisibilityRow, 'document_id' | 'profile_id'> & Partial<DocumentVisibilityRow>; Update: Partial<DocumentVisibilityRow>; Relationships: [] }
@@ -536,6 +537,7 @@ export type Database = {
       payroll_run_lines: ReturnType<typeof table<PayrollRunLineRow, 'payroll_run_id' | 'profile_id'>>
       content_plan_platforms: { Row: ContentPlanPlatformRow; Insert: ContentPlanPlatformRow; Update: Partial<ContentPlanPlatformRow>; Relationships: [] }
       content_plan_formats: { Row: ContentPlanFormatRow; Insert: ContentPlanFormatRow; Update: Partial<ContentPlanFormatRow>; Relationships: [] }
+      content_plan_deliverable_types: { Row: ContentPlanDeliverableTypeRow; Insert: ContentPlanDeliverableTypeRow; Update: Partial<ContentPlanDeliverableTypeRow>; Relationships: [] }
       kb_articles: ReturnType<typeof table<KbArticleRow, 'title'>>
       time_entries: ReturnType<typeof table<TimeEntryRow, 'profile_id'>>
       profile_telegram_links: { Row: ProfileTelegramLinkRow; Insert: Pick<ProfileTelegramLinkRow, 'profile_id' | 'chat_id'> & Partial<ProfileTelegramLinkRow>; Update: Partial<ProfileTelegramLinkRow>; Relationships: [] }
