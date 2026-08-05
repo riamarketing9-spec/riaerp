@@ -179,6 +179,8 @@ function DroppableDayCell({
 
 export function ContentCalendarView({
   items,
+  dateFrom,
+  dateTo,
   projects,
   statuses,
   itemPlatforms,
@@ -189,6 +191,13 @@ export function ContentCalendarView({
   onMove,
 }: {
   items: ContentItem[]
+  // Page-level date filter -- when set, it overrides the "current visible
+  // month" scoping below for the status pills, so an explicit July-August
+  // pick reports July-August even while the grid itself still shows one
+  // month at a time. `items` itself already arrives pre-filtered by this
+  // same range (see ContentPlanPage), so day cells need no extra handling.
+  dateFrom?: string
+  dateTo?: string
   projects?: ProjectLookup[]
   statuses?: StatusLookup[]
   itemPlatforms?: { content_plan_item_id: string; platform_id: string }[]
@@ -232,15 +241,16 @@ export function ContentCalendarView({
     return map
   }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms])
 
-  // Same per-status breakdown as the folders view, scoped to the currently
-  // displayed month grid and the platform/format filters (not status, since
-  // status is the axis being broken down) -- only meaningful once a single
-  // project is selected, a cross-project count would just be noise.
+  // Same per-status breakdown as the folders view. Smart default: with no
+  // explicit page-level date filter, scoped to the currently displayed
+  // month grid (so opening August shows August's numbers); once the user
+  // picks an explicit filter, that range wins instead, even if it spans
+  // more than the one month currently on screen.
   const statusCounts = useMemo(() => {
     const map = new Map<string, number>()
     if (!projectFilter) return map
-    const rangeStart = format(days[0], 'yyyy-MM-dd')
-    const rangeEnd = format(days[days.length - 1], 'yyyy-MM-dd')
+    const rangeStart = dateFrom || (dateTo ? '0000-01-01' : format(days[0], 'yyyy-MM-dd'))
+    const rangeEnd = dateTo || (dateFrom ? '9999-12-31' : format(days[days.length - 1], 'yyyy-MM-dd'))
     for (const item of items) {
       if (item.project_id !== projectFilter) continue
       if (!item.publish_date || item.publish_date < rangeStart || item.publish_date > rangeEnd) continue
@@ -254,7 +264,7 @@ export function ContentCalendarView({
       map.set(item.status_id, (map.get(item.status_id) ?? 0) + 1)
     }
     return map
-  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms, days])
+  }, [items, projectFilter, platformFilter, formatFilter, itemPlatforms, days, dateFrom, dateTo])
 
   const statusOf = (id: string) => statuses?.find((s) => s.id === id)
   const statusLabel = (id: string) => pickLabel(statusOf(id), i18n.language)

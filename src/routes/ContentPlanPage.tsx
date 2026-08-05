@@ -168,7 +168,22 @@ export function ContentPlanPage() {
       .map((ip) => pickLabel(platforms?.find((p) => p.id === ip.platform_id), i18n.language))
       .filter(Boolean)
 
-  const itemCountFor = (projectId: string) => (items ?? []).filter((i) => i.project_id === projectId).length
+  // Page-wide date filter (bar above the tabs) -- applies to folder counts,
+  // the table view, and the calendar view alike, so "везде" a July-August
+  // pick means June items disappear everywhere, not just in one view. Empty
+  // means no filter, not "no items" (calendar still self-scopes to its
+  // visible month independently -- see ContentCalendarView).
+  const dateFilteredItems = useMemo(() => {
+    if (!dateFrom && !dateTo) return items ?? []
+    return (items ?? []).filter((item) => {
+      if (dateFrom && (!item.publish_date || item.publish_date < dateFrom)) return false
+      if (dateTo && (!item.publish_date || item.publish_date > dateTo)) return false
+      return true
+    })
+  }, [items, dateFrom, dateTo])
+
+  const itemCountFor = (projectId: string) =>
+    dateFilteredItems.filter((i) => i.project_id === projectId).length
 
   const visibleFolders = useMemo(
     () =>
@@ -177,13 +192,14 @@ export function ContentPlanPage() {
   )
 
   const itemsForSelectedProject = useMemo(
-    () => (items ?? []).filter((item) => item.project_id === selectedProjectId),
-    [items, selectedProjectId]
+    () => dateFilteredItems.filter((item) => item.project_id === selectedProjectId),
+    [dateFilteredItems, selectedProjectId]
   )
 
-  // Platform/date only, no status -- shared by the table (which also
-  // narrows by statusFilter) and the per-status stats strip below (which
-  // needs every status's count, so it can't itself be narrowed to one).
+  // Platform only, no date -- date is already applied upstream in
+  // dateFilteredItems. Shared by the table (which also narrows by
+  // statusFilter) and the per-status stats strip below (which needs every
+  // status's count, so it can't itself be narrowed to one).
   const itemsForStats = useMemo(() => {
     return itemsForSelectedProject.filter((item) => {
       if (platformFilter) {
@@ -192,11 +208,9 @@ export function ContentPlanPage() {
           .map((ip) => ip.platform_id)
         if (!ids.includes(platformFilter)) return false
       }
-      if (dateFrom && (!item.publish_date || item.publish_date < dateFrom)) return false
-      if (dateTo && (!item.publish_date || item.publish_date > dateTo)) return false
       return true
     })
-  }, [itemsForSelectedProject, itemPlatforms, platformFilter, dateFrom, dateTo])
+  }, [itemsForSelectedProject, itemPlatforms, platformFilter])
 
   const filtered = useMemo(
     () => itemsForStats.filter((item) => !statusFilter || item.status_id === statusFilter),
@@ -231,11 +245,10 @@ export function ContentPlanPage() {
     setSelectedProjectId(null)
     setPlatformFilter('')
     setStatusFilter('')
-    setDateFrom('')
-    setDateTo('')
   }
 
-  const hasNestedFilters = platformFilter || statusFilter || dateFrom || dateTo
+  const hasNestedFilters = platformFilter || statusFilter
+  const hasDateFilter = dateFrom || dateTo
   const selectedProjectName = projects?.find((p) => p.id === selectedProjectId)?.name
 
   return (
@@ -246,6 +259,29 @@ export function ContentPlanPage() {
           <Plus />
           {t('contentPlan.newItem')}
         </Button>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted-foreground">{t('contentPlan.dateFrom')}</span>
+          <Input type="date" className="w-40" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted-foreground">{t('contentPlan.dateTo')}</span>
+          <Input type="date" className="w-40" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </div>
+        {hasDateFilter && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setDateFrom('')
+              setDateTo('')
+            }}
+          >
+            {t('contentPlan.resetFilters')}
+          </Button>
+        )}
       </div>
 
       <Tabs value={view} onValueChange={(v) => setView(String(v))}>
@@ -324,22 +360,13 @@ export function ContentPlanPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs text-muted-foreground">{t('contentPlan.dateFrom')}</span>
-                  <Input type="date" className="w-40" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs text-muted-foreground">{t('contentPlan.dateTo')}</span>
-                  <Input type="date" className="w-40" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-                </div>
                 {hasNestedFilters && (
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => {
                       setPlatformFilter('')
-                      setDateFrom('')
-                      setDateTo('')
+                      setStatusFilter('')
                     }}
                   >
                     {t('contentPlan.resetFilters')}
@@ -431,7 +458,9 @@ export function ContentPlanPage() {
 
         <TabsContent value="calendar">
           <ContentCalendarView
-            items={items ?? []}
+            items={dateFilteredItems}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
             projects={projects}
             statuses={statuses}
             itemPlatforms={itemPlatforms}
@@ -445,7 +474,7 @@ export function ContentPlanPage() {
 
         <TabsContent value="table">
           <ContentTableView
-            items={items ?? []}
+            items={dateFilteredItems}
             projects={projects}
             statuses={statuses}
             itemPlatforms={itemPlatforms}
