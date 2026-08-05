@@ -145,8 +145,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // it to the affected employee's already-open tab. Without this, a grant
   // only took effect after the employee logged out and back in, which
   // read as "permissions don't work" even though the write succeeded.
-  // Re-check on focus (covers coming back to an open tab) and on a
-  // interval (covers a tab left open and unfocused).
+  // Realtime push (not polling) -- the affected row's own INSERT/UPDATE/
+  // DELETE on profile_capability_overrides triggers an instant recheck.
   useEffect(() => {
     if (!profile) return
 
@@ -156,11 +156,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCapabilities(effective)
     }
 
-    window.addEventListener('focus', refresh)
-    const interval = setInterval(refresh, 60_000)
+    const channel = supabase
+      .channel(`capability-overrides-${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profile_capability_overrides',
+          filter: `profile_id=eq.${profile.id}`,
+        },
+        refresh
+      )
+      .subscribe()
+
     return () => {
-      window.removeEventListener('focus', refresh)
-      clearInterval(interval)
+      supabase.removeChannel(channel)
     }
   }, [profile])
 
