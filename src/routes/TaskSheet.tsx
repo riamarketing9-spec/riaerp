@@ -59,6 +59,73 @@ function toDatetimeLocalValue(iso: string | null | undefined): string {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
+const HOURS_24 = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const MINUTES_60 = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
+
+// The native <input type="datetime-local"> time picker's AM/PM-vs-24h
+// display follows the browser/OS locale, not anything the app controls --
+// this is why it keeps "coming back" no matter what's tried at the HTML
+// level. Sidestepping it entirely: a native date input (no AM/PM there)
+// plus two plain 00-23/00-59 dropdowns, so the hour is always
+// unambiguous regardless of locale. Emits the same "YYYY-MM-DDTHH:mm"
+// shape the rest of the form already expects.
+function DateTime24Field({
+  id,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string
+  value: string
+  onChange: (v: string) => void
+  disabled?: boolean
+}) {
+  const [datePart, timePart] = value ? value.split('T') : ['', '']
+  const [hh, mm] = timePart ? timePart.split(':') : ['', '']
+
+  function setParts(nextDate: string, nextHH: string, nextMM: string) {
+    onChange(nextDate ? `${nextDate}T${nextHH || '00'}:${nextMM || '00'}` : '')
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Input
+        id={id}
+        type="date"
+        className="flex-1"
+        disabled={disabled}
+        value={datePart}
+        onChange={(e) => setParts(e.target.value, hh, mm)}
+      />
+      <Select value={hh || undefined} onValueChange={(v) => setParts(datePart, v ?? '00', mm)} disabled={disabled || !datePart}>
+        <SelectTrigger className="w-16">
+          <SelectValue placeholder="00">{() => hh || '00'}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {HOURS_24.map((h) => (
+            <SelectItem key={h} value={h}>
+              {h}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="text-muted-foreground">:</span>
+      <Select value={mm || undefined} onValueChange={(v) => setParts(datePart, hh, v ?? '00')} disabled={disabled || !datePart}>
+        <SelectTrigger className="w-16">
+          <SelectValue placeholder="00">{() => mm || '00'}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {MINUTES_60.map((m) => (
+            <SelectItem key={m} value={m}>
+              {m}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
 export function TaskSheet({
   open,
   onOpenChange,
@@ -653,21 +720,25 @@ export function TaskSheet({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="starts_at">{t('tasks.startsAt')}</Label>
-              <Input id="starts_at" type="datetime-local" disabled={isOwnTaskOnly} {...register('starts_at')} />
+              <DateTime24Field
+                id="starts_at"
+                value={watch('starts_at') ?? ''}
+                onChange={(v) => setValue('starts_at', v)}
+                disabled={isOwnTaskOnly}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="deadline">{t('tasks.deadline')}</Label>
-              <Input
+              <DateTime24Field
                 id="deadline"
-                type="datetime-local"
+                value={watch('deadline') ?? ''}
+                onChange={(v) => {
+                  setValue('deadline', v)
+                  const slug = suggestTermSlug(v)
+                  const match = termTypes?.find((tt) => tt.slug === slug)
+                  if (match) setValue('term_type_id', match.id)
+                }}
                 disabled={isOwnTaskOnly}
-                {...register('deadline', {
-                  onChange: (e) => {
-                    const slug = suggestTermSlug(e.target.value)
-                    const match = termTypes?.find((tt) => tt.slug === slug)
-                    if (match) setValue('term_type_id', match.id)
-                  },
-                })}
               />
             </div>
           </div>
