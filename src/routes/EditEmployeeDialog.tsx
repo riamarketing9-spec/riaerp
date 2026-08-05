@@ -213,11 +213,12 @@ export function EditEmployeeDialog({
     }
 
     if (toDelete.length) {
-      await supabase
+      const { error: deleteErr } = await supabase
         .from('profile_capability_overrides')
         .delete()
         .eq('profile_id', profileId!)
         .in('capability', toDelete)
+      if (deleteErr) throw deleteErr
     }
     if (toUpsert.length) {
       const { error: upsertErr } = await supabase

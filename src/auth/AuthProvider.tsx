@@ -32,6 +32,27 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null)
 
+async function loadCapabilities(profileId: string, roleId: string): Promise<Set<string>> {
+  const { data: capRows } = await supabase
+    .from('role_capabilities')
+    .select('capability')
+    .eq('role_id', roleId)
+
+  const effective = new Set((capRows ?? []).map((c) => c.capability))
+
+  const { data: overrideRows } = await supabase
+    .from('profile_capability_overrides')
+    .select('capability, granted')
+    .eq('profile_id', profileId)
+
+  for (const o of overrideRows ?? []) {
+    if (o.granted) effective.add(o.capability)
+    else effective.delete(o.capability)
+  }
+
+  return effective
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [sessionChecked, setSessionChecked] = useState(false)
@@ -105,25 +126,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       setRole(roleRow)
 
-      const { data: capRows } = await supabase
-        .from('role_capabilities')
-        .select('capability')
-        .eq('role_id', profileRow.role_id)
-
+      const effective = await loadCapabilities(profileRow.id, profileRow.role_id)
       if (cancelled) return
-      const effective = new Set((capRows ?? []).map((c) => c.capability))
-
-      const { data: overrideRows } = await supabase
-        .from('profile_capability_overrides')
-        .select('capability, granted')
-        .eq('profile_id', profileRow.id)
-
-      if (cancelled) return
-      for (const o of overrideRows ?? []) {
-        if (o.granted) effective.add(o.capability)
-        else effective.delete(o.capability)
-      }
-
       setCapabilities(effective)
       setIsLoading(false)
     }
@@ -134,6 +138,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id, sessionChecked])
+
+  // The CEO grants/revokes capabilities for OTHER employees from the Team
+  // page, from a different browser session than the one being changed --
+  // so the change can't just update local state, and nothing here pushes
+  // it to the affected employee's already-open tab. Without this, a grant
+  // only took effect after the employee logged out and back in, which
+  // read as "permissions don't work" even though the write succeeded.
+  // Re-check on focus (covers coming back to an open tab) and on a
+  // interval (covers a tab left open and unfocused).
+  useEffect(() => {
+    if (!profile) return
+
+    async function refresh() {
+      if (!profile) return
+      const effective = await loadCapabilities(profile.id, profile.role_id)
+      setCapabilities(effective)
+    }
+
+    window.addEventListener('focus', refresh)
+    const interval = setInterval(refresh, 60_000)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      clearInterval(interval)
+    }
+  }, [profile])
 
   const hasCapability = (cap: string) => capabilities.has(cap)
   const isCeo = role?.slug === 'ceo'
