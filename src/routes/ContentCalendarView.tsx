@@ -27,6 +27,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Combobox } from '@/components/ui/combobox'
+import { DateRangeFilter } from '@/components/DateRangeFilter'
 import { pickLabel } from '@/lib/localizedLabel'
 import { cn, normalizeUrl } from '@/lib/utils'
 import { ChevronLeft, ChevronRight, ExternalLink, Plus } from 'lucide-react'
@@ -181,6 +182,8 @@ export function ContentCalendarView({
   items,
   dateFrom,
   dateTo,
+  onDateFromChange,
+  onDateToChange,
   projects,
   statuses,
   itemPlatforms,
@@ -198,6 +201,8 @@ export function ContentCalendarView({
   // same range (see ContentPlanPage), so day cells need no extra handling.
   dateFrom?: string
   dateTo?: string
+  onDateFromChange: (v: string) => void
+  onDateToChange: (v: string) => void
   projects?: ProjectLookup[]
   statuses?: StatusLookup[]
   itemPlatforms?: { content_plan_item_id: string; platform_id: string }[]
@@ -324,6 +329,7 @@ export function ContentCalendarView({
             onChange={setFormatFilter}
             placeholder={t('contentPlan.allFormats')}
           />
+          <DateRangeFilter from={dateFrom ?? ''} to={dateTo ?? ''} onFromChange={onDateFromChange} onToChange={onDateToChange} />
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon-sm" onClick={() => setMonth((m) => subMonths(m, 1))}>

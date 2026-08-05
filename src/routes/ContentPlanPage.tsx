@@ -28,6 +28,7 @@ import { ContentItemSheet } from './ContentItemSheet'
 import { ContentCalendarView } from './ContentCalendarView'
 import { ContentTableView } from './ContentTableView'
 import { ProjectLogoSquare } from '@/components/ProjectLogoSquare'
+import { DateRangeFilter } from '@/components/DateRangeFilter'
 import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
 import { cn } from '@/lib/utils'
 import { ArrowLeft, Plus } from 'lucide-react'
@@ -248,7 +249,6 @@ export function ContentPlanPage() {
   }
 
   const hasNestedFilters = platformFilter || statusFilter
-  const hasDateFilter = dateFrom || dateTo
   const selectedProjectName = projects?.find((p) => p.id === selectedProjectId)?.name
 
   return (
@@ -261,29 +261,6 @@ export function ContentPlanPage() {
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3">
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted-foreground">{t('contentPlan.dateFrom')}</span>
-          <Input type="date" className="w-40" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted-foreground">{t('contentPlan.dateTo')}</span>
-          <Input type="date" className="w-40" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
-        {hasDateFilter && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setDateFrom('')
-              setDateTo('')
-            }}
-          >
-            {t('contentPlan.resetFilters')}
-          </Button>
-        )}
-      </div>
-
       <Tabs value={view} onValueChange={(v) => setView(String(v))}>
         <TabsList>
           <TabsTrigger value="folders">{t('contentPlan.foldersView')}</TabsTrigger>
@@ -294,12 +271,15 @@ export function ContentPlanPage() {
         <TabsContent value="folders" className="flex flex-col gap-8">
           {selectedProjectId === null ? (
             <>
-              <Input
-                placeholder={t('contentPlan.searchProjects')}
-                value={folderSearch}
-                onChange={(e) => setFolderSearch(e.target.value)}
-                className="max-w-sm"
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  placeholder={t('contentPlan.searchProjects')}
+                  value={folderSearch}
+                  onChange={(e) => setFolderSearch(e.target.value)}
+                  className="max-w-sm"
+                />
+                <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+              </div>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                 {visibleFolders.map((p) => (
                   <Card
@@ -360,6 +340,7 @@ export function ContentPlanPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
                 {hasNestedFilters && (
                   <Button
                     variant="ghost"
@@ -461,6 +442,8 @@ export function ContentPlanPage() {
             items={dateFilteredItems}
             dateFrom={dateFrom}
             dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
             projects={projects}
             statuses={statuses}
             itemPlatforms={itemPlatforms}
@@ -475,6 +458,10 @@ export function ContentPlanPage() {
         <TabsContent value="table">
           <ContentTableView
             items={dateFilteredItems}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
             projects={projects}
             statuses={statuses}
             itemPlatforms={itemPlatforms}

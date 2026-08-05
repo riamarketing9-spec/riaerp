@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Combobox } from '@/components/ui/combobox'
+import { DateRangeFilter } from '@/components/DateRangeFilter'
 import { pickLabel, formatLocalDate } from '@/lib/localizedLabel'
 import { cn, normalizeUrl } from '@/lib/utils'
 import { ExternalLink } from 'lucide-react'
@@ -43,6 +44,10 @@ const STATUS_BADGE_COLORS: Record<string, string> = {
 // the counterpart to the calendar's card view (same data, same filters).
 export function ContentTableView({
   items,
+  dateFrom,
+  dateTo,
+  onDateFromChange,
+  onDateToChange,
   projects,
   statuses,
   itemPlatforms,
@@ -52,6 +57,10 @@ export function ContentTableView({
   onOpen,
 }: {
   items: ContentItem[]
+  dateFrom?: string
+  dateTo?: string
+  onDateFromChange: (v: string) => void
+  onDateToChange: (v: string) => void
   projects?: { id: string; name: string }[]
   statuses?: Lookup[]
   itemPlatforms?: { content_plan_item_id: string; platform_id: string }[]
@@ -139,6 +148,7 @@ export function ContentTableView({
           onChange={setStatusFilter}
           placeholder={t('contentPlan.allStatuses')}
         />
+        <DateRangeFilter from={dateFrom ?? ''} to={dateTo ?? ''} onFromChange={onDateFromChange} onToChange={onDateToChange} />
       </div>
 
       {projectFilter && (
