@@ -140,12 +140,27 @@ Deno.serve(async (req) => {
 
   const { data: profiles } = await admin.from('profiles').select('id')
 
+  // Recipients: CEO + every PM (org-wide, same as elsewhere in the app --
+  // 'projects.manage' is the capability, not a role-slug check) + the
+  // employee themselves, so a montajchi's own clock-out report reaches
+  // them too, not just management.
   for (const p of profiles ?? []) {
-    const { data: isCeo } = await admin.rpc('has_capability_for_profile', {
-      p_profile_id: p.id,
-      p_capability: 'org.full_access',
-    })
-    if (!isCeo) continue
+    let shouldNotify = p.id === profile_id
+    if (!shouldNotify) {
+      const { data: isCeo } = await admin.rpc('has_capability_for_profile', {
+        p_profile_id: p.id,
+        p_capability: 'org.full_access',
+      })
+      shouldNotify = !!isCeo
+    }
+    if (!shouldNotify) {
+      const { data: isPm } = await admin.rpc('has_capability_for_profile', {
+        p_profile_id: p.id,
+        p_capability: 'projects.manage',
+      })
+      shouldNotify = !!isPm
+    }
+    if (!shouldNotify) continue
     const { data: links } = await admin.from('profile_telegram_links').select('chat_id').eq('profile_id', p.id)
     for (const link of links ?? []) {
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
