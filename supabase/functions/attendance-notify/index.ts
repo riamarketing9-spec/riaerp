@@ -44,35 +44,63 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+// Chek-list tasks (recurrence_id set) are reported with an explicit
+// сделано/не сделано/планируется verdict instead of the plain ✅/📋 block
+// used for regular tasks -- literal Russian wording per the CEO's
+// instruction ("именно так писать"), even though the rest of the report
+// is Uzbek. Daily/one-time items only ever get сделано/не сделано (they
+// don't carry a "still time left in the period" concept); weekly/monthly
+// items get планируется instead of не сделано while more than a day of
+// their interval remains, since regeneration (delete old/create new)
+// only happens once the interval is actually up.
+function checklistVerdict(recurrenceSlug: string, isDone: boolean, createdAt: string): string {
+  if (isDone) return 'сделано'
+  if (recurrenceSlug === 'daily' || recurrenceSlug === 'one_time') return 'не сделано'
+  const regenAt = new Date(createdAt)
+  if (recurrenceSlug === 'weekly') regenAt.setDate(regenAt.getDate() + 7)
+  else regenAt.setMonth(regenAt.getMonth() + 1)
+  const hoursLeft = (regenAt.getTime() - Date.now()) / (60 * 60 * 1000)
+  return hoursLeft <= 24 ? 'не сделано' : 'планируется'
+}
+
 // deno-lint-ignore no-explicit-any
 async function buildEmployeeTaskReport(admin: any, profileId: string): Promise<string> {
   const { data: doneStatus } = await admin.from('task_statuses').select('id').eq('slug', 'done').maybeSingle()
   const doneId = doneStatus?.id ?? null
   const todayStart = tashkentMidnightUtc().toISOString()
 
-  const { data: openTasks } = await admin
+  const { data: openTasksRaw } = await admin
     .from('tasks')
-    .select('id, title, project_id')
+    .select('id, title, project_id, recurrence_id, created_at')
     .eq('assignee_profile_id', profileId)
     .neq('status_id', doneId ?? '00000000-0000-0000-0000-000000000000')
 
-  const { data: doneTodayTasks } = await admin
+  const { data: doneTodayTasksRaw } = await admin
     .from('tasks')
-    .select('id, title, project_id')
+    .select('id, title, project_id, recurrence_id, created_at')
     .eq('assignee_profile_id', profileId)
     .eq('status_id', doneId ?? '00000000-0000-0000-0000-000000000000')
     .gte('completed_at', todayStart)
 
-  const allTasks = [...(openTasks ?? []), ...(doneTodayTasks ?? [])]
-  if (allTasks.length === 0) return ''
-  const allTaskIds = allTasks.map((t: { id: string }) => t.id)
+  const allTasksRaw = [...(openTasksRaw ?? []), ...(doneTodayTasksRaw ?? [])]
+  if (allTasksRaw.length === 0) return ''
+
+  const { data: recurrenceTypes } = await admin.from('recurrence_types').select('id, slug')
+  const recurrenceSlugOf = (id: string | null) =>
+    id ? (recurrenceTypes ?? []).find((r: { id: string }) => r.id === id)?.slug ?? null : null
+
+  const openTasks = (openTasksRaw ?? []).filter((t: { recurrence_id: string | null }) => !t.recurrence_id)
+  const doneTodayTasks = (doneTodayTasksRaw ?? []).filter((t: { recurrence_id: string | null }) => !t.recurrence_id)
+  const checklistTasks = allTasksRaw.filter((t: { recurrence_id: string | null }) => !!t.recurrence_id)
+
+  const allTaskIds = allTasksRaw.map((t: { id: string }) => t.id)
 
   const { data: items } = await admin
     .from('task_items')
     .select('task_id, title, is_done')
     .in('task_id', allTaskIds)
 
-  const projectIds = [...new Set(allTasks.map((t: { project_id: string | null }) => t.project_id).filter(Boolean))]
+  const projectIds = [...new Set(allTasksRaw.map((t: { project_id: string | null }) => t.project_id).filter(Boolean))]
   const { data: projects } = projectIds.length > 0
     ? await admin.from('projects').select('id, name').in('id', projectIds)
     : { data: [] }
@@ -91,7 +119,7 @@ async function buildEmployeeTaskReport(admin: any, profileId: string): Promise<s
   // unlabeled blank square rather than "not done".
   const blocks: string[] = []
 
-  for (const task of doneTodayTasks ?? []) {
+  for (const task of doneTodayTasks) {
     const taskItems = itemsFor(task.id)
     const block = [`✅ <b>${taskLabel(task)}</b> — bajarildi`]
     if (taskItems.length > 0) {
@@ -100,7 +128,7 @@ async function buildEmployeeTaskReport(admin: any, profileId: string): Promise<s
     blocks.push(block.join('\n'))
   }
 
-  for (const task of openTasks ?? []) {
+  for (const task of openTasks) {
     const taskItems = itemsFor(task.id)
     const block = [`📋 <b>${taskLabel(task)}</b>`]
     if (taskItems.length > 0) {
@@ -110,6 +138,16 @@ async function buildEmployeeTaskReport(admin: any, profileId: string): Promise<s
       if (notDone.length > 0) block.push(`   - ${notDone.join(', ')}`)
     }
     blocks.push(block.join('\n'))
+  }
+
+  if (checklistTasks.length > 0) {
+    const checklistLines = checklistTasks.map((task: { id: string; title: string; recurrence_id: string | null; created_at: string }) => {
+      const slug = recurrenceSlugOf(task.recurrence_id) ?? 'one_time'
+      const isDone = (doneTodayTasksRaw ?? []).some((t: { id: string }) => t.id === task.id)
+      const verdict = checklistVerdict(slug, isDone, task.created_at)
+      return `☑️ <b>${escapeHtml(task.title)}</b> — ${verdict}`
+    })
+    blocks.push(`📌 <b>Chek-list:</b>\n${checklistLines.join('\n')}`)
   }
 
   return blocks.join('\n\n')

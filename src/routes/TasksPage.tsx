@@ -39,7 +39,7 @@ export function TasksPage() {
       const { data, error } = await supabase
         .from('v_task_queue')
         .select(
-          'id, title, status_id, deadline, percent_complete, quadrant_id, assignee_profile_id, sort_score, created_via_telegram, completed_at, created_by, project_id'
+          'id, title, status_id, deadline, percent_complete, quadrant_id, assignee_profile_id, sort_score, created_via_telegram, completed_at, created_by, project_id, recurrence_id'
         )
         .order('sort_score', { ascending: false })
         .order('deadline', { ascending: true, nullsFirst: false })
@@ -56,6 +56,54 @@ export function TasksPage() {
       return data
     },
   })
+
+  const { data: recurrenceTypes } = useQuery({
+    queryKey: ['recurrence_types'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('recurrence_types').select('id, slug, label_ru, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: doneStatusRow } = useQuery({
+    queryKey: ['task_statuses-done-row'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_statuses').select('id').eq('slug', 'done').maybeSingle()
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: backlogStatusRow } = useQuery({
+    queryKey: ['task_statuses-backlog-row'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('task_statuses').select('id').eq('slug', 'backlog').maybeSingle()
+      if (error) throw error
+      return data
+    },
+  })
+
+  const toggleChecklistDone = useMutation({
+    mutationFn: async ({ id, done }: { id: string; done: boolean }) => {
+      const targetStatusId = done ? doneStatusRow?.id : backlogStatusRow?.id
+      if (!targetStatusId) return
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status_id: targetStatusId, completed_at: done ? new Date().toISOString() : null })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['recurring-checklist-tasks'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const recurrenceLabel = (id: string | null) => pickLabel(recurrenceTypes?.find((r) => r.id === id), i18n.language)
 
   const taskIds = useMemo(() => (tasks ?? []).map((t) => t.id), [tasks])
 
@@ -317,6 +365,10 @@ export function TasksPage() {
                     : undefined
                 }
                 onToggleSubtask={(id, done) => toggleSubtask.mutate({ id, is_done: done })}
+                recurrenceLabel={recurrenceLabel(task.recurrence_id)}
+                onToggleChecklistDone={
+                  task.recurrence_id ? (done) => toggleChecklistDone.mutate({ id: task.id, done }) : undefined
+                }
                 showSubtaskDuration={showSubtaskDuration}
               />
             ))}

@@ -41,6 +41,8 @@ export function TaskCard({
   onDelete,
   onToggleSubtask,
   showSubtaskDuration,
+  recurrenceLabel,
+  onToggleChecklistDone,
   className,
 }: {
   title: string
@@ -63,6 +65,13 @@ export function TaskCard({
   // PM/CEO only, mirrors the same gate TaskSheet uses for its status-
   // duration log -- how long this subtask sat unchecked before completion.
   showSubtaskDuration?: boolean
+  // Present only for a chek-list-origin task (recurrence_id set) -- shows
+  // a badge so it reads as "a bit different" even mixed into the regular
+  // Вазифалар list, and (if onToggleChecklistDone is given) a whole-task
+  // checkbox so it can be marked done/not-done without opening the card,
+  // same as the dedicated checklist widget.
+  recurrenceLabel?: string
+  onToggleChecklistDone?: (done: boolean) => void
   className?: string
 }) {
   const { i18n } = useTranslation()
@@ -105,6 +114,13 @@ export function TaskCard({
 
       <div className="flex flex-col gap-2 p-3">
         <div className="flex items-start justify-between gap-2">
+          {onToggleChecklistDone && (
+            <Checkbox
+              checked={isDone}
+              onCheckedChange={(checked) => onToggleChecklistDone(checked === true)}
+              className="mt-0.5 shrink-0"
+            />
+          )}
           <button type="button" onClick={onOpen} className="flex-1 text-left text-sm font-medium hover:underline">
             {createdViaBot && <span title="Telegram bot orqali yaratilgan">🤖 </span>}
             {title}
@@ -131,6 +147,12 @@ export function TaskCard({
             )}
           </div>
         </div>
+
+        {recurrenceLabel && (
+          <Badge variant="outline" className="w-fit text-[10px]">
+            {recurrenceLabel}
+          </Badge>
+        )}
 
         {(statusLabel || termLabel || quadrantLabel || (deliverableTypeLabels?.length ?? 0) > 0) && (
           <div className="flex flex-wrap gap-1">

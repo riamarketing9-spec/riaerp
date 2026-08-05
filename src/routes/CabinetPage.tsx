@@ -9,7 +9,9 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar } from '@/components/Avatar'
 import { TaskSheet } from './TaskSheet'
 import { ContentItemSheet } from './ContentItemSheet'
+import { ChecklistItemDialog } from './ChecklistItemDialog'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
+import { ChecklistTaskCard } from '@/components/ChecklistTaskCard'
 import { formatLocalDate, pickLabel } from '@/lib/localizedLabel'
 import { Button } from '@/components/ui/button'
 import { Trash2, Plus } from 'lucide-react'
@@ -950,11 +952,10 @@ function RecurringChecklistWidget({
   onOpen: (id: string) => void
 }) {
   const { t, i18n } = useTranslation()
-  const { profile, hasCapability } = useAuth()
-  const showSubtaskDuration = hasCapability('org.full_access') || hasCapability('projects.manage')
+  const { profile } = useAuth()
   const [filterSlug, setFilterSlug] = useState<string | null>(null)
   const [creatingOpen, setCreatingOpen] = useState(false)
-  const toggleSubtask = useToggleSubtask()
+  const queryClient = useQueryClient()
 
   const { data: recurrenceTypes } = useQuery({
     queryKey: ['recurrence_types'],
@@ -1000,17 +1001,34 @@ function RecurringChecklistWidget({
     },
   })
 
-  const taskIds = useMemo(() => (tasks ?? []).map((tsk) => tsk.id), [tasks])
-  const { data: subtasksByTask } = useSubtasksBatch(taskIds)
-
   const doneId = statuses?.find((s) => s.slug === 'done')?.id
-  const statusSlugOf = (id: string) => statuses?.find((s) => s.id === id)?.slug
+  const backlogId = statuses?.find((s) => s.slug === 'backlog')?.id
+  const recurrenceLabel = (id: string | null) => pickLabel(recurrenceTypes?.find((r) => r.id === id), i18n.language)
   const assigneeName = (id: string | null) => profiles?.find((p) => p.id === id)?.full_name ?? undefined
 
-  // One-time tasks drop off the list once done (they don't respawn, so
-  // there's nothing left to track); recurring ones stay visible so the
-  // just-completed instance and its freshly spawned successor are both
-  // seen briefly.
+  const toggleDone = useMutation({
+    mutationFn: async ({ id, done }: { id: string; done: boolean }) => {
+      const targetStatusId = done ? doneId : backlogId
+      if (!targetStatusId) return
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status_id: targetStatusId, completed_at: done ? new Date().toISOString() : null })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurring-checklist-tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  // One-time tasks drop off the list once done (never regenerate, so
+  // there's nothing left to track); recurring ones stay visible -- their
+  // next instance only appears once checklist-regenerate's daily 7:00
+  // Tashkent run replaces them, not immediately on check-off.
   const visibleTasks = (tasks ?? []).filter((tsk) => {
     if (filterSlug && recurrenceTypes?.find((r) => r.id === tsk.recurrence_id)?.slug !== filterSlug) return false
     const recSlug = recurrenceTypes?.find((r) => r.id === tsk.recurrence_id)?.slug
@@ -1055,35 +1073,32 @@ function RecurringChecklistWidget({
           ))}
         </div>
 
-        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
           {!isLoading && visibleTasks.length === 0 && (
             <p className="text-sm text-muted-foreground">{t('cabinet.empty')}</p>
           )}
           {visibleTasks.map((tsk) => (
-            <TaskCard
+            <ChecklistTaskCard
               key={tsk.id}
               title={tsk.title}
-              statusSlug={statusSlugOf(tsk.status_id)}
-              deadline={tsk.deadline}
-              percentComplete={tsk.percent_complete}
-              subtasks={subtasksByTask?.get(tsk.id)}
+              isDone={tsk.status_id === doneId}
+              recurrenceLabel={recurrenceLabel(tsk.recurrence_id)}
               assigneeName={teamWide ? assigneeName(tsk.assignee_profile_id) : undefined}
               onOpen={() => onOpen(tsk.id)}
-              onToggleSubtask={(id, done) => toggleSubtask.mutate({ id, is_done: done })}
-              showSubtaskDuration={showSubtaskDuration}
+              onToggleDone={(done) => toggleDone.mutate({ id: tsk.id, done })}
             />
           ))}
         </div>
       </CardContent>
 
-      <TaskSheet open={creatingOpen} onOpenChange={setCreatingOpen} taskId={null} />
+      <ChecklistItemDialog open={creatingOpen} onOpenChange={setCreatingOpen} />
     </Card>
   )
 }
 
 export function CabinetPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { profile, hasCapability } = useAuth()
   // Capability-based, not role-slug-based: matches the actual data scoping
   // (cabinets.read_all) rather than assuming only literally-named
@@ -1122,10 +1137,41 @@ export function CabinetPage() {
     },
   })
   const myTaskStatusSlug = (id: string) => myTaskStatuses?.find((s) => s.id === id)?.slug
+  const myDoneStatusId = myTaskStatuses?.find((s) => s.slug === 'done')?.id
+  const myBacklogStatusId = myTaskStatuses?.find((s) => s.slug === 'backlog')?.id
+
+  const { data: myRecurrenceTypes } = useQuery({
+    queryKey: ['recurrence_types'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('recurrence_types').select('id, slug, label_ru, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+  const myRecurrenceLabel = (id: string | null) => pickLabel(myRecurrenceTypes?.find((r) => r.id === id), i18n.language)
 
   const taskIds = useMemo(() => (tasks ?? []).map((t) => t.id), [tasks])
   const { data: subtasksByTask } = useSubtasksBatch(taskIds)
   const toggleSubtask = useToggleSubtask()
+  const queryClientRoot = useQueryClient()
+  const toggleMyChecklistDone = useMutation({
+    mutationFn: async ({ id, done }: { id: string; done: boolean }) => {
+      const targetStatusId = done ? myDoneStatusId : myBacklogStatusId
+      if (!targetStatusId) return
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status_id: targetStatusId, completed_at: done ? new Date().toISOString() : null })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClientRoot.invalidateQueries({ queryKey: ['cabinet-tasks'] })
+      queryClientRoot.invalidateQueries({ queryKey: ['tasks'] })
+      queryClientRoot.invalidateQueries({ queryKey: ['tasks-kanban'] })
+      queryClientRoot.invalidateQueries({ queryKey: ['recurring-checklist-tasks'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
 
   return (
     <div className="flex flex-col gap-8">
@@ -1174,6 +1220,10 @@ export function CabinetPage() {
               onOpen={() => setOpenTaskId(task.id)}
               onToggleSubtask={(id, done) => toggleSubtask.mutate({ id, is_done: done })}
               showSubtaskDuration={showSubtaskDuration}
+              recurrenceLabel={myRecurrenceLabel(task.recurrence_id)}
+              onToggleChecklistDone={
+                task.recurrence_id ? (done) => toggleMyChecklistDone.mutate({ id: task.id, done }) : undefined
+              }
             />
           ))}
         </CardContent>

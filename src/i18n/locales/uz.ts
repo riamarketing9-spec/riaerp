@@ -173,6 +173,8 @@ export const uz = {
     eisenhower: 'Prioritet (Eyzenxauer matritsasi)',
     recurrence: 'Takrorlanishi',
     checklist: 'Chek-list',
+    newChecklistItem: 'Yangi chek-list vazifasi',
+    checklistItemAdded: "Chek-listga qo'shildi",
     statusDurations: "Bosqichlar bo'yicha vaqt (PM/CEO ko'radi)",
     quadrantDoNow: 'Shoshilinch va muhim',
     quadrantSchedule: 'Shoshilinch emas, lekin muhim',

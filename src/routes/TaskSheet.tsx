@@ -182,15 +182,6 @@ export function TaskSheet({
     },
   })
 
-  const { data: recurrenceTypes } = useQuery({
-    queryKey: ['recurrence_types'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('recurrence_types').select('id, slug, label_ru, label_uz')
-      if (error) throw error
-      return data
-    },
-  })
-
   const { data: projects } = useQuery({
     queryKey: ['projects-lookup'],
     queryFn: async () => {
@@ -647,28 +638,6 @@ export function TaskSheet({
                   )}
                 >
                   {pickLabel(q, i18n.language)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label>{t('tasks.recurrence')}</Label>
-            <div className="flex gap-2">
-              {recurrenceTypes?.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  disabled={isOwnTaskOnly}
-                  onClick={() => setValue('recurrence_id', r.id)}
-                  className={cn(
-                    'flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-                    watch('recurrence_id') === r.id
-                      ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
-                      : 'border-border text-muted-foreground hover:bg-muted'
-                  )}
-                >
-                  {pickLabel(r, i18n.language)}
                 </button>
               ))}
             </div>
