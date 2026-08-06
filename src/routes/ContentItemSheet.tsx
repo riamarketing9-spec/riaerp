@@ -43,6 +43,12 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
+// Precise "who did what": each entry is one person + the specific work
+// types (иш тури) attributed to them on this item, so a per-employee
+// report can later say exactly what each person did instead of just "N
+// people worked on M things" with no link between the two.
+type Assignment = { profileId: string; deliverableTypeIds: string[] }
+
 export function ContentItemSheet({
   open,
   onOpenChange,
@@ -197,20 +203,23 @@ export function ContentItemSheet({
     },
   })
 
-  const { data: existingDeliverableTypeIds } = useQuery({
-    queryKey: ['content_plan_deliverable_types', itemId],
+  const { data: existingAssignmentRows } = useQuery({
+    queryKey: ['content_plan_person_deliverable_types', itemId],
     enabled: !!itemId && open,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('content_plan_deliverable_types')
-        .select('deliverable_type_id')
+        .from('content_plan_person_deliverable_types')
+        .select('profile_id, deliverable_type_id')
         .eq('content_plan_item_id', itemId!)
       if (error) throw error
-      return data.map((r) => r.deliverable_type_id)
+      return data
     },
   })
 
-  const { data: existingResponsibleIds } = useQuery({
+  // Legacy fallback for items never touched under the precise per-person
+  // model: pair every old responsible person with every old work type
+  // (best effort, can't know the real historical pairing).
+  const { data: existingLegacyResponsibleIds } = useQuery({
     queryKey: ['content_plan_responsibles', itemId],
     enabled: !!itemId && open,
     queryFn: async () => {
@@ -220,6 +229,18 @@ export function ContentItemSheet({
         .eq('content_plan_item_id', itemId!)
       if (error) throw error
       return data.map((r) => r.profile_id)
+    },
+  })
+  const { data: existingLegacyDeliverableTypeIds } = useQuery({
+    queryKey: ['content_plan_deliverable_types', itemId],
+    enabled: !!itemId && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('content_plan_deliverable_types')
+        .select('deliverable_type_id')
+        .eq('content_plan_item_id', itemId!)
+      if (error) throw error
+      return data.map((r) => r.deliverable_type_id)
     },
   })
 
@@ -233,8 +254,7 @@ export function ContentItemSheet({
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
   const selectedPlatforms = watch('_platforms' as never) as string[] | undefined
-  const selectedDeliverableTypes = watch('_deliverableTypes' as never) as string[] | undefined
-  const selectedResponsibles = watch('_responsibles' as never) as string[] | undefined
+  const assignments = (watch('_assignments' as never) as unknown as Assignment[] | undefined) ?? []
   const [assigneeRoleId, setAssigneeRoleId] = useState('')
   const [pendingResponsibleId, setPendingResponsibleId] = useState('')
 
@@ -242,8 +262,7 @@ export function ContentItemSheet({
     if (open && !isEdit) {
       reset({ project_id: defaultProjectId ?? '', publish_date: defaultPublishDate ?? '' })
       setValue('_platforms' as never, [] as never)
-      setValue('_deliverableTypes' as never, [] as never)
-      setValue('_responsibles' as never, [] as never)
+      setValue('_assignments' as never, [] as never)
       setAssigneeRoleId('')
       setPendingResponsibleId('')
       setDraftId(null)
@@ -277,25 +296,42 @@ export function ContentItemSheet({
   }, [existingPlatformIds, setValue])
 
   useEffect(() => {
-    if (existingDeliverableTypeIds) {
-      setValue('_deliverableTypes' as never, existingDeliverableTypeIds as never)
+    if (!existingAssignmentRows) return
+    if (existingAssignmentRows.length > 0) {
+      const map = new Map<string, string[]>()
+      for (const row of existingAssignmentRows) {
+        const list = map.get(row.profile_id) ?? []
+        list.push(row.deliverable_type_id)
+        map.set(row.profile_id, list)
+      }
+      setValue(
+        '_assignments' as never,
+        [...map.entries()].map(([profileId, deliverableTypeIds]) => ({ profileId, deliverableTypeIds })) as never
+      )
+      return
     }
-  }, [existingDeliverableTypeIds, setValue])
-
-  useEffect(() => {
-    if (existingResponsibleIds) {
-      // Old items assigned only via the retired shooter/editor/smm fields
-      // (never touched under the new UI) fall back to those, so they show
-      // up as already-assigned instead of empty the first time reopened.
-      const fallback = [
-        existing?.responsible_profile_id,
-        existing?.shooter_profile_id,
-        existing?.editor_profile_id,
-        existing?.smm_profile_id,
-      ].filter((id): id is string => !!id)
-      setValue('_responsibles' as never, (existingResponsibleIds.length > 0 ? existingResponsibleIds : fallback) as never)
-    }
-  }, [existingResponsibleIds, existing, setValue])
+    // Nothing in the precise table yet -- old item, fall back to pairing
+    // every legacy responsible person with every legacy work type so it
+    // doesn't show up empty the first time it's reopened.
+    if (!existingLegacyResponsibleIds || !existingLegacyDeliverableTypeIds) return
+    const fallbackResponsibles =
+      existingLegacyResponsibleIds.length > 0
+        ? existingLegacyResponsibleIds
+        : [
+            existing?.responsible_profile_id,
+            existing?.shooter_profile_id,
+            existing?.editor_profile_id,
+            existing?.smm_profile_id,
+          ].filter((id): id is string => !!id)
+    if (fallbackResponsibles.length === 0) return
+    setValue(
+      '_assignments' as never,
+      fallbackResponsibles.map((profileId) => ({
+        profileId,
+        deliverableTypeIds: [...existingLegacyDeliverableTypeIds],
+      })) as never
+    )
+  }, [existingAssignmentRows, existingLegacyResponsibleIds, existingLegacyDeliverableTypeIds, existing, setValue])
 
   function togglePlatform(id: string, checked: boolean) {
     const current = selectedPlatforms ?? []
@@ -305,24 +341,37 @@ export function ContentItemSheet({
     )
   }
 
-  function toggleDeliverableType(id: string, checked: boolean) {
-    const current = selectedDeliverableTypes ?? []
-    setValue(
-      '_deliverableTypes' as never,
-      (checked ? [...current, id] : current.filter((f) => f !== id)) as never
-    )
-  }
-
-  function addResponsible(id: string) {
-    const current = selectedResponsibles ?? []
-    if (!id || current.includes(id)) return
-    setValue('_responsibles' as never, [...current, id] as never)
+  function addPerson(profileId: string) {
+    if (!profileId || assignments.some((a) => a.profileId === profileId)) return
+    setValue('_assignments' as never, [...assignments, { profileId, deliverableTypeIds: [] }] as never)
     setPendingResponsibleId('')
   }
 
-  function removeResponsible(id: string) {
-    const current = selectedResponsibles ?? []
-    setValue('_responsibles' as never, current.filter((r) => r !== id) as never)
+  function removePerson(profileId: string) {
+    setValue('_assignments' as never, assignments.filter((a) => a.profileId !== profileId) as never)
+  }
+
+  function addTypeToPerson(profileId: string, deliverableTypeId: string) {
+    if (!deliverableTypeId) return
+    setValue(
+      '_assignments' as never,
+      assignments.map((a) =>
+        a.profileId === profileId && !a.deliverableTypeIds.includes(deliverableTypeId)
+          ? { ...a, deliverableTypeIds: [...a.deliverableTypeIds, deliverableTypeId] }
+          : a
+      ) as never
+    )
+  }
+
+  function removeTypeFromPerson(profileId: string, deliverableTypeId: string) {
+    setValue(
+      '_assignments' as never,
+      assignments.map((a) =>
+        a.profileId === profileId
+          ? { ...a, deliverableTypeIds: a.deliverableTypeIds.filter((d) => d !== deliverableTypeId) }
+          : a
+      ) as never
+    )
   }
 
   // Local id for a record created by autosave before the parent ever passed
@@ -332,8 +381,13 @@ export function ContentItemSheet({
   const effectiveId = itemId ?? draftId
 
   async function performSave(values: FormValues) {
-    const deliverableTypeIds = selectedDeliverableTypes ?? []
-    const responsibleIds = selectedResponsibles ?? []
+    // Derived views of the precise per-person assignments, kept in sync in
+    // their own junction tables too so existing readers (calendar/table
+    // badges, monthly-goal % calc) keep working unchanged -- they only
+    // ever needed "which work types/people are on this item", not the
+    // pairing between them.
+    const responsibleIds = [...new Set(assignments.map((a) => a.profileId))]
+    const deliverableTypeIds = [...new Set(assignments.flatMap((a) => a.deliverableTypeIds))]
     const payload = {
       project_id: values.project_id,
       topic: values.topic,
@@ -395,15 +449,30 @@ export function ContentItemSheet({
       )
     }
 
+    // The actual source of truth: precise (person, work type) pairs.
+    await supabase.from('content_plan_person_deliverable_types').delete().eq('content_plan_item_id', id)
+    const assignmentRows = assignments.flatMap((a) =>
+      a.deliverableTypeIds.map((deliverable_type_id) => ({
+        content_plan_item_id: id!,
+        profile_id: a.profileId,
+        deliverable_type_id,
+      }))
+    )
+    if (assignmentRows.length > 0) {
+      await supabase.from('content_plan_person_deliverable_types').insert(assignmentRows)
+    }
+
     // Not this sheet's own ['content_plan_platforms'/'content_plan_deliverable_types'/
-    // 'content_plan_responsibles', id] here -- refetching while still open
-    // re-triggers the effect that populates the checkboxes/chips, reverting
-    // whatever the user just toggled before it's saved. Invalidated in
-    // mutation.onSuccess instead, once closing.
+    // 'content_plan_responsibles'/'content_plan_person_deliverable_types', id]
+    // here -- refetching while still open re-triggers the effect that
+    // populates the checkboxes/rows, reverting whatever the user just
+    // toggled before it's saved. Invalidated in mutation.onSuccess instead,
+    // once closing.
     queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_platforms-all'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types-all'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_responsibles-all'] })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_person_deliverable_types-all'] })
   }
 
   const mutation = useMutation({
@@ -413,6 +482,7 @@ export function ContentItemSheet({
       queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', itemId] })
       queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types', itemId] })
       queryClient.invalidateQueries({ queryKey: ['content_plan_responsibles', itemId] })
+      queryClient.invalidateQueries({ queryKey: ['content_plan_person_deliverable_types', itemId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
@@ -554,25 +624,6 @@ export function ContentItemSheet({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>{t('payroll.deliverableType')}</Label>
-            <p className="text-xs text-muted-foreground">{t('contentPlan.deliverableTypeHint')}</p>
-            <div className="flex flex-wrap gap-3 rounded-lg border border-border p-3">
-              {deliverableTypes?.map((d) => (
-                <div key={d.id} className="flex items-center gap-1.5">
-                  <Checkbox
-                    id={`dtype-${d.id}`}
-                    checked={(selectedDeliverableTypes ?? []).includes(d.id)}
-                    onCheckedChange={(checked) => toggleDeliverableType(d.id, checked === true)}
-                  />
-                  <Label htmlFor={`dtype-${d.id}`} className="font-normal">
-                    {pickLabel(d, i18n.language)}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
             <Label>{t('contentPlan.platforms')}</Label>
             <div className="flex flex-wrap gap-3">
               {platforms?.map((p) => (
@@ -593,25 +644,53 @@ export function ContentItemSheet({
           <div className="flex flex-col gap-1.5">
             <Label>{t('contentPlan.responsible')}</Label>
             <p className="text-xs text-muted-foreground">{t('contentPlan.responsibleHint')}</p>
-            {(selectedResponsibles ?? []).length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {(selectedResponsibles ?? []).map((id) => (
-                  <span
-                    key={id}
-                    className="flex items-center gap-1 rounded-full border border-border bg-muted/50 py-1 pr-1 pl-2.5 text-xs font-medium"
+
+            {assignments.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {assignments.map((a) => (
+                  <div
+                    key={a.profileId}
+                    className="flex flex-wrap items-center gap-1.5 rounded-md border border-border px-2 py-1.5"
                   >
-                    {allProfiles?.find((p) => p.id === id)?.full_name ?? '—'}
+                    <span className="shrink-0 text-xs font-semibold">
+                      {allProfiles?.find((p) => p.id === a.profileId)?.full_name ?? '—'}
+                    </span>
+                    {a.deliverableTypeIds.map((dId) => (
+                      <span
+                        key={dId}
+                        className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium"
+                      >
+                        {pickLabel(deliverableTypes?.find((d) => d.id === dId), i18n.language)}
+                        <button
+                          type="button"
+                          onClick={() => removeTypeFromPerson(a.profileId, dId)}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="size-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                    <Combobox
+                      className="h-7 w-36 text-xs"
+                      options={(deliverableTypes ?? [])
+                        .filter((d) => !a.deliverableTypeIds.includes(d.id))
+                        .map((d) => ({ value: d.id, label: pickLabel(d, i18n.language) ?? '' }))}
+                      value=""
+                      onChange={(v) => addTypeToPerson(a.profileId, v)}
+                      placeholder={t('contentPlan.addWorkType')}
+                    />
                     <button
                       type="button"
-                      onClick={() => removeResponsible(id)}
-                      className="rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
+                      onClick={() => removePerson(a.profileId)}
+                      className="ml-auto shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
                     >
-                      <X className="size-3" />
+                      <X className="size-3.5" />
                     </button>
-                  </span>
+                  </div>
                 ))}
               </div>
             )}
+
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Combobox
                 options={(rolesForFiltering ?? []).map((r) => ({ value: r.id, label: pickLabel(r, i18n.language) ?? '' }))}
@@ -624,10 +703,10 @@ export function ContentItemSheet({
               />
               <Combobox
                 options={profilesByRoleId(assigneeRoleId)
-                  .filter((p) => !(selectedResponsibles ?? []).includes(p.id))
+                  .filter((p) => !assignments.some((a) => a.profileId === p.id))
                   .map((p) => ({ value: p.id, label: p.full_name }))}
                 value={pendingResponsibleId}
-                onChange={(v) => addResponsible(v)}
+                onChange={(v) => addPerson(v)}
                 placeholder={t('contentPlan.addResponsible')}
               />
             </div>

@@ -413,6 +413,7 @@ type ContentPlanPlatformRow = { content_plan_item_id: string; platform_id: strin
 type ContentPlanFormatRow = { content_plan_item_id: string; format_id: string }
 type ContentPlanDeliverableTypeRow = { content_plan_item_id: string; deliverable_type_id: string }
 type ContentPlanResponsibleRow = { content_plan_item_id: string; profile_id: string }
+type ContentPlanPersonDeliverableTypeRow = { content_plan_item_id: string; profile_id: string; deliverable_type_id: string }
 
 type KbArticleRow = {
   id: string
@@ -540,6 +541,7 @@ export type Database = {
       content_plan_formats: { Row: ContentPlanFormatRow; Insert: ContentPlanFormatRow; Update: Partial<ContentPlanFormatRow>; Relationships: [] }
       content_plan_deliverable_types: { Row: ContentPlanDeliverableTypeRow; Insert: ContentPlanDeliverableTypeRow; Update: Partial<ContentPlanDeliverableTypeRow>; Relationships: [] }
       content_plan_responsibles: { Row: ContentPlanResponsibleRow; Insert: ContentPlanResponsibleRow; Update: Partial<ContentPlanResponsibleRow>; Relationships: [] }
+      content_plan_person_deliverable_types: { Row: ContentPlanPersonDeliverableTypeRow; Insert: ContentPlanPersonDeliverableTypeRow; Update: Partial<ContentPlanPersonDeliverableTypeRow>; Relationships: [] }
       kb_articles: ReturnType<typeof table<KbArticleRow, 'title'>>
       time_entries: ReturnType<typeof table<TimeEntryRow, 'profile_id'>>
       profile_telegram_links: { Row: ProfileTelegramLinkRow; Insert: Pick<ProfileTelegramLinkRow, 'profile_id' | 'chat_id'> & Partial<ProfileTelegramLinkRow>; Update: Partial<ProfileTelegramLinkRow>; Relationships: [] }

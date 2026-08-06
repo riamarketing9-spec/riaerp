@@ -364,6 +364,7 @@ export const uz = {
     responsible: "Mas'ul",
     responsibleHint: "Bir nechta odamni belgilash mumkin",
     addResponsible: "Odam qo'shish",
+    addWorkType: '+ ish turi',
     shooter: 'Syomkachi',
     editor: 'Montajchi',
     smm: 'SMMchi',

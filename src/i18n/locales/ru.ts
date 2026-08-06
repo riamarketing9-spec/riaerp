@@ -364,6 +364,7 @@ export const ru = {
     responsible: 'Ответственный',
     responsibleHint: 'Можно назначить несколько человек',
     addResponsible: 'Добавить человека',
+    addWorkType: '+ иш тури',
     shooter: 'Съёмщик',
     editor: 'Монтажёр',
     smm: 'СММщик',
