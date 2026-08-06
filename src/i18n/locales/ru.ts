@@ -338,6 +338,7 @@ export const ru = {
     byProject: 'По проекту',
     pickEmployee: 'Выберите сотрудника',
     pickProject: 'Выберите проект',
+    month: 'Месяц',
     onTimePct: 'Выполнено вовремя, %',
     avgPercentComplete: 'Средняя готовность задач',
     onTimeCount: 'Успел до дедлайна',

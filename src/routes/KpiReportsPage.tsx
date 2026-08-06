@@ -300,6 +300,10 @@ function EmployeeKpiTab() {
 function ProjectKpiTab() {
   const { t, i18n } = useTranslation()
   const [projectId, setProjectId] = useState('')
+  // "YYYY-MM", matching <input type="month"> -- defaults to the current
+  // month (same as before this was pickable) but can be moved to any
+  // other month, since the quota/target data is itself month-keyed.
+  const [monthValue, setMonthValue] = useState(() => new Date().toISOString().slice(0, 7))
 
   const { data: projects } = useQuery({
     queryKey: ['projects-lookup-quota'],
@@ -310,7 +314,14 @@ function ProjectKpiTab() {
     },
   })
 
-  const monthKeyRef = useMemo(() => monthRange(new Date()), [])
+  const monthKeyRef = useMemo(() => {
+    // Local Y/M/D construction, not `new Date(monthValue + '-01')` -- a
+    // date-only string parses as UTC midnight, which is a footgun for
+    // month-boundary math elsewhere in this codebase (see monthRange's
+    // own comment); building from parts sidesteps it entirely.
+    const [y, m] = monthValue.split('-').map(Number)
+    return monthRange(new Date(y, m - 1, 1))
+  }, [monthValue])
 
   const { data: monthlyGoal } = useQuery({
     queryKey: ['kpi-project-monthly-goal', projectId, monthKeyRef.start],
@@ -415,6 +426,15 @@ function ProjectKpiTab() {
             options={(projects ?? []).map((p) => ({ value: p.id, label: p.name }))}
             value={projectId}
             onChange={setProjectId}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">{t('kpi.month')}</Label>
+          <Input
+            type="month"
+            className="w-40"
+            value={monthValue}
+            onChange={(e) => setMonthValue(e.target.value)}
           />
         </div>
       </div>

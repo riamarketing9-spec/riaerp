@@ -338,6 +338,7 @@ export const uz = {
     byProject: "Loyiha bo'yicha",
     pickEmployee: 'Xodimni tanlang',
     pickProject: 'Loyihani tanlang',
+    month: 'Oy',
     onTimePct: "O'z vaqtida bajarilgan, %",
     avgPercentComplete: "Vazifalarning o'rtacha bajarilishi",
     onTimeCount: 'Muddatida ulgurgan',
