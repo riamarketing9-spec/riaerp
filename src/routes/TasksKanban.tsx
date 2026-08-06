@@ -20,6 +20,8 @@ import { pickLabel } from '@/lib/localizedLabel'
 import { TaskSheet } from './TaskSheet'
 import { TaskCard, type TaskCardSubtask } from '@/components/TaskCard'
 import { useCanDeleteTask } from '@/hooks/useCanDeleteTask'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 type TaskCardData = {
   id: string
@@ -172,6 +174,9 @@ export function TasksKanban({
   const showSubtaskDuration = hasCapability('org.full_access') || hasCapability('projects.manage')
   const [activeTask, setActiveTask] = useState<TaskCardData | null>(null)
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const hasDateFilter = !!(dateFrom || dateTo)
 
   const { data: statuses } = useQuery({
     queryKey: ['task_statuses'],
@@ -200,8 +205,17 @@ export function TasksKanban({
     let list = tasks ?? []
     if (scopeAssigneeId) list = list.filter((t) => t.assignee_profile_id === scopeAssigneeId)
     if (employeeFilterId) list = list.filter((t) => t.assignee_profile_id === employeeFilterId)
+    if (hasDateFilter) {
+      list = list.filter((t) => {
+        if (!t.deadline) return false
+        const d = t.deadline.slice(0, 10)
+        if (dateFrom && d < dateFrom) return false
+        if (dateTo && d > dateTo) return false
+        return true
+      })
+    }
     return list
-  }, [tasks, scopeAssigneeId, employeeFilterId])
+  }, [tasks, scopeAssigneeId, employeeFilterId, hasDateFilter, dateFrom, dateTo])
 
   const { data: profiles } = useQuery({
     queryKey: ['profiles-lookup'],
@@ -332,6 +346,40 @@ export function TasksKanban({
   return (
     <div className="flex flex-col gap-3">
       <h2 className="text-sm font-semibold">{t('kanban.title')}</h2>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">{t('tasks.dateFrom')}</label>
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-8 w-36"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">{t('tasks.dateTo')}</label>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-8 w-36"
+          />
+        </div>
+        {hasDateFilter && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setDateFrom('')
+              setDateTo('')
+            }}
+          >
+            {t('tasks.resetDateFilter')}
+          </Button>
+        )}
+      </div>
+
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-3 overflow-x-auto pb-2">
           {columns.map((col) => (
