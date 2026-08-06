@@ -343,6 +343,7 @@ export const uz = {
     onTimeCount: 'Muddatida ulgurgan',
     fullyDoneCount: "To'liq bajarilgan (100%)",
     lateList: 'Muddati bo\'lgan vazifalar bo\'yicha kechikishlar',
+    contentPlanByProject: "Loyihalar bo'yicha (kontent-reja)",
     onTimeBadge: 'Vaqtida',
     projectPercentDone: 'Loyiha % bajarilgani',
     monthPosts: 'Bu oy postlar (reels+post+karusel)',

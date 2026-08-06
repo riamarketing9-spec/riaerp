@@ -153,6 +153,57 @@ async function buildEmployeeTaskReport(admin: any, profileId: string): Promise<s
   return blocks.join('\n\n')
 }
 
+// This employee's own content-plan work today, precisely attributed via
+// content_plan_person_deliverable_types (not just "N people worked on
+// this item") -- published (жойланди) items with today's publish_date,
+// grouped by project, each work type listed on its own line same
+// granularity as the card's own percent calc.
+// deno-lint-ignore no-explicit-any
+async function buildEmployeeContentPlanReport(admin: any, profileId: string): Promise<string> {
+  const { data: publishedStatus } = await admin.from('content_statuses').select('id').eq('slug', 'published').maybeSingle()
+  const publishedId = publishedStatus?.id
+  if (!publishedId) return ''
+
+  const today = tashkentDateStr()
+  const { data: assignments } = await admin
+    .from('content_plan_person_deliverable_types')
+    .select('content_plan_item_id, deliverable_type_id')
+    .eq('profile_id', profileId)
+  if (!assignments || assignments.length === 0) return ''
+
+  const itemIds = [...new Set(assignments.map((a: { content_plan_item_id: string }) => a.content_plan_item_id))]
+  const { data: items } = await admin
+    .from('content_plan_items')
+    .select('id, topic, project_id')
+    .in('id', itemIds)
+    .eq('status_id', publishedId)
+    .eq('publish_date', today)
+  if (!items || items.length === 0) return ''
+
+  const { data: deliverableTypes } = await admin.from('deliverable_types').select('id, label_uz')
+  const { data: projects } = await admin.from('projects').select('id, name')
+  const typeLabel = (id: string) => (deliverableTypes ?? []).find((d: { id: string }) => d.id === id)?.label_uz ?? '—'
+  const projectName = (id: string | null) => (id ? (projects ?? []).find((p: { id: string }) => p.id === id)?.name ?? '—' : '—')
+
+  const byProject = new Map<string, string[]>()
+  for (const item of items as { id: string; topic: string; project_id: string | null }[]) {
+    const types = (assignments as { content_plan_item_id: string; deliverable_type_id: string }[]).filter(
+      (a) => a.content_plan_item_id === item.id
+    )
+    const key = item.project_id ?? '—'
+    const lines = byProject.get(key) ?? []
+    for (const t of types) {
+      lines.push(`   • ${escapeHtml(typeLabel(t.deliverable_type_id))} — ${escapeHtml(item.topic)}`)
+    }
+    byProject.set(key, lines)
+  }
+
+  const blocks = [...byProject.entries()].map(
+    ([projectId, lines]) => `<b>${escapeHtml(projectName(projectId === '—' ? null : projectId))}</b>\n${lines.join('\n')}`
+  )
+  return `📁 <b>Kontent-reja bo'yicha bugungi ish:</b>\n${blocks.join('\n\n')}`
+}
+
 // General (not employee-specific) roll-up appended to every clock-out
 // report: what shipped today across ALL projects, from content-plan ish
 // тури (deliverable_type) selections, counting only items whose status is
@@ -237,6 +288,8 @@ Deno.serve(async (req) => {
   if (event === 'stop') {
     const report = await buildEmployeeTaskReport(admin, profile_id)
     if (report) text += `\n\n${report}`
+    const employeeContentPlanReport = await buildEmployeeContentPlanReport(admin, profile_id)
+    if (employeeContentPlanReport) text += `\n\n${employeeContentPlanReport}`
     const projectsReport = await buildProjectsPublishedReport(admin)
     if (projectsReport) text += `\n\n${projectsReport}`
   }

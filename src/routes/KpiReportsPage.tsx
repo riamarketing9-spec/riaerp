@@ -81,6 +81,96 @@ function EmployeeKpiTab() {
     return true
   }
 
+  // Precise content-plan attribution for this employee (content_plan_
+  // person_deliverable_types) -- published (жойланди) items only, in the
+  // picked date range, grouped by project, one line per work type per
+  // item so a single item with several types selected shows each one.
+  const { data: publishedStatus } = useQuery({
+    queryKey: ['content_statuses-published'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('content_statuses')
+        .select('id')
+        .eq('slug', 'published')
+        .maybeSingle()
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: employeeAssignments } = useQuery({
+    queryKey: ['kpi-employee-content-plan', profileId],
+    enabled: !!profileId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('content_plan_person_deliverable_types')
+        .select('content_plan_item_id, deliverable_type_id')
+        .eq('profile_id', profileId)
+      if (error) throw error
+      return data
+    },
+  })
+
+  const employeeItemIds = useMemo(
+    () => [...new Set((employeeAssignments ?? []).map((a) => a.content_plan_item_id))],
+    [employeeAssignments]
+  )
+
+  const { data: employeeItems } = useQuery({
+    queryKey: ['kpi-employee-content-plan-items', employeeItemIds, publishedStatus?.id],
+    enabled: employeeItemIds.length > 0 && !!publishedStatus,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('content_plan_items')
+        .select('id, topic, project_id, publish_date')
+        .in('id', employeeItemIds)
+        .eq('status_id', publishedStatus!.id)
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: deliverableTypes } = useQuery({
+    queryKey: ['deliverable_types'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('deliverable_types').select('id, label_ru, label_uz')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: projectsLookup } = useQuery({
+    queryKey: ['projects-lookup-names'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('projects').select('id, name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const contentPlanByProject = useMemo(() => {
+    const itemsInRange = (employeeItems ?? []).filter((i) => inRange(i.publish_date ? `${i.publish_date}T00:00:00` : null))
+    const map = new Map<string, { projectName: string; lines: { topic: string; label: string; date: string | null }[] }>()
+    for (const item of itemsInRange) {
+      const types = (employeeAssignments ?? []).filter((a) => a.content_plan_item_id === item.id)
+      const key = item.project_id ?? '—'
+      const entry = map.get(key) ?? {
+        projectName: projectsLookup?.find((p) => p.id === item.project_id)?.name ?? '—',
+        lines: [],
+      }
+      for (const t of types) {
+        entry.lines.push({
+          topic: item.topic,
+          label: pickLabel(deliverableTypes?.find((d) => d.id === t.deliverable_type_id), i18n.language) ?? '—',
+          date: item.publish_date,
+        })
+      }
+      map.set(key, entry)
+    }
+    return [...map.values()]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeItems, employeeAssignments, projectsLookup, deliverableTypes, i18n.language, dateFrom, dateTo])
+
   const completedInRange = (tasks ?? []).filter((tsk) => tsk.status_id === doneId && inRange(tsk.completed_at))
   const withDeadline = completedInRange
     .filter((tsk) => tsk.deadline)
@@ -169,6 +259,33 @@ function EmployeeKpiTab() {
                 </div>
               )
             })}
+          </CardContent>
+        </Card>
+      )}
+
+      {profileId && contentPlanByProject.length > 0 && (
+        <Card>
+          <CardContent className="flex flex-col gap-3 py-4">
+            <span className="text-sm font-medium">{t('kpi.contentPlanByProject')}</span>
+            {contentPlanByProject.map((group) => (
+              <div key={group.projectName} className="flex flex-col gap-1">
+                <span className="text-xs font-semibold">{group.projectName}</span>
+                {group.lines.map((line, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs"
+                  >
+                    <Badge variant="secondary" className="shrink-0 text-[10px]">
+                      {line.label}
+                    </Badge>
+                    <span className="flex-1 truncate">{line.topic}</span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {line.date ? formatLocalDateTime(`${line.date}T00:00:00`, i18n.language).split(',')[0] : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

@@ -343,6 +343,7 @@ export const ru = {
     onTimeCount: 'Успел до дедлайна',
     fullyDoneCount: 'Полностью выполнено (100%)',
     lateList: 'Опоздания по задачам с дедлайном',
+    contentPlanByProject: 'По проектам (контент-план)',
     onTimeBadge: 'Вовремя',
     projectPercentDone: '% выполнения проекта',
     monthPosts: 'Постов за месяц (reels+post+карусель)',
