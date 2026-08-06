@@ -23,14 +23,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Combobox } from '@/components/ui/combobox'
 import { pickLabel } from '@/lib/localizedLabel'
 import { normalizeUrl } from '@/lib/utils'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, X } from 'lucide-react'
 
 const schema = z.object({
   project_id: z.string().min(1, 'Обязательное поле'),
   topic: z.string().min(1, 'Обязательное поле'),
   format_id: z.string().min(1, 'Обязательное поле'),
   status_id: z.string().min(1, 'Обязательное поле'),
-  responsible_profile_id: z.string().optional(),
   shoot_date: z.string().optional(),
   edit_done_date: z.string().optional(),
   cover_done_date: z.string().optional(),
@@ -154,17 +153,6 @@ export function ContentItemSheet({
     return (profilesWithRoles ?? []).filter((p) => p.role_id === roleId || secondaryProfileIds.has(p.id))
   }
 
-  // A previously-assigned person whose role no longer matches the filter
-  // (reassigned, or the item predates this filtering) must still show up as
-  // the current selection instead of rendering blank.
-  function withCurrentSelection(
-    list: NonNullable<typeof profilesWithRoles>,
-    currentId: string | undefined
-  ) {
-    if (!currentId || list.some((p) => p.id === currentId)) return list
-    const current = allProfiles?.find((p) => p.id === currentId)
-    return current ? [{ ...current, role_id: '' }, ...list] : list
-  }
   const { data: platforms } = useQuery({
     queryKey: ['platforms'],
     queryFn: async () => {
@@ -222,6 +210,19 @@ export function ContentItemSheet({
     },
   })
 
+  const { data: existingResponsibleIds } = useQuery({
+    queryKey: ['content_plan_responsibles', itemId],
+    enabled: !!itemId && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('content_plan_responsibles')
+        .select('profile_id')
+        .eq('content_plan_item_id', itemId!)
+      if (error) throw error
+      return data.map((r) => r.profile_id)
+    },
+  })
+
   const {
     register,
     handleSubmit,
@@ -233,36 +234,29 @@ export function ContentItemSheet({
 
   const selectedPlatforms = watch('_platforms' as never) as string[] | undefined
   const selectedDeliverableTypes = watch('_deliverableTypes' as never) as string[] | undefined
+  const selectedResponsibles = watch('_responsibles' as never) as string[] | undefined
   const [assigneeRoleId, setAssigneeRoleId] = useState('')
+  const [pendingResponsibleId, setPendingResponsibleId] = useState('')
 
   useEffect(() => {
     if (open && !isEdit) {
       reset({ project_id: defaultProjectId ?? '', publish_date: defaultPublishDate ?? '' })
       setValue('_platforms' as never, [] as never)
       setValue('_deliverableTypes' as never, [] as never)
+      setValue('_responsibles' as never, [] as never)
       setAssigneeRoleId('')
+      setPendingResponsibleId('')
       setDraftId(null)
     }
   }, [open, isEdit, defaultProjectId, defaultPublishDate, reset, setValue])
 
   useEffect(() => {
     if (existing) {
-      // Old items assigned via the retired shooter/editor/smm fields fall
-      // back into the one flexible "responsible" field the first time
-      // they're opened/saved under the new UI, instead of appearing
-      // unassigned.
-      const legacyResponsible =
-        existing.responsible_profile_id ||
-        existing.shooter_profile_id ||
-        existing.editor_profile_id ||
-        existing.smm_profile_id ||
-        ''
       reset({
         project_id: existing.project_id,
         topic: existing.topic,
         format_id: existing.format_id ?? '',
         status_id: existing.status_id,
-        responsible_profile_id: legacyResponsible,
         shoot_date: existing.shoot_date ?? '',
         edit_done_date: existing.edit_done_date ?? '',
         cover_done_date: existing.cover_done_date ?? '',
@@ -288,20 +282,20 @@ export function ContentItemSheet({
     }
   }, [existingDeliverableTypeIds, setValue])
 
-  // Derive which role the current "Ответственный" belongs to, once, so
-  // reopening a card shows the same role+person the CEO picked -- not
-  // re-run once the CEO starts actively picking a different role/person.
   useEffect(() => {
-    if (!existing || !profilesWithRoles || assigneeRoleId) return
-    const respId =
-      existing.responsible_profile_id ||
-      existing.shooter_profile_id ||
-      existing.editor_profile_id ||
-      existing.smm_profile_id
-    if (!respId) return
-    const person = profilesWithRoles.find((p) => p.id === respId)
-    if (person) setAssigneeRoleId(person.role_id)
-  }, [existing, profilesWithRoles, assigneeRoleId])
+    if (existingResponsibleIds) {
+      // Old items assigned only via the retired shooter/editor/smm fields
+      // (never touched under the new UI) fall back to those, so they show
+      // up as already-assigned instead of empty the first time reopened.
+      const fallback = [
+        existing?.responsible_profile_id,
+        existing?.shooter_profile_id,
+        existing?.editor_profile_id,
+        existing?.smm_profile_id,
+      ].filter((id): id is string => !!id)
+      setValue('_responsibles' as never, (existingResponsibleIds.length > 0 ? existingResponsibleIds : fallback) as never)
+    }
+  }, [existingResponsibleIds, existing, setValue])
 
   function togglePlatform(id: string, checked: boolean) {
     const current = selectedPlatforms ?? []
@@ -319,6 +313,18 @@ export function ContentItemSheet({
     )
   }
 
+  function addResponsible(id: string) {
+    const current = selectedResponsibles ?? []
+    if (!id || current.includes(id)) return
+    setValue('_responsibles' as never, [...current, id] as never)
+    setPendingResponsibleId('')
+  }
+
+  function removeResponsible(id: string) {
+    const current = selectedResponsibles ?? []
+    setValue('_responsibles' as never, current.filter((r) => r !== id) as never)
+  }
+
   // Local id for a record created by autosave before the parent ever passed
   // an itemId down -- the prop stays null until the dialog is reopened, so
   // this is what turns later autosave ticks into updates instead of re-inserts.
@@ -327,16 +333,17 @@ export function ContentItemSheet({
 
   async function performSave(values: FormValues) {
     const deliverableTypeIds = selectedDeliverableTypes ?? []
+    const responsibleIds = selectedResponsibles ?? []
     const payload = {
       project_id: values.project_id,
       topic: values.topic,
       format_id: values.format_id,
       status_id: values.status_id,
-      // Kept in sync as "the first selected work type" for any code that
-      // still reads the single legacy column -- content_plan_deliverable_
-      // types is the actual source of truth now.
+      // Kept in sync as "the first selected work type"/"first selected
+      // responsible" for any code that still reads the single legacy
+      // columns -- the junction tables are the actual source of truth now.
       deliverable_type_id: deliverableTypeIds[0] ?? null,
-      responsible_profile_id: values.responsible_profile_id || null,
+      responsible_profile_id: responsibleIds[0] ?? null,
       shooter_profile_id: null,
       editor_profile_id: null,
       smm_profile_id: null,
@@ -381,13 +388,22 @@ export function ContentItemSheet({
       )
     }
 
-    // Not this sheet's own ['content_plan_platforms'/'content_plan_deliverable_types', id]
-    // here -- refetching while still open re-triggers the effect that
-    // populates the checkboxes, reverting whatever the user just toggled
-    // before it's saved. Invalidated in mutation.onSuccess instead, once closing.
+    await supabase.from('content_plan_responsibles').delete().eq('content_plan_item_id', id)
+    if (responsibleIds.length > 0) {
+      await supabase.from('content_plan_responsibles').insert(
+        responsibleIds.map((profile_id) => ({ content_plan_item_id: id!, profile_id }))
+      )
+    }
+
+    // Not this sheet's own ['content_plan_platforms'/'content_plan_deliverable_types'/
+    // 'content_plan_responsibles', id] here -- refetching while still open
+    // re-triggers the effect that populates the checkboxes/chips, reverting
+    // whatever the user just toggled before it's saved. Invalidated in
+    // mutation.onSuccess instead, once closing.
     queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_platforms-all'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types-all'] })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_responsibles-all'] })
   }
 
   const mutation = useMutation({
@@ -396,6 +412,7 @@ export function ContentItemSheet({
       toast.success(isEdit ? 'Сохранено' : 'Добавлено в контент-план')
       queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', itemId] })
       queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types', itemId] })
+      queryClient.invalidateQueries({ queryKey: ['content_plan_responsibles', itemId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
@@ -575,22 +592,43 @@ export function ContentItemSheet({
 
           <div className="flex flex-col gap-1.5">
             <Label>{t('contentPlan.responsible')}</Label>
+            <p className="text-xs text-muted-foreground">{t('contentPlan.responsibleHint')}</p>
+            {(selectedResponsibles ?? []).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {(selectedResponsibles ?? []).map((id) => (
+                  <span
+                    key={id}
+                    className="flex items-center gap-1 rounded-full border border-border bg-muted/50 py-1 pr-1 pl-2.5 text-xs font-medium"
+                  >
+                    {allProfiles?.find((p) => p.id === id)?.full_name ?? '—'}
+                    <button
+                      type="button"
+                      onClick={() => removeResponsible(id)}
+                      className="rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Combobox
                 options={(rolesForFiltering ?? []).map((r) => ({ value: r.id, label: pickLabel(r, i18n.language) ?? '' }))}
                 value={assigneeRoleId}
                 onChange={(v) => {
                   setAssigneeRoleId(v)
-                  setValue('responsible_profile_id', '')
+                  setPendingResponsibleId('')
                 }}
                 placeholder={t('team.role')}
               />
               <Combobox
-                options={withCurrentSelection(profilesByRoleId(assigneeRoleId), watch('responsible_profile_id')).map(
-                  (p) => ({ value: p.id, label: p.full_name })
-                )}
-                value={watch('responsible_profile_id') ?? ''}
-                onChange={(v) => setValue('responsible_profile_id', v)}
+                options={profilesByRoleId(assigneeRoleId)
+                  .filter((p) => !(selectedResponsibles ?? []).includes(p.id))
+                  .map((p) => ({ value: p.id, label: p.full_name }))}
+                value={pendingResponsibleId}
+                onChange={(v) => addResponsible(v)}
+                placeholder={t('contentPlan.addResponsible')}
               />
             </div>
           </div>

@@ -362,6 +362,8 @@ export const ru = {
     platforms: 'Платформы',
     status: 'Статус',
     responsible: 'Ответственный',
+    responsibleHint: 'Можно назначить несколько человек',
+    addResponsible: 'Добавить человека',
     shooter: 'Съёмщик',
     editor: 'Монтажёр',
     smm: 'СММщик',

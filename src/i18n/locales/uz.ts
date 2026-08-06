@@ -362,6 +362,8 @@ export const uz = {
     platforms: 'Platformalar',
     status: 'Holati',
     responsible: "Mas'ul",
+    responsibleHint: "Bir nechta odamni belgilash mumkin",
+    addResponsible: "Odam qo'shish",
     shooter: 'Syomkachi',
     editor: 'Montajchi',
     smm: 'SMMchi',
