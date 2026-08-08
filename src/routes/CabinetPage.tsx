@@ -24,6 +24,7 @@ import { RevenueProfitChart } from '@/components/charts/RevenueProfitChart'
 import { ExpenseDonutChart } from '@/components/charts/ExpenseDonutChart'
 import { BackupExportButton } from './BackupExportButton'
 import { cn } from '@/lib/utils'
+import { useCanDeleteTask } from '@/hooks/useCanDeleteTask'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('ru-RU').format(n)
@@ -953,6 +954,7 @@ function RecurringChecklistWidget({
 }) {
   const { t, i18n } = useTranslation()
   const { profile } = useAuth()
+  const canDeleteTask = useCanDeleteTask()
   const [filterSlug, setFilterSlug] = useState<string | null>(null)
   const [creatingOpen, setCreatingOpen] = useState(false)
   const queryClient = useQueryClient()
@@ -981,7 +983,7 @@ function RecurringChecklistWidget({
     queryFn: async () => {
       let query = supabase
         .from('tasks')
-        .select('id, title, status_id, deadline, percent_complete, recurrence_id, assignee_profile_id')
+        .select('id, title, status_id, deadline, percent_complete, recurrence_id, assignee_profile_id, created_by, project_id')
         .not('recurrence_id', 'is', null)
         .order('deadline', { ascending: true, nullsFirst: false })
       if (!teamWide) query = query.eq('assignee_profile_id', profile!.id)
@@ -1014,6 +1016,20 @@ function RecurringChecklistWidget({
         .from('tasks')
         .update({ status_id: targetStatusId, completed_at: done ? new Date().toISOString() : null })
         .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurring-checklist-tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const deleteChecklistTask = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('tasks').delete().eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {
@@ -1087,6 +1103,13 @@ function RecurringChecklistWidget({
               assigneeName={teamWide ? assigneeName(tsk.assignee_profile_id) : undefined}
               onOpen={() => onOpen(tsk.id)}
               onToggleDone={(done) => toggleDone.mutate({ id: tsk.id, done })}
+              onDelete={
+                canDeleteTask(tsk)
+                  ? () => {
+                      if (window.confirm(t('common.delete') + '?')) deleteChecklistTask.mutate(tsk.id)
+                    }
+                  : undefined
+              }
             />
           ))}
         </div>
