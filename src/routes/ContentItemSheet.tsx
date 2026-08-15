@@ -427,30 +427,44 @@ export function ContentItemSheet({
       setDraftId(id)
     }
 
-    await supabase.from('content_plan_platforms').delete().eq('content_plan_item_id', id)
+    // Every delete/insert pair below checks its error -- previously these
+    // failed silently (e.g. an RLS denial), so a toggle could look saved
+    // ("Сохранено" toast) while the actual write never landed, only to
+    // vanish the next time the card was reopened.
+    const { error: platformsDeleteErr } = await supabase.from('content_plan_platforms').delete().eq('content_plan_item_id', id)
+    if (platformsDeleteErr) throw platformsDeleteErr
     const platformIds = selectedPlatforms ?? []
     if (platformIds.length > 0) {
-      await supabase.from('content_plan_platforms').insert(
+      const { error: platformsInsertErr } = await supabase.from('content_plan_platforms').insert(
         platformIds.map((platform_id) => ({ content_plan_item_id: id!, platform_id }))
       )
+      if (platformsInsertErr) throw platformsInsertErr
     }
 
-    await supabase.from('content_plan_deliverable_types').delete().eq('content_plan_item_id', id)
+    const { error: dTypesDeleteErr } = await supabase.from('content_plan_deliverable_types').delete().eq('content_plan_item_id', id)
+    if (dTypesDeleteErr) throw dTypesDeleteErr
     if (deliverableTypeIds.length > 0) {
-      await supabase.from('content_plan_deliverable_types').insert(
+      const { error: dTypesInsertErr } = await supabase.from('content_plan_deliverable_types').insert(
         deliverableTypeIds.map((deliverable_type_id) => ({ content_plan_item_id: id!, deliverable_type_id }))
       )
+      if (dTypesInsertErr) throw dTypesInsertErr
     }
 
-    await supabase.from('content_plan_responsibles').delete().eq('content_plan_item_id', id)
+    const { error: respDeleteErr } = await supabase.from('content_plan_responsibles').delete().eq('content_plan_item_id', id)
+    if (respDeleteErr) throw respDeleteErr
     if (responsibleIds.length > 0) {
-      await supabase.from('content_plan_responsibles').insert(
+      const { error: respInsertErr } = await supabase.from('content_plan_responsibles').insert(
         responsibleIds.map((profile_id) => ({ content_plan_item_id: id!, profile_id }))
       )
+      if (respInsertErr) throw respInsertErr
     }
 
     // The actual source of truth: precise (person, work type) pairs.
-    await supabase.from('content_plan_person_deliverable_types').delete().eq('content_plan_item_id', id)
+    const { error: assignDeleteErr } = await supabase
+      .from('content_plan_person_deliverable_types')
+      .delete()
+      .eq('content_plan_item_id', id)
+    if (assignDeleteErr) throw assignDeleteErr
     const assignmentRows = assignments.flatMap((a) =>
       a.deliverableTypeIds.map((deliverable_type_id) => ({
         content_plan_item_id: id!,
@@ -459,7 +473,8 @@ export function ContentItemSheet({
       }))
     )
     if (assignmentRows.length > 0) {
-      await supabase.from('content_plan_person_deliverable_types').insert(assignmentRows)
+      const { error: assignInsertErr } = await supabase.from('content_plan_person_deliverable_types').insert(assignmentRows)
+      if (assignInsertErr) throw assignInsertErr
     }
 
     // Not this sheet's own ['content_plan_platforms'/'content_plan_deliverable_types'/

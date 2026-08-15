@@ -396,14 +396,16 @@ export function TaskSheet({
       setDraftId(currentTaskId)
     }
 
-    await supabase.from('task_deliverable_types').delete().eq('task_id', currentTaskId)
+    const { error: deliverablesDeleteErr } = await supabase.from('task_deliverable_types').delete().eq('task_id', currentTaskId)
+    if (deliverablesDeleteErr) throw deliverablesDeleteErr
     if (selectedDeliverableTypes.size > 0) {
-      await supabase.from('task_deliverable_types').insert(
+      const { error: deliverablesInsertErr } = await supabase.from('task_deliverable_types').insert(
         [...selectedDeliverableTypes].map((deliverable_type_id) => ({
           task_id: currentTaskId!,
           deliverable_type_id,
         }))
       )
+      if (deliverablesInsertErr) throw deliverablesInsertErr
     }
 
     // List queries only here -- other views (kanban, cabinet, workload) can

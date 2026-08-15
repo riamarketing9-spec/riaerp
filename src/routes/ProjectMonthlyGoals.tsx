@@ -105,7 +105,8 @@ export function ProjectMonthlyGoals({ projectId }: { projectId: string }) {
         .single()
       if (goalErr) throw goalErr
 
-      await supabase.from('project_monthly_goal_targets').delete().eq('goal_id', goal.id)
+      const { error: targetsDeleteErr } = await supabase.from('project_monthly_goal_targets').delete().eq('goal_id', goal.id)
+      if (targetsDeleteErr) throw targetsDeleteErr
       const validRows = rows.filter((r) => r.deliverable_type_id && Number(r.target_count) > 0)
       if (validRows.length > 0) {
         const { error: targetsErr } = await supabase.from('project_monthly_goal_targets').insert(

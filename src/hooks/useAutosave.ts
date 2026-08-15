@@ -23,6 +23,7 @@ export function useAutosave<T>(
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
   const serialized = JSON.stringify(values)
+  const wasEnabledRef = useRef(opts.enabled)
 
   useEffect(() => {
     baselineRef.current = serialized
@@ -32,7 +33,23 @@ export function useAutosave<T>(
   }, [opts.resetKey])
 
   useEffect(() => {
-    if (!opts.enabled) return
+    if (!opts.enabled) {
+      clearTimeout(timerRef.current)
+      // `enabled` just flipped true -> false (e.g. a dialog closing) with
+      // an edit still sitting in the debounce window -- without this, the
+      // pending setTimeout above gets cancelled by the cleanup below and
+      // that edit is silently lost forever, never reaching the DB. Save it
+      // immediately instead of dropping it (fire-and-forget: nothing is
+      // listening for status once the dialog is gone).
+      if (wasEnabledRef.current && baselineRef.current !== null && serialized !== baselineRef.current) {
+        onSaveRef.current(JSON.parse(serialized) as T).catch(() => {})
+        baselineRef.current = serialized
+      }
+      wasEnabledRef.current = opts.enabled
+      return
+    }
+    wasEnabledRef.current = opts.enabled
+
     if (baselineRef.current === null) baselineRef.current = serialized
     if (serialized === baselineRef.current) return
 

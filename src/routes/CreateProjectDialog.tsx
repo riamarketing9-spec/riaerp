@@ -265,15 +265,21 @@ export function ProjectDialog({
       setDraftId(currentProjectId)
     }
 
-    await supabase.from('project_members').delete().eq('project_id', currentProjectId).eq('role_on_project', 'assistant_pm')
+    const { error: assistantPmDeleteErr } = await supabase
+      .from('project_members')
+      .delete()
+      .eq('project_id', currentProjectId)
+      .eq('role_on_project', 'assistant_pm')
+    if (assistantPmDeleteErr) throw assistantPmDeleteErr
     if (assistantPmIds.size > 0) {
-      await supabase.from('project_members').insert(
+      const { error: assistantPmInsertErr } = await supabase.from('project_members').insert(
         [...assistantPmIds].map((profile_id) => ({
           project_id: currentProjectId!,
           profile_id,
           role_on_project: 'assistant_pm',
         }))
       )
+      if (assistantPmInsertErr) throw assistantPmInsertErr
     }
 
     if (isCeo && values.contract_url && values.client_id) {
