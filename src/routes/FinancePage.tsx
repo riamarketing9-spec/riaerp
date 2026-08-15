@@ -199,13 +199,11 @@ export function FinancePage() {
       </Tabs>
 
       <RevenueDialog
-        key={editingRevenueId ?? 'new'}
         open={!!editingRevenueId}
         onOpenChange={(open) => !open && setEditingRevenueId(null)}
         revenueId={editingRevenueId}
       />
       <ExpenseDialog
-        key={editingExpenseId ?? 'new'}
         open={!!editingExpenseId}
         onOpenChange={(open) => !open && setEditingExpenseId(null)}
         expenseId={editingExpenseId}

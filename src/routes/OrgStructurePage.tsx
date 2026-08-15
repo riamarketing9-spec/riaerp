@@ -379,13 +379,11 @@ export function OrgStructurePage() {
       {canManage && (
         <>
           <PositionDialog
-            key={editingId ?? 'new'}
             open={!!editingId}
             onOpenChange={(open) => !open && setEditingId(null)}
             positionId={editingId}
           />
           <PositionDialog
-            key={`new-${newPositionParentId ?? 'none'}`}
             open={newPositionParentId !== undefined}
             onOpenChange={(open) => !open && setNewPositionParentId(undefined)}
             positionId={null}

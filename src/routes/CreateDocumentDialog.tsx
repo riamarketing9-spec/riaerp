@@ -120,14 +120,18 @@ export function DocumentDialog({
       if (error) throw error
       setDraftId(data.id)
     }
+    // Always invalidate, including this sheet's own ['document-detail', id]
+    // -- autosave calls performSave() directly, bypassing `mutation`
+    // entirely, so an invalidation that only ran in mutation.onSuccess
+    // never happened for the debounced autosave path.
     queryClient.invalidateQueries({ queryKey: ['documents'] })
+    queryClient.invalidateQueries({ queryKey: ['document-detail', documentId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : t(effectiveKind === 'contract' ? 'docs.newContract' : 'docs.newDocument'))
-      queryClient.invalidateQueries({ queryKey: ['document-detail', documentId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

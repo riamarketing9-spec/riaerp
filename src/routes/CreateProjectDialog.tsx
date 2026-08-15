@@ -306,21 +306,27 @@ export function ProjectDialog({
       }
     }
 
-    // Not this sheet's own ['project-detail', id] / assistants/contract
-    // queries here -- refetching them mid-edit would re-trigger the
-    // populate-from-server effects and revert an unsaved change. Those are
-    // invalidated only in mutation.onSuccess, once the sheet is closing.
+    // Always invalidate, including this sheet's own ['project-detail', id] /
+    // assistants/contract keys -- autosave calls performSave() directly,
+    // bypassing `mutation` entirely, so an invalidation that only ran in
+    // mutation.onSuccess never happened for the debounced/flush-on-close
+    // autosave path, which is how most edits here actually get saved. The
+    // write reached the DB fine, but the cache for THIS project never
+    // learned about it -- reopening the same project kept showing stale
+    // pre-edit assistant-PM/contract data. A refetch while still open just
+    // re-confirms what's already on screen unless the user is mid-edit in
+    // the same instant, an acceptable rare race next to never updating.
     queryClient.invalidateQueries({ queryKey: ['projects'] })
+    queryClient.invalidateQueries({ queryKey: ['project-detail', currentProjectId] })
+    queryClient.invalidateQueries({ queryKey: ['project_members-assistants', currentProjectId] })
+    queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId] })
+    queryClient.invalidateQueries({ queryKey: ['contracts-client-ids'] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('team.saved') : t('projects.newProject'))
-      queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['project_members-assistants', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId] })
-      queryClient.invalidateQueries({ queryKey: ['contracts-client-ids'] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

@@ -78,14 +78,12 @@ export function ClientsPage() {
       </div>
 
       <ClientDialog
-        key={editingId ?? 'new'}
         open={!!editingId}
         onOpenChange={(open) => !open && setEditingId(null)}
         clientId={editingId}
       />
 
       <ClientHistorySheet
-        key={openClientId ?? 'none'}
         open={!!openClientId}
         onOpenChange={(open) => !open && setOpenClientId(null)}
         clientId={openClientId}

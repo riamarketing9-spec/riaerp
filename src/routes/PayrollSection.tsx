@@ -163,13 +163,11 @@ export function PayrollSection() {
       <PayrollRuns />
 
       <FixedSalaryDialog
-        key={editingFixedId ?? 'new'}
         open={!!editingFixedId}
         onOpenChange={(open) => !open && setEditingFixedId(null)}
         salaryId={editingFixedId}
       />
       <RateDialog
-        key={editingRateId ?? 'new'}
         open={!!editingRateId}
         onOpenChange={(open) => !open && setEditingRateId(null)}
         rateId={editingRateId}

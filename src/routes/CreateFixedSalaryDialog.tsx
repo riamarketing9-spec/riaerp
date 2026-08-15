@@ -120,14 +120,19 @@ export function FixedSalaryDialog({
       if (error) throw error
       setDraftId(data.id)
     }
+    // Always invalidate, including this sheet's own
+    // ['payroll-fixed-salary-detail', id] -- autosave calls performSave()
+    // directly, bypassing `mutation` entirely, so an invalidation that only
+    // ran in mutation.onSuccess never happened for the debounced autosave
+    // path.
     queryClient.invalidateQueries({ queryKey: ['payroll_fixed_salary'] })
+    queryClient.invalidateQueries({ queryKey: ['payroll-fixed-salary-detail', salaryId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Оклад добавлен')
-      queryClient.invalidateQueries({ queryKey: ['payroll-fixed-salary-detail', salaryId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

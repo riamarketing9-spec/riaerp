@@ -135,14 +135,18 @@ export function LeadDialog({
       if (error) throw error
       setDraftId(data.id)
     }
+    // Always invalidate, including this sheet's own ['lead-detail', id] --
+    // autosave calls performSave() directly, bypassing `mutation` entirely,
+    // so an invalidation that only ran in mutation.onSuccess never happened
+    // for the debounced autosave path.
     queryClient.invalidateQueries({ queryKey: ['leads'] })
+    queryClient.invalidateQueries({ queryKey: ['lead-detail', leadId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Лид создан')
-      queryClient.invalidateQueries({ queryKey: ['lead-detail', leadId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

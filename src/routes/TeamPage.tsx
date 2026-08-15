@@ -268,7 +268,6 @@ export function TeamPage() {
       )}
 
       <EditEmployeeDialog
-        key={editingId ?? 'new'}
         profileId={editingId}
         open={!!editingId}
         onOpenChange={(open) => !open && setEditingId(null)}

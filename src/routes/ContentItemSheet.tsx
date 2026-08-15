@@ -477,27 +477,33 @@ export function ContentItemSheet({
       if (assignInsertErr) throw assignInsertErr
     }
 
-    // Not this sheet's own ['content_plan_platforms'/'content_plan_deliverable_types'/
-    // 'content_plan_responsibles'/'content_plan_person_deliverable_types', id]
-    // here -- refetching while still open re-triggers the effect that
-    // populates the checkboxes/rows, reverting whatever the user just
-    // toggled before it's saved. Invalidated in mutation.onSuccess instead,
-    // once closing.
+    // Always invalidate, including this item's own keys -- autosave calls
+    // performSave() directly (bypassing `mutation` entirely), so an
+    // invalidation that only ran in mutation.onSuccess never happened for
+    // the debounced/flush-on-close autosave path, which is how almost
+    // every edit here actually gets saved. Without it, the write reaches
+    // the DB correctly but the query cache for THIS item never learns
+    // about it -- reopening the same (never-remounted) card kept showing
+    // the pre-edit cached platform/work-type list forever, even though
+    // the database already had the new data. A refetch while still open
+    // just re-confirms what's already on screen (harmless) unless the
+    // user is mid-toggle in the same instant, an acceptable rare race
+    // compared to the alternative of never updating at all.
     queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_platforms-all'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types-all'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_responsibles-all'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_person_deliverable_types-all'] })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', id] })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types', id] })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_responsibles', id] })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_person_deliverable_types', id] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? 'Сохранено' : 'Добавлено в контент-план')
-      queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', itemId] })
-      queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types', itemId] })
-      queryClient.invalidateQueries({ queryKey: ['content_plan_responsibles', itemId] })
-      queryClient.invalidateQueries({ queryKey: ['content_plan_person_deliverable_types', itemId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

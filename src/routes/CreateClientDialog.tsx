@@ -119,17 +119,22 @@ export function ClientDialog({
       if (error) throw error
       setDraftId(data.id)
     }
-    // Not this sheet's own ['client-detail', id] -- see TaskSheet for why:
-    // refetching it mid-edit re-triggers the populate-from-server effect
-    // and reverts an unsaved change. Invalidated only in onSuccess below.
+    // Always invalidate, including this sheet's own ['client-detail', id] --
+    // autosave calls performSave() directly, bypassing `mutation` entirely,
+    // so an invalidation that only ran in mutation.onSuccess never happened
+    // for the debounced autosave path, which is how most edits here
+    // actually get saved. The write reached the DB fine, but the cache for
+    // THIS client never learned about it. A refetch while still open just
+    // re-confirms what's already on screen unless the user is mid-edit in
+    // the same instant, an acceptable rare race next to never updating.
     queryClient.invalidateQueries({ queryKey: ['clients'] })
+    queryClient.invalidateQueries({ queryKey: ['client-detail', clientId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Клиент добавлен')
-      queryClient.invalidateQueries({ queryKey: ['client-detail', clientId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

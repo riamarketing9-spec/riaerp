@@ -141,15 +141,20 @@ export function ExpenseDialog({
       if (error) throw error
       setDraftId(data.id)
     }
+    // Always invalidate, including this sheet's own
+    // ['finance-expense-detail', id] -- autosave calls performSave()
+    // directly, bypassing `mutation` entirely, so an invalidation that only
+    // ran in mutation.onSuccess never happened for the debounced autosave
+    // path.
     queryClient.invalidateQueries({ queryKey: ['finance_expenses'] })
     queryClient.invalidateQueries({ queryKey: ['v_project_profit'] })
+    queryClient.invalidateQueries({ queryKey: ['finance-expense-detail', expenseId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Расход добавлен')
-      queryClient.invalidateQueries({ queryKey: ['finance-expense-detail', expenseId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

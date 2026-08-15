@@ -325,20 +325,17 @@ export function ProjectsPage() {
       </div>
 
       <ProjectDialog
-        key={openProjectId ?? 'new'}
         open={!!openProjectId}
         onOpenChange={(open) => !open && setOpenProjectId(null)}
         projectId={openProjectId}
       />
       <ProjectResultDialog
-        key={resultProjectId ?? 'none'}
         projectId={resultProjectId}
         projectName={projects?.find((p) => p.id === resultProjectId)?.name}
         open={!!resultProjectId}
         onOpenChange={(open) => !open && setResultProjectId(null)}
       />
       <ProjectProgressDetailDialog
-        key={progressDetailProjectId ?? 'none'}
         open={!!progressDetailProjectId}
         onOpenChange={(open) => !open && setProgressDetailProjectId(null)}
         projectName={projects?.find((p) => p.id === progressDetailProjectId)?.name}

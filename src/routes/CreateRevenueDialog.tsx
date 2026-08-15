@@ -121,16 +121,21 @@ export function RevenueDialog({
       if (error) throw error
       setDraftId(data.id)
     }
+    // Always invalidate, including this sheet's own
+    // ['finance-revenue-detail', id] -- autosave calls performSave()
+    // directly, bypassing `mutation` entirely, so an invalidation that only
+    // ran in mutation.onSuccess never happened for the debounced autosave
+    // path.
     queryClient.invalidateQueries({ queryKey: ['finance_project_revenue'] })
     queryClient.invalidateQueries({ queryKey: ['v_project_profit'] })
     queryClient.invalidateQueries({ queryKey: ['v_ceo_dashboard'] })
+    queryClient.invalidateQueries({ queryKey: ['finance-revenue-detail', revenueId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Доход добавлен')
-      queryClient.invalidateQueries({ queryKey: ['finance-revenue-detail', revenueId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

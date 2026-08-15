@@ -130,14 +130,18 @@ export function RateDialog({
       if (error) throw error
       setDraftId(data.id)
     }
+    // Always invalidate, including this sheet's own ['payroll-rate-detail',
+    // id] -- autosave calls performSave() directly, bypassing `mutation`
+    // entirely, so an invalidation that only ran in mutation.onSuccess
+    // never happened for the debounced autosave path.
     queryClient.invalidateQueries({ queryKey: ['payroll_rate_table'] })
+    queryClient.invalidateQueries({ queryKey: ['payroll-rate-detail', rateId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Ставка добавлена')
-      queryClient.invalidateQueries({ queryKey: ['payroll-rate-detail', rateId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

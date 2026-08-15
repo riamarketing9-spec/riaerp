@@ -107,7 +107,6 @@ export function LeadsPage() {
       </div>
 
       <LeadDialog
-        key={editingId ?? 'new'}
         open={!!editingId}
         onOpenChange={(open) => !open && setEditingId(null)}
         leadId={editingId}

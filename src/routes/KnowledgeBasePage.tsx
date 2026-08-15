@@ -136,7 +136,6 @@ export function KnowledgeBasePage() {
       </div>
 
       <KbArticleDialog
-        key={editingId ?? 'new'}
         open={!!editingId}
         onOpenChange={(open) => !open && setEditingId(null)}
         articleId={editingId}

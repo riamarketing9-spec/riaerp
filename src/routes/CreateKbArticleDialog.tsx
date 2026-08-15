@@ -93,14 +93,18 @@ export function KbArticleDialog({
       if (error) throw error
       setDraftId(data.id)
     }
+    // Always invalidate, including this sheet's own ['kb-article-detail',
+    // id] -- autosave calls performSave() directly, bypassing `mutation`
+    // entirely, so an invalidation that only ran in mutation.onSuccess
+    // never happened for the debounced autosave path.
     queryClient.invalidateQueries({ queryKey: ['kb_articles'] })
+    queryClient.invalidateQueries({ queryKey: ['kb-article-detail', articleId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : 'Статья добавлена')
-      queryClient.invalidateQueries({ queryKey: ['kb-article-detail', articleId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

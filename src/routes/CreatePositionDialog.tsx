@@ -120,15 +120,19 @@ export function PositionDialog({
       if (error) throw error
       setDraftId(data.id)
     }
+    // Always invalidate, including this sheet's own ['org-position-detail',
+    // id] -- autosave calls performSave() directly, bypassing `mutation`
+    // entirely, so an invalidation that only ran in mutation.onSuccess
+    // never happened for the debounced autosave path.
     queryClient.invalidateQueries({ queryKey: ['org_positions'] })
     queryClient.invalidateQueries({ queryKey: ['org_positions_lookup'] })
+    queryClient.invalidateQueries({ queryKey: ['org-position-detail', positionId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(isEdit ? t('common.save') : t('org.newPosition'))
-      queryClient.invalidateQueries({ queryKey: ['org-position-detail', positionId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

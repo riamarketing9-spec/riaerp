@@ -173,7 +173,7 @@ function EmployeeTasksDialog({
           </Tabs>
         </DialogContent>
       </Dialog>
-      <TaskSheet key={openTaskId ?? 'new'} open={!!openTaskId} onOpenChange={(open) => !open && setOpenTaskId(null)} taskId={openTaskId} />
+      <TaskSheet open={!!openTaskId} onOpenChange={(open) => !open && setOpenTaskId(null)} taskId={openTaskId} />
     </>
   )
 }
@@ -365,7 +365,6 @@ export function WorkloadPage() {
       </div>
 
       <EmployeeTasksDialog
-        key={openProfileId ?? 'none'}
         profileId={openProfileId}
         profileName={openProfileName}
         onOpenChange={(open) => !open && setOpenProfileId(null)}

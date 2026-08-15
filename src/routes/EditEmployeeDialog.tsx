@@ -288,20 +288,26 @@ export function EditEmployeeDialog({
       if (rolesErr) throw rolesErr
     }
 
-    // Not the profile/overrides/roles detail queries here -- refetching
-    // them while the sheet is open would re-trigger the populate-from-server
-    // effects and revert a permission toggle the user just made but hasn't
-    // finished editing yet. Invalidated only in mutation.onSuccess.
+    // Always invalidate, including this sheet's own profile/overrides/roles
+    // keys -- autosave calls performSave() directly, bypassing `mutation`
+    // entirely, so an invalidation that only ran in mutation.onSuccess never
+    // happened for the debounced autosave path, which is how most edits
+    // here actually get saved. The write reached the DB fine, but the
+    // cache for THIS employee never learned about it -- reopening the same
+    // employee kept showing stale pre-edit permissions/roles. A refetch
+    // while still open just re-confirms what's already on screen unless
+    // the user is mid-toggle in the same instant, an acceptable rare race
+    // next to never updating at all.
     queryClient.invalidateQueries({ queryKey: ['team-profiles'] })
+    queryClient.invalidateQueries({ queryKey: ['employee-detail', profileId] })
+    queryClient.invalidateQueries({ queryKey: ['profile_capability_overrides', profileId] })
+    queryClient.invalidateQueries({ queryKey: ['employee_roles', profileId] })
   }
 
   const mutation = useMutation({
     mutationFn: performSave,
     onSuccess: () => {
       toast.success(t('team.saved'))
-      queryClient.invalidateQueries({ queryKey: ['employee-detail', profileId] })
-      queryClient.invalidateQueries({ queryKey: ['profile_capability_overrides', profileId] })
-      queryClient.invalidateQueries({ queryKey: ['employee_roles', profileId] })
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),

@@ -408,17 +408,23 @@ export function TaskSheet({
       if (deliverablesInsertErr) throw deliverablesInsertErr
     }
 
-    // List queries only here -- other views (kanban, cabinet, workload) can
-    // refresh live. NOT this sheet's own ['task-detail', id] / deliverable
-    // types query: invalidating those while the sheet is still open would
-    // refetch mid-edit and re-trigger the populate-from-server effects
-    // below, reverting whatever the user just clicked (quadrant, ish turi)
-    // before it even got saved. Those two are invalidated only in
-    // mutation.onSuccess, once the sheet is actually closing.
+    // Always invalidate, including this sheet's own ['task-detail', id] /
+    // deliverable-types keys -- autosave and the close-flush in
+    // handleDialogOpenChange both call performSave() directly, bypassing
+    // `mutation` entirely, so an invalidation that only ran in
+    // mutation.onSuccess never happened for either of those (the two most
+    // common ways an edit here actually gets saved). The write reached the
+    // DB fine, but the cache for THIS task never learned about it --
+    // reopening the same task kept showing pre-edit ish turi/deliverable
+    // types forever. A refetch while still open just re-confirms what's
+    // already on screen unless the user is mid-toggle in the same instant,
+    // an acceptable rare race next to never updating at all.
     queryClient.invalidateQueries({ queryKey: ['tasks'] })
     queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
     queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
     queryClient.invalidateQueries({ queryKey: ['workload'] })
+    queryClient.invalidateQueries({ queryKey: ['task-detail', currentTaskId] })
+    queryClient.invalidateQueries({ queryKey: ['task_deliverable_types', currentTaskId] })
 
     return currentTaskId
   }
@@ -438,8 +444,6 @@ export function TaskSheet({
     mutationFn: performSave,
     onSuccess: (currentTaskId, values) => {
       toast.success(isEdit ? t('team.saved') : 'Задача создана')
-      queryClient.invalidateQueries({ queryKey: ['task-detail', taskId] })
-      queryClient.invalidateQueries({ queryKey: ['task_deliverable_types', taskId] })
       notifyAssignee(currentTaskId, values)
       onOpenChange(false)
     },
