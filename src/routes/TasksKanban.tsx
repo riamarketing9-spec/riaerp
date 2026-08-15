@@ -415,6 +415,7 @@ export function TasksKanban({
         </DragOverlay>
       </DndContext>
       <TaskSheet
+        key={openTaskId ?? 'new'}
         open={!!openTaskId}
         onOpenChange={(open) => !open && setOpenTaskId(null)}
         taskId={openTaskId}

@@ -168,6 +168,7 @@ export function DocumentsPage() {
 
       {canAdmin && (
         <DocumentDialog
+          key={editingId ?? 'new'}
           open={!!editingId}
           onOpenChange={(open) => !open && setEditingId(null)}
           documentId={editingId}

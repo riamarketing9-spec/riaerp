@@ -487,6 +487,12 @@ export function ContentPlanPage() {
       </Tabs>
 
       <ContentItemSheet
+        // Forces a full remount when switching to a different existing
+        // item -- without this, the form/junction-table state from
+        // whichever item was open last stays mounted until the new
+        // item's data finishes loading, flashing the wrong card's info
+        // for a moment before the real data replaces it.
+        key={editingId ?? 'new'}
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         itemId={editingId}

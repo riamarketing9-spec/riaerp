@@ -1257,11 +1257,13 @@ export function CabinetPage() {
       {isPm && <TeamTasksWidget onOpen={setOpenTaskId} />}
 
       <TaskSheet
+        key={openTaskId ?? 'new'}
         open={!!openTaskId}
         onOpenChange={(open) => !open && setOpenTaskId(null)}
         taskId={openTaskId}
       />
       <ContentItemSheet
+        key={openContentItemId ?? 'new'}
         open={!!openContentItemId}
         onOpenChange={(open) => !open && setOpenContentItemId(null)}
         itemId={openContentItemId}

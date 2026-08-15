@@ -384,6 +384,7 @@ export function TasksPage() {
       </Tabs>
 
       <TaskSheet
+        key={openTaskId ?? 'new'}
         open={!!openTaskId}
         onOpenChange={(open) => !open && setOpenTaskId(null)}
         taskId={openTaskId}
