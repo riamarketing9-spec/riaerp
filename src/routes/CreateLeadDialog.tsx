@@ -140,7 +140,7 @@ export function LeadDialog({
     // so an invalidation that only ran in mutation.onSuccess never happened
     // for the debounced autosave path.
     queryClient.invalidateQueries({ queryKey: ['leads'] })
-    queryClient.invalidateQueries({ queryKey: ['lead-detail', leadId] })
+    queryClient.invalidateQueries({ queryKey: ['lead-detail', leadId], refetchType: 'none' })
   }
 
   const mutation = useMutation({

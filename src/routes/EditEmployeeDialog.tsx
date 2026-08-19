@@ -299,9 +299,9 @@ export function EditEmployeeDialog({
     // the user is mid-toggle in the same instant, an acceptable rare race
     // next to never updating at all.
     queryClient.invalidateQueries({ queryKey: ['team-profiles'] })
-    queryClient.invalidateQueries({ queryKey: ['employee-detail', profileId] })
-    queryClient.invalidateQueries({ queryKey: ['profile_capability_overrides', profileId] })
-    queryClient.invalidateQueries({ queryKey: ['employee_roles', profileId] })
+    queryClient.invalidateQueries({ queryKey: ['employee-detail', profileId], refetchType: 'none' })
+    queryClient.invalidateQueries({ queryKey: ['profile_capability_overrides', profileId], refetchType: 'none' })
+    queryClient.invalidateQueries({ queryKey: ['employee_roles', profileId], refetchType: 'none' })
   }
 
   const mutation = useMutation({

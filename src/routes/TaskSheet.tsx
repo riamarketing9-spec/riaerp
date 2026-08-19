@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -335,8 +335,23 @@ export function TaskSheet({
     }
   }, [open, isEdit, defaultProjectId, reset, canManageTask, profile?.id])
 
+  // Populate from the server exactly ONCE per opening -- see the same
+  // guard in ContentItemSheet: any later refetch (window refocus, a cache
+  // update) would otherwise re-run these and overwrite what the user just
+  // clicked, and the next autosave would persist the overwritten state.
+  const populatedForRef = useRef<string | null>(null)
+  const deliverablesPopulatedRef = useRef(false)
+
   useEffect(() => {
-    if (existing) {
+    if (!open) {
+      populatedForRef.current = null
+      deliverablesPopulatedRef.current = false
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (existing && populatedForRef.current !== existing.id) {
+      populatedForRef.current = existing.id
       reset({
         title: existing.title,
         project_id: existing.project_id ?? '',
@@ -353,7 +368,8 @@ export function TaskSheet({
   }, [existing, reset])
 
   useEffect(() => {
-    if (existingDeliverableTypes) {
+    if (existingDeliverableTypes && !deliverablesPopulatedRef.current) {
+      deliverablesPopulatedRef.current = true
       setSelectedDeliverableTypes(new Set(existingDeliverableTypes))
     }
   }, [existingDeliverableTypes])
@@ -423,8 +439,8 @@ export function TaskSheet({
     queryClient.invalidateQueries({ queryKey: ['tasks-kanban'] })
     queryClient.invalidateQueries({ queryKey: ['cabinet-tasks'] })
     queryClient.invalidateQueries({ queryKey: ['workload'] })
-    queryClient.invalidateQueries({ queryKey: ['task-detail', currentTaskId] })
-    queryClient.invalidateQueries({ queryKey: ['task_deliverable_types', currentTaskId] })
+    queryClient.invalidateQueries({ queryKey: ['task-detail', currentTaskId], refetchType: 'none' })
+    queryClient.invalidateQueries({ queryKey: ['task_deliverable_types', currentTaskId], refetchType: 'none' })
 
     return currentTaskId
   }

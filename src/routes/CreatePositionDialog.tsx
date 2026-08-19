@@ -126,7 +126,7 @@ export function PositionDialog({
     // never happened for the debounced autosave path.
     queryClient.invalidateQueries({ queryKey: ['org_positions'] })
     queryClient.invalidateQueries({ queryKey: ['org_positions_lookup'] })
-    queryClient.invalidateQueries({ queryKey: ['org-position-detail', positionId] })
+    queryClient.invalidateQueries({ queryKey: ['org-position-detail', positionId], refetchType: 'none' })
   }
 
   const mutation = useMutation({

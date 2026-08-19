@@ -126,7 +126,7 @@ export function FixedSalaryDialog({
     // ran in mutation.onSuccess never happened for the debounced autosave
     // path.
     queryClient.invalidateQueries({ queryKey: ['payroll_fixed_salary'] })
-    queryClient.invalidateQueries({ queryKey: ['payroll-fixed-salary-detail', salaryId] })
+    queryClient.invalidateQueries({ queryKey: ['payroll-fixed-salary-detail', salaryId], refetchType: 'none' })
   }
 
   const mutation = useMutation({

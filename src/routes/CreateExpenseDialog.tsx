@@ -148,7 +148,7 @@ export function ExpenseDialog({
     // path.
     queryClient.invalidateQueries({ queryKey: ['finance_expenses'] })
     queryClient.invalidateQueries({ queryKey: ['v_project_profit'] })
-    queryClient.invalidateQueries({ queryKey: ['finance-expense-detail', expenseId] })
+    queryClient.invalidateQueries({ queryKey: ['finance-expense-detail', expenseId], refetchType: 'none' })
   }
 
   const mutation = useMutation({

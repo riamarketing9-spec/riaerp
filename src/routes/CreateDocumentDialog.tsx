@@ -125,7 +125,7 @@ export function DocumentDialog({
     // entirely, so an invalidation that only ran in mutation.onSuccess
     // never happened for the debounced autosave path.
     queryClient.invalidateQueries({ queryKey: ['documents'] })
-    queryClient.invalidateQueries({ queryKey: ['document-detail', documentId] })
+    queryClient.invalidateQueries({ queryKey: ['document-detail', documentId], refetchType: 'none' })
   }
 
   const mutation = useMutation({

@@ -129,7 +129,7 @@ export function RevenueDialog({
     queryClient.invalidateQueries({ queryKey: ['finance_project_revenue'] })
     queryClient.invalidateQueries({ queryKey: ['v_project_profit'] })
     queryClient.invalidateQueries({ queryKey: ['v_ceo_dashboard'] })
-    queryClient.invalidateQueries({ queryKey: ['finance-revenue-detail', revenueId] })
+    queryClient.invalidateQueries({ queryKey: ['finance-revenue-detail', revenueId], refetchType: 'none' })
   }
 
   const mutation = useMutation({

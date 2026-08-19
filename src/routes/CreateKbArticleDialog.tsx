@@ -98,7 +98,7 @@ export function KbArticleDialog({
     // entirely, so an invalidation that only ran in mutation.onSuccess
     // never happened for the debounced autosave path.
     queryClient.invalidateQueries({ queryKey: ['kb_articles'] })
-    queryClient.invalidateQueries({ queryKey: ['kb-article-detail', articleId] })
+    queryClient.invalidateQueries({ queryKey: ['kb-article-detail', articleId], refetchType: 'none' })
   }
 
   const mutation = useMutation({

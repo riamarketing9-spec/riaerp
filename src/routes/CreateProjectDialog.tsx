@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -206,8 +206,23 @@ export function ProjectDialog({
     }
   }, [open, isEdit, reset])
 
+  // Populate from the server exactly ONCE per opening -- see the same
+  // guard in ContentItemSheet/TaskSheet: any later refetch would otherwise
+  // overwrite what the user just changed, and the next autosave would then
+  // persist the overwritten state.
+  const populatedForRef = useRef<string | null>(null)
+  const assistantsPopulatedRef = useRef(false)
+
   useEffect(() => {
-    if (existing) {
+    if (!open) {
+      populatedForRef.current = null
+      assistantsPopulatedRef.current = false
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (existing && populatedForRef.current !== existing.id) {
+      populatedForRef.current = existing.id
       reset({
         name: existing.name,
         project_type_id: existing.project_type_id,
@@ -228,7 +243,8 @@ export function ProjectDialog({
   }, [existing, reset])
 
   useEffect(() => {
-    if (existingAssistants) {
+    if (existingAssistants && !assistantsPopulatedRef.current) {
+      assistantsPopulatedRef.current = true
       setAssistantPmIds(new Set(existingAssistants))
     }
   }, [existingAssistants])
@@ -317,9 +333,9 @@ export function ProjectDialog({
     // re-confirms what's already on screen unless the user is mid-edit in
     // the same instant, an acceptable rare race next to never updating.
     queryClient.invalidateQueries({ queryKey: ['projects'] })
-    queryClient.invalidateQueries({ queryKey: ['project-detail', currentProjectId] })
-    queryClient.invalidateQueries({ queryKey: ['project_members-assistants', currentProjectId] })
-    queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId] })
+    queryClient.invalidateQueries({ queryKey: ['project-detail', currentProjectId], refetchType: 'none' })
+    queryClient.invalidateQueries({ queryKey: ['project_members-assistants', currentProjectId], refetchType: 'none' })
+    queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId], refetchType: 'none' })
     queryClient.invalidateQueries({ queryKey: ['contracts-client-ids'] })
   }
 
@@ -357,7 +373,7 @@ export function ProjectDialog({
     onSuccess: () => {
       toast.success(t('common.delete'))
       setValue('contract_url', '')
-      queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId] })
+      queryClient.invalidateQueries({ queryKey: ['contract-for-client', watchedClientId], refetchType: 'none' })
       queryClient.invalidateQueries({ queryKey: ['contracts-client-ids'] })
     },
     onError: (err: Error) => toast.error(err.message),

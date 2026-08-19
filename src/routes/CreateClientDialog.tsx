@@ -128,7 +128,7 @@ export function ClientDialog({
     // re-confirms what's already on screen unless the user is mid-edit in
     // the same instant, an acceptable rare race next to never updating.
     queryClient.invalidateQueries({ queryKey: ['clients'] })
-    queryClient.invalidateQueries({ queryKey: ['client-detail', clientId] })
+    queryClient.invalidateQueries({ queryKey: ['client-detail', clientId], refetchType: 'none' })
   }
 
   const mutation = useMutation({

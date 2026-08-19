@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -258,6 +258,25 @@ export function ContentItemSheet({
   const [assigneeRoleId, setAssigneeRoleId] = useState('')
   const [pendingResponsibleId, setPendingResponsibleId] = useState('')
 
+  // Server data populates the form exactly ONCE per opening, never again
+  // while it stays open. Without this guard, every refetch (autosave
+  // invalidation, window refocus, any cache update) re-ran the populate
+  // effects below and overwrote whatever the user had just clicked --
+  // a checkbox could be ticked, then silently reverted by an in-flight
+  // response a moment later, and the next autosave would then persist
+  // the reverted state. Reset on close so reopening re-populates fresh.
+  const populatedForRef = useRef<string | null>(null)
+  const platformsPopulatedRef = useRef(false)
+  const assignmentsPopulatedRef = useRef(false)
+
+  useEffect(() => {
+    if (!open) {
+      populatedForRef.current = null
+      platformsPopulatedRef.current = false
+      assignmentsPopulatedRef.current = false
+    }
+  }, [open])
+
   useEffect(() => {
     if (open && !isEdit) {
       reset({ project_id: defaultProjectId ?? '', publish_date: defaultPublishDate ?? '' })
@@ -270,7 +289,8 @@ export function ContentItemSheet({
   }, [open, isEdit, defaultProjectId, defaultPublishDate, reset, setValue])
 
   useEffect(() => {
-    if (existing) {
+    if (existing && populatedForRef.current !== existing.id) {
+      populatedForRef.current = existing.id
       reset({
         project_id: existing.project_id,
         topic: existing.topic,
@@ -290,14 +310,16 @@ export function ContentItemSheet({
   }, [existing, reset])
 
   useEffect(() => {
-    if (existingPlatformIds) {
+    if (existingPlatformIds && !platformsPopulatedRef.current) {
+      platformsPopulatedRef.current = true
       setValue('_platforms' as never, existingPlatformIds as never)
     }
   }, [existingPlatformIds, setValue])
 
   useEffect(() => {
-    if (!existingAssignmentRows) return
+    if (!existingAssignmentRows || assignmentsPopulatedRef.current) return
     if (existingAssignmentRows.length > 0) {
+      assignmentsPopulatedRef.current = true
       const map = new Map<string, string[]>()
       for (const row of existingAssignmentRows) {
         const list = map.get(row.profile_id) ?? []
@@ -324,6 +346,7 @@ export function ContentItemSheet({
             existing?.smm_profile_id,
           ].filter((id): id is string => !!id)
     if (fallbackResponsibles.length === 0) return
+    assignmentsPopulatedRef.current = true
     setValue(
       '_assignments' as never,
       fallbackResponsibles.map((profileId) => ({
@@ -477,27 +500,26 @@ export function ContentItemSheet({
       if (assignInsertErr) throw assignInsertErr
     }
 
-    // Always invalidate, including this item's own keys -- autosave calls
-    // performSave() directly (bypassing `mutation` entirely), so an
-    // invalidation that only ran in mutation.onSuccess never happened for
-    // the debounced/flush-on-close autosave path, which is how almost
-    // every edit here actually gets saved. Without it, the write reaches
-    // the DB correctly but the query cache for THIS item never learns
-    // about it -- reopening the same (never-remounted) card kept showing
-    // the pre-edit cached platform/work-type list forever, even though
-    // the database already had the new data. A refetch while still open
-    // just re-confirms what's already on screen (harmless) unless the
-    // user is mid-toggle in the same instant, an acceptable rare race
-    // compared to the alternative of never updating at all.
+    // List queries refetch normally -- that's what makes the calendar card
+    // behind the dialog show the new platform/work-type badges right away.
     queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_platforms-all'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types-all'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_responsibles-all'] })
     queryClient.invalidateQueries({ queryKey: ['content_plan_person_deliverable_types-all'] })
-    queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', id] })
-    queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types', id] })
-    queryClient.invalidateQueries({ queryKey: ['content_plan_responsibles', id] })
-    queryClient.invalidateQueries({ queryKey: ['content_plan_person_deliverable_types', id] })
+
+    // This item's own queries: mark stale but do NOT refetch now
+    // (refetchType: 'none'). They're still mounted while the dialog is
+    // open, so an immediate refetch would race the user's next click --
+    // that's exactly what made a just-ticked checkbox revert. Being
+    // stale is enough: these are disabled on close and re-enabled on
+    // reopen, and staleTime is 0, so reopening always refetches fresh.
+    const staleOnly = { refetchType: 'none' as const }
+    queryClient.invalidateQueries({ queryKey: ['content_plan_item', id], ...staleOnly })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_platforms', id], ...staleOnly })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_deliverable_types', id], ...staleOnly })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_responsibles', id], ...staleOnly })
+    queryClient.invalidateQueries({ queryKey: ['content_plan_person_deliverable_types', id], ...staleOnly })
   }
 
   const mutation = useMutation({

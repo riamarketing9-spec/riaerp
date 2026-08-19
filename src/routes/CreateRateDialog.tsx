@@ -135,7 +135,7 @@ export function RateDialog({
     // entirely, so an invalidation that only ran in mutation.onSuccess
     // never happened for the debounced autosave path.
     queryClient.invalidateQueries({ queryKey: ['payroll_rate_table'] })
-    queryClient.invalidateQueries({ queryKey: ['payroll-rate-detail', rateId] })
+    queryClient.invalidateQueries({ queryKey: ['payroll-rate-detail', rateId], refetchType: 'none' })
   }
 
   const mutation = useMutation({
