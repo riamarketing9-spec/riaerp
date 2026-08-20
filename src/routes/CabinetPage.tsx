@@ -22,6 +22,8 @@ import { ProjectTasksChart, type ProjectTaskBar } from '@/components/charts/Proj
 import { ProjectProfitChart } from '@/components/charts/ProjectProfitChart'
 import { RevenueProfitChart } from '@/components/charts/RevenueProfitChart'
 import { ExpenseDonutChart } from '@/components/charts/ExpenseDonutChart'
+import { ChecklistAnalysisChart } from '@/components/charts/ChecklistAnalysisChart'
+import { checklistVerdict } from '@/lib/checklistVerdict'
 import { BackupExportButton } from './BackupExportButton'
 import { cn } from '@/lib/utils'
 import { useCanDeleteTask } from '@/hooks/useCanDeleteTask'
@@ -983,7 +985,7 @@ function RecurringChecklistWidget({
     queryFn: async () => {
       let query = supabase
         .from('tasks')
-        .select('id, title, status_id, deadline, percent_complete, recurrence_id, assignee_profile_id, created_by, project_id')
+        .select('id, title, status_id, deadline, percent_complete, recurrence_id, assignee_profile_id, created_by, project_id, created_at')
         .not('recurrence_id', 'is', null)
         .order('deadline', { ascending: true, nullsFirst: false })
       if (!teamWide) query = query.eq('assignee_profile_id', profile!.id)
@@ -1052,6 +1054,21 @@ function RecurringChecklistWidget({
     return true
   })
 
+  // Same 3-state terminology as the Telegram bot's daily report (see
+  // src/lib/checklistVerdict.ts) -- reuses exactly the set of tasks already
+  // shown below (same filterSlug), so the ring can never disagree with the
+  // card grid right under it.
+  const analysisItems = visibleTasks.map((tsk) => ({
+    id: tsk.id,
+    title: tsk.title,
+    verdict: checklistVerdict(
+      recurrenceTypes?.find((r) => r.id === tsk.recurrence_id)?.slug,
+      tsk.status_id === doneId,
+      tsk.created_at
+    ),
+    assigneeName: teamWide ? assigneeName(tsk.assignee_profile_id) : undefined,
+  }))
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2">
@@ -1073,7 +1090,7 @@ function RecurringChecklistWidget({
           >
             {t('common.all')}
           </button>
-          {recurrenceTypes?.map((r) => (
+          {recurrenceTypes?.filter((r) => r.slug !== 'one_time').map((r) => (
             <button
               key={r.id}
               type="button"
@@ -1088,6 +1105,18 @@ function RecurringChecklistWidget({
             </button>
           ))}
         </div>
+
+        {!isLoading && analysisItems.length > 0 && (
+          <div className="rounded-lg border border-border p-3">
+            <ChecklistAnalysisChart
+              items={analysisItems}
+              doneLabel={t('tasks.checklistVerdictDone')}
+              notDoneLabel={t('tasks.checklistVerdictNotDone')}
+              plannedLabel={t('tasks.checklistVerdictPlanned')}
+              tableToggleLabel={t('tasks.checklistAnalysisDetails')}
+            />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
@@ -1173,6 +1202,10 @@ export function CabinetPage() {
   })
   const myRecurrenceLabel = (id: string | null) => pickLabel(myRecurrenceTypes?.find((r) => r.id === id), i18n.language)
 
+  const myOpenTasks = useMemo(
+    () => (tasks ?? []).filter((t) => t.status_id !== myDoneStatusId),
+    [tasks, myDoneStatusId]
+  )
   const taskIds = useMemo(() => (tasks ?? []).map((t) => t.id), [tasks])
   const { data: subtasksByTask } = useSubtasksBatch(taskIds)
   const toggleSubtask = useToggleSubtask()
@@ -1229,10 +1262,10 @@ export function CabinetPage() {
         </CardHeader>
         <CardContent className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
-          {!isLoading && (tasks?.length ?? 0) === 0 && (
+          {!isLoading && myOpenTasks.length === 0 && (
             <p className="text-sm text-muted-foreground">{t('cabinet.empty')}</p>
           )}
-          {tasks?.map((task) => (
+          {myOpenTasks.map((task) => (
             <TaskCard
               key={task.id}
               title={task.title}

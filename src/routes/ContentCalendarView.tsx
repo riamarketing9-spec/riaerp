@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   addMonths,
@@ -30,7 +30,7 @@ import { Combobox } from '@/components/ui/combobox'
 import { DateRangeFilter } from '@/components/DateRangeFilter'
 import { pickLabel } from '@/lib/localizedLabel'
 import { cn, normalizeUrl } from '@/lib/utils'
-import { ChevronLeft, ChevronRight, ExternalLink, Plus } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, ExternalLink, Plus, Trash2 } from 'lucide-react'
 
 type ContentItem = {
   id: string
@@ -81,6 +81,8 @@ function CalendarItemCard({
   projectName,
   onOpen,
   dragging,
+  selectable,
+  selected,
 }: {
   item: ContentItem
   statusSlug?: string
@@ -91,6 +93,8 @@ function CalendarItemCard({
   projectName?: string
   onOpen: () => void
   dragging?: boolean
+  selectable?: boolean
+  selected?: boolean
 }) {
   return (
     <button
@@ -100,10 +104,22 @@ function CalendarItemCard({
         onOpen()
       }}
       className={cn(
-        'flex flex-col gap-1.5 rounded-lg border border-border bg-card px-3 py-2.5 text-left shadow-xs hover:bg-accent/40',
-        dragging && 'opacity-40'
+        'relative flex flex-col gap-1.5 rounded-lg border border-border bg-card px-3 py-2.5 text-left shadow-xs hover:bg-accent/40',
+        dragging && 'opacity-40',
+        selectable && 'cursor-pointer select-none',
+        selected && 'border-brand-500 bg-brand-50 ring-1 ring-brand-400 dark:bg-brand-900/30'
       )}
     >
+      {selectable && (
+        <span
+          className={cn(
+            'absolute right-2 top-2 flex size-4 items-center justify-center rounded-full border',
+            selected ? 'border-brand-500 bg-brand-500 text-white' : 'border-border bg-card'
+          )}
+        >
+          {selected && <Check className="size-3" />}
+        </span>
+      )}
       <div className="flex items-center gap-2">
         {logoUrl ? (
           <img src={logoUrl} alt="" className="size-5 shrink-0 rounded-full object-cover" />
@@ -166,6 +182,26 @@ function DraggableItemCard(props: Parameters<typeof CalendarItemCard>[0]) {
   )
 }
 
+// iOS-style paint-select: pointerdown on a card starts a selection "stroke"
+// (target = opposite of that card's current state), pointerenter while the
+// stroke is active applies the same target to whatever card the cursor
+// passes over -- no need to click cards one by one. onOpen is a no-op here
+// (click shouldn't open the sheet while selecting).
+function SelectableItemCard({
+  onPointerDownCard,
+  onPointerEnterCard,
+  ...props
+}: Parameters<typeof CalendarItemCard>[0] & {
+  onPointerDownCard: () => void
+  onPointerEnterCard: () => void
+}) {
+  return (
+    <div onPointerDown={onPointerDownCard} onPointerEnter={onPointerEnterCard}>
+      <CalendarItemCard {...props} onOpen={() => {}} selectable selected={props.selected} />
+    </div>
+  )
+}
+
 function DroppableDayCell({
   dateKey,
   children,
@@ -204,6 +240,8 @@ export function ContentCalendarView({
   onOpen,
   onCreate,
   onMove,
+  onBulkDelete,
+  onDeleteByRange,
 }: {
   items: ContentItem[]
   // Page-level date filter -- when set, it overrides the "current visible
@@ -224,6 +262,8 @@ export function ContentCalendarView({
   onOpen: (id: string) => void
   onCreate: (publishDate: string) => void
   onMove: (itemId: string, newDate: string) => void
+  onBulkDelete: (ids: string[]) => void
+  onDeleteByRange: (from: string, to: string) => void
 }) {
   const { t, i18n } = useTranslation()
   const [month, setMonth] = useState(() => new Date())
@@ -233,6 +273,62 @@ export function ContentCalendarView({
   const [activeItem, setActiveItem] = useState<ContentItem | null>(null)
   const locale = i18n.language.startsWith('uz') ? uz : ru
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+
+  // Select mode: drag-to-reschedule is disabled while active (cards render
+  // as SelectableItemCard instead of DraggableItemCard, see below) so
+  // paint-selecting never fights with @dnd-kit's own pointer handling.
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const paintingRef = useRef(false)
+  const paintTargetRef = useRef(true)
+
+  useEffect(() => {
+    if (!selectMode) return
+    function endPaint() {
+      paintingRef.current = false
+    }
+    window.addEventListener('pointerup', endPaint)
+    return () => window.removeEventListener('pointerup', endPaint)
+  }, [selectMode])
+
+  function setSelected(id: string, target: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (target) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+  function handleCardPointerDown(id: string) {
+    paintingRef.current = true
+    const target = !selectedIds.has(id)
+    paintTargetRef.current = target
+    setSelected(id, target)
+  }
+  function handleCardPointerEnter(id: string) {
+    if (!paintingRef.current) return
+    setSelected(id, paintTargetRef.current)
+  }
+  function exitSelectMode() {
+    setSelectMode(false)
+    setSelectedIds(new Set())
+  }
+
+  const [rangeOpen, setRangeOpen] = useState(false)
+  const [rangeFrom, setRangeFrom] = useState('')
+  const [rangeTo, setRangeTo] = useState('')
+  const rangePanelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!rangeOpen) return
+    function onOutside(e: PointerEvent) {
+      if (rangePanelRef.current && !rangePanelRef.current.contains(e.target as Node)) {
+        setRangeOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', onOutside)
+    return () => document.removeEventListener('pointerdown', onOutside)
+  }, [rangeOpen])
 
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 })
@@ -352,6 +448,76 @@ export function ContentCalendarView({
             placeholder={t('contentPlan.allFormats')}
           />
           <DateRangeFilter from={dateFrom ?? ''} to={dateTo ?? ''} onFromChange={onDateFromChange} onToChange={onDateToChange} />
+
+          {!selectMode ? (
+            <Button variant="outline" size="sm" onClick={() => setSelectMode(true)}>
+              <Check className="size-3.5" />
+              {t('contentPlan.selectMode')}
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg border border-brand-300 bg-brand-50 px-2.5 py-1 dark:border-brand-700 dark:bg-brand-900/30">
+              <span className="text-xs font-medium text-brand-700 dark:text-brand-200">
+                {t('contentPlan.selectedCount', { count: selectedIds.size })}
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={() => {
+                  onBulkDelete(Array.from(selectedIds))
+                  exitSelectMode()
+                }}
+              >
+                <Trash2 className="size-3.5" />
+                {t('contentPlan.deleteSelected')}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={exitSelectMode}>
+                {t('contentPlan.selectModeExit')}
+              </Button>
+            </div>
+          )}
+
+          <div className="relative" ref={rangePanelRef}>
+            <Button variant="outline" size="sm" onClick={() => setRangeOpen((v) => !v)}>
+              <Trash2 className="size-3.5" />
+              {t('contentPlan.deleteByRange')}
+            </Button>
+            {rangeOpen && (
+              <div className="absolute left-0 top-full z-10 mt-1.5 flex flex-col gap-2 rounded-lg border border-border bg-popover p-3 shadow-md">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">{t('contentPlan.deleteByRangeFrom')}</span>
+                  <input
+                    type="date"
+                    value={rangeFrom}
+                    onChange={(e) => setRangeFrom(e.target.value)}
+                    className="h-9 w-40 rounded-md border border-input bg-background px-2 text-sm"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">{t('contentPlan.deleteByRangeTo')}</span>
+                  <input
+                    type="date"
+                    value={rangeTo}
+                    onChange={(e) => setRangeTo(e.target.value)}
+                    className="h-9 w-40 rounded-md border border-input bg-background px-2 text-sm"
+                  />
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={!rangeFrom || !rangeTo}
+                  onClick={() => {
+                    onDeleteByRange(rangeFrom, rangeTo)
+                    setRangeOpen(false)
+                    setRangeFrom('')
+                    setRangeTo('')
+                  }}
+                >
+                  {t('contentPlan.deleteByRangeConfirm')}
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon-sm" onClick={() => setMonth((m) => subMonths(m, 1))}>
@@ -399,7 +565,9 @@ export function ContentCalendarView({
               <DroppableDayCell
                 key={key}
                 dateKey={key}
-                onClick={() => onCreate(key)}
+                onClick={() => {
+                  if (!selectMode) onCreate(key)
+                }}
                 className={cn(!isSameMonth(day, month) && 'text-muted-foreground')}
               >
                 <div className="flex items-center justify-between">
@@ -411,22 +579,41 @@ export function ContentCalendarView({
                   >
                     {format(day, 'd')}
                   </span>
-                  <Plus className="size-3.5 text-muted-foreground opacity-0 group-hover/day:opacity-100" />
+                  {!selectMode && (
+                    <Plus className="size-3.5 text-muted-foreground opacity-0 group-hover/day:opacity-100" />
+                  )}
                 </div>
                 <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
-                  {dayItems.map((item) => (
-                    <DraggableItemCard
-                      key={item.id}
-                      item={item}
-                      statusSlug={statusOf(item.status_id)?.slug}
-                      statusLabel={statusLabel(item.status_id)}
-                      platformLabels={platformsFor(item.id)}
-                      formatLabels={formatLabelsFor(item.id)}
-                      logoUrl={logoFor(item.project_id)}
-                      projectName={projectNameFor(item.project_id)}
-                      onOpen={() => onOpen(item.id)}
-                    />
-                  ))}
+                  {dayItems.map((item) =>
+                    selectMode ? (
+                      <SelectableItemCard
+                        key={item.id}
+                        item={item}
+                        statusSlug={statusOf(item.status_id)?.slug}
+                        statusLabel={statusLabel(item.status_id)}
+                        platformLabels={platformsFor(item.id)}
+                        formatLabels={formatLabelsFor(item.id)}
+                        logoUrl={logoFor(item.project_id)}
+                        projectName={projectNameFor(item.project_id)}
+                        onOpen={() => {}}
+                        selected={selectedIds.has(item.id)}
+                        onPointerDownCard={() => handleCardPointerDown(item.id)}
+                        onPointerEnterCard={() => handleCardPointerEnter(item.id)}
+                      />
+                    ) : (
+                      <DraggableItemCard
+                        key={item.id}
+                        item={item}
+                        statusSlug={statusOf(item.status_id)?.slug}
+                        statusLabel={statusLabel(item.status_id)}
+                        platformLabels={platformsFor(item.id)}
+                        formatLabels={formatLabelsFor(item.id)}
+                        logoUrl={logoFor(item.project_id)}
+                        projectName={projectNameFor(item.project_id)}
+                        onOpen={() => onOpen(item.id)}
+                      />
+                    )
+                  )}
                 </div>
               </DroppableDayCell>
             )

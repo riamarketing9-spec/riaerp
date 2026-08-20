@@ -145,6 +145,53 @@ export function ContentPlanPage() {
     moveMutation.mutate({ id: itemId, publish_date: newDate })
   }
 
+  // Select-mode bulk delete: deletes exactly the cards the user selected
+  // (rendered on screen, so already implicitly filtered by whatever's
+  // visible) -- confirm shows the exact count before anything happens.
+  async function handleBulkDelete(ids: string[]) {
+    if (ids.length === 0) return
+    if (!window.confirm(t('contentPlan.confirmDeleteSelected', { count: ids.length }))) return
+    const { error } = await supabase.from('content_plan_items').delete().in('id', ids)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success(t('contentPlan.deletedCount', { count: ids.length }))
+    queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
+  }
+
+  // Date-range delete deliberately ignores every active filter (project/
+  // platform/format/page-level date filter) -- confirmed with the user:
+  // "всегда всё в диапазоне". Counts the exact matching rows first so the
+  // confirm dialog never lies about how many will be deleted.
+  async function handleDeleteByRange(from: string, to: string) {
+    const { count, error: countError } = await supabase
+      .from('content_plan_items')
+      .select('id', { count: 'exact', head: true })
+      .gte('publish_date', from)
+      .lte('publish_date', to)
+    if (countError) {
+      toast.error(countError.message)
+      return
+    }
+    if (!count) {
+      toast.info(t('contentPlan.deleteByRangeNoItems'))
+      return
+    }
+    if (!window.confirm(t('contentPlan.confirmDeleteByRange', { count, from, to }))) return
+    const { error } = await supabase
+      .from('content_plan_items')
+      .delete()
+      .gte('publish_date', from)
+      .lte('publish_date', to)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success(t('contentPlan.deletedCount', { count }))
+    queryClient.invalidateQueries({ queryKey: ['content_plan_items'] })
+  }
+
   const { data: platforms } = useQuery({
     queryKey: ['platforms'],
     queryFn: async () => {
@@ -464,6 +511,8 @@ export function ContentPlanPage() {
             onOpen={openEdit}
             onCreate={openCreateWithDate}
             onMove={handleMove}
+            onBulkDelete={handleBulkDelete}
+            onDeleteByRange={handleDeleteByRange}
           />
         </TabsContent>
 

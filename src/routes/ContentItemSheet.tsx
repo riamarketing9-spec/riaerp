@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabaseClient'
+import { useAuth } from '@/auth/AuthProvider'
 import { useAutosave } from '@/hooks/useAutosave'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -63,8 +64,15 @@ export function ContentItemSheet({
   defaultPublishDate?: string
 }) {
   const { t, i18n } = useTranslation()
+  const { hasCapability } = useAuth()
   const queryClient = useQueryClient()
   const isEdit = !!itemId
+  // A restricted content_plan.manage holder (smm_manager/smm_assistant/
+  // shogird, not a real PM/CEO) shouldn't see pm/ceo as role options here --
+  // matches the RLS write-check that blocks assigning them as responsible.
+  // Real PMs/CEOs (org.full_access or projects.manage) keep seeing everyone.
+  const isRestrictedContentManager =
+    hasCapability('content_plan.manage') && !hasCapability('org.full_access') && !hasCapability('projects.manage')
 
   const { data: projects } = useQuery({
     queryKey: ['projects-lookup'],
@@ -736,7 +744,9 @@ export function ContentItemSheet({
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Combobox
-                options={(rolesForFiltering ?? []).map((r) => ({ value: r.id, label: pickLabel(r, i18n.language) ?? '' }))}
+                options={(rolesForFiltering ?? [])
+                  .filter((r) => !isRestrictedContentManager || (r.slug !== 'pm' && r.slug !== 'ceo'))
+                  .map((r) => ({ value: r.id, label: pickLabel(r, i18n.language) ?? '' }))}
                 value={assigneeRoleId}
                 onChange={(v) => {
                   setAssigneeRoleId(v)

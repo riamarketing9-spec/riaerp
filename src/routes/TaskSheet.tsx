@@ -200,6 +200,29 @@ export function TaskSheet({
     },
   })
 
+  // Only needed to filter out pm/ceo for a tasks.assign_others-only user
+  // (not a real PM/CEO themselves) -- same role list source as
+  // ContentItemSheet's rolesForFiltering.
+  const { data: assigneeProfilesWithRoles } = useQuery({
+    queryKey: ['profiles-lookup-with-role'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, role_id')
+        .is('deleted_at', null)
+      if (error) throw error
+      return data
+    },
+  })
+  const { data: rolesForAssigneeFiltering } = useQuery({
+    queryKey: ['roles-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('roles').select('id, slug')
+      if (error) throw error
+      return data
+    },
+  })
+
   const { data: deliverableTypes } = useQuery({
     queryKey: ['deliverable_types'],
     queryFn: async () => {
@@ -277,12 +300,36 @@ export function TaskSheet({
     !!profile && existing?.created_by === profile.id && existing?.assignee_profile_id === profile.id
   const isOwnTaskOnly =
     isEdit && !canManageTask && !isSelfCreatedOwnTask && existing?.assignee_profile_id === profile?.id
+  // Separate, narrower right from canManageTask: smm_manager/smm_assistant/
+  // shogird can hand tasks to anyone except pm/ceo, but only for tasks they
+  // themselves created (matches the RLS tasks_insert_scoped_assign /
+  // tasks_update_own_created_scoped policies). Doesn't affect canManageTask
+  // or anything gated on it (statusLog etc.) -- deliberately kept separate.
+  const canAssignOthersNew =
+    hasCapability('tasks.assign_others') && (!isEdit || existing?.created_by === profile?.id)
+  // Someone with tasks.assign_others but not a real PM/CEO themselves
+  // shouldn't be offered pm/ceo as assignee options -- matches the RLS
+  // check (tasks_insert_scoped_assign / tasks_update_own_created_scoped)
+  // that would reject it anyway. Real task managers (canManageTask) keep
+  // seeing everyone, unfiltered, exactly as before.
+  const pmCeoProfileIds = new Set(
+    (assigneeProfilesWithRoles ?? [])
+      .filter((p) => {
+        const slug = rolesForAssigneeFiltering?.find((r) => r.id === p.role_id)?.slug
+        return slug === 'pm' || slug === 'ceo'
+      })
+      .map((p) => p.id)
+  )
+  const assigneeOptions =
+    !canManageTask && canAssignOthersNew
+      ? (assignees ?? []).filter((a) => !pmCeoProfileIds.has(a.id))
+      : (assignees ?? [])
   // Someone without task-management rights can only ever hand a task to
   // themselves -- assigning it to a colleague is still a PM/CEO action.
   // Applies both to a brand-new task and to editing one they made for
   // themselves earlier; a task assigned to them BY someone else is already
   // locked entirely via isOwnTaskOnly above, so it's excluded here.
-  const assigneeLockedToSelf = !canManageTask && (!isEdit || isSelfCreatedOwnTask)
+  const assigneeLockedToSelf = !canManageTask && !canAssignOthersNew && (!isEdit || isSelfCreatedOwnTask)
 
   // PM/CEO only, per RLS on task_status_log -- a plain assignee's request
   // just comes back empty, this only avoids the wasted fetch.
@@ -328,12 +375,12 @@ export function TaskSheet({
     if (open && !isEdit) {
       reset({
         project_id: defaultProjectId ?? '',
-        assignee_profile_id: !canManageTask ? (profile?.id ?? '') : '',
+        assignee_profile_id: !canManageTask && !canAssignOthersNew ? (profile?.id ?? '') : '',
       })
       setSelectedDeliverableTypes(new Set())
       setDraftId(null)
     }
-  }, [open, isEdit, defaultProjectId, reset, canManageTask, profile?.id])
+  }, [open, isEdit, defaultProjectId, reset, canManageTask, canAssignOthersNew, profile?.id])
 
   // Populate from the server exactly ONCE per opening -- see the same
   // guard in ContentItemSheet: any later refetch (window refocus, a cache
@@ -613,7 +660,7 @@ export function TaskSheet({
             <Label>{t('tasks.assignee')}</Label>
             <div className={cn((isOwnTaskOnly || assigneeLockedToSelf) && 'pointer-events-none opacity-60')}>
               <Combobox
-                options={(assignees ?? []).map((a) => ({ value: a.id, label: a.full_name }))}
+                options={assigneeOptions.map((a) => ({ value: a.id, label: a.full_name }))}
                 value={watch('assignee_profile_id') ?? ''}
                 onChange={(v) => setValue('assignee_profile_id', v)}
               />

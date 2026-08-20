@@ -94,7 +94,7 @@ export function ChecklistItemDialog({
           <div className="flex flex-col gap-1.5">
             <Label>{t('tasks.recurrence')}</Label>
             <div className="flex gap-2">
-              {recurrenceTypes?.map((r) => (
+              {recurrenceTypes?.filter((r) => r.slug !== 'one_time').map((r) => (
                 <button
                   key={r.id}
                   type="button"
