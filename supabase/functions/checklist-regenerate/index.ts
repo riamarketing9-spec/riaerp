@@ -35,14 +35,44 @@ Deno.serve(async (req) => {
 
   const { data: recurrenceTypes } = await admin.from('recurrence_types').select('id, slug')
   const { data: backlogStatus } = await admin.from('task_statuses').select('id').eq('slug', 'backlog').maybeSingle()
+  const { data: doneStatus } = await admin.from('task_statuses').select('id').eq('slug', 'done').maybeSingle()
   const backlogId = backlogStatus?.id
+  const doneId = doneStatus?.id
 
   const { data: tasks } = await admin
     .from('tasks')
     .select(
-      'id, title, project_id, assignee_profile_id, priority_id, recurrence_id, deliverable_text, content_plan_item_id, created_by, deliverable_type_id, term_type_id, quadrant_id, created_at'
+      'id, title, project_id, assignee_profile_id, priority_id, recurrence_id, deliverable_text, content_plan_item_id, created_by, deliverable_type_id, term_type_id, quadrant_id, created_at, status_id'
     )
     .not('recurrence_id', 'is', null)
+
+  // Daily snapshot for the history calendar (checklist_completion_log,
+  // migration 0077) -- written for EVERY active recurring task on EVERY
+  // run, independent of whether that task also regenerates today. Without
+  // this, a weekly/monthly task would only ever get a log row once every
+  // 7/30 days (on regen), leaving every day in between with no history to
+  // show. one_time tasks are excluded -- they're never regenerated and
+  // stay in `tasks` forever, so their history is already queryable there.
+  const todayTashkent = new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const recurringTasks = (tasks ?? []).filter((t) => {
+    const slug = (recurrenceTypes ?? []).find((r: { id: string }) => r.id === t.recurrence_id)?.slug
+    return slug === 'daily' || slug === 'weekly' || slug === 'monthly'
+  })
+  if (recurringTasks.length > 0) {
+    // upsert on (task_id, log_date) -- safe to re-trigger the same
+    // Tashkent day without doubling up history rows.
+    await admin.from('checklist_completion_log').upsert(
+      recurringTasks.map((t) => ({
+        task_id: t.id,
+        title: t.title,
+        recurrence_id: t.recurrence_id,
+        assignee_profile_id: t.assignee_profile_id,
+        is_done: t.status_id === doneId,
+        log_date: todayTashkent,
+      })),
+      { onConflict: 'task_id,log_date' }
+    )
+  }
 
   let regenerated = 0
 

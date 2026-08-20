@@ -24,6 +24,8 @@ import { RevenueProfitChart } from '@/components/charts/RevenueProfitChart'
 import { ExpenseDonutChart } from '@/components/charts/ExpenseDonutChart'
 import { ChecklistAnalysisChart } from '@/components/charts/ChecklistAnalysisChart'
 import { checklistVerdict } from '@/lib/checklistVerdict'
+import { DateRangeFilter } from '@/components/DateRangeFilter'
+import { Combobox } from '@/components/ui/combobox'
 import { BackupExportButton } from './BackupExportButton'
 import { cn } from '@/lib/utils'
 import { useCanDeleteTask } from '@/hooks/useCanDeleteTask'
@@ -959,7 +961,19 @@ function RecurringChecklistWidget({
   const canDeleteTask = useCanDeleteTask()
   const [filterSlug, setFilterSlug] = useState<string | null>(null)
   const [creatingOpen, setCreatingOpen] = useState(false)
+  const [employeeFilter, setEmployeeFilter] = useState('')
+  const [analysisDateFrom, setAnalysisDateFrom] = useState('')
+  const [analysisDateTo, setAnalysisDateTo] = useState('')
   const queryClient = useQueryClient()
+  const todayStr = new Date().toISOString().slice(0, 10)
+  // Any bound outside today means "show history" -- daily/weekly/monthly
+  // tasks get hard-deleted and recreated on regeneration (see
+  // checklist-regenerate), so past days' state only exists in
+  // checklist_completion_log (migration 0077), not in `tasks` itself.
+  // Picking "today" alone still uses the live query below (real-time, not
+  // a stale morning snapshot).
+  const isHistoricalMode =
+    (!!analysisDateFrom && analysisDateFrom !== todayStr) || (!!analysisDateTo && analysisDateTo !== todayStr)
 
   const { data: recurrenceTypes } = useQuery({
     queryKey: ['recurrence_types'],
@@ -1000,6 +1014,24 @@ function RecurringChecklistWidget({
     enabled: teamWide,
     queryFn: async () => {
       const { data, error } = await supabase.from('profiles').select('id, full_name')
+      if (error) throw error
+      return data
+    },
+  })
+
+  const { data: historyLog } = useQuery({
+    queryKey: ['checklist-completion-log', teamWide, profile?.id, analysisDateFrom, analysisDateTo, employeeFilter],
+    enabled: !!profile && isHistoricalMode,
+    queryFn: async () => {
+      let query = supabase
+        .from('checklist_completion_log')
+        .select('id, task_id, title, recurrence_id, assignee_profile_id, is_done, log_date')
+        .order('log_date', { ascending: false })
+      if (analysisDateFrom) query = query.gte('log_date', analysisDateFrom)
+      if (analysisDateTo) query = query.lte('log_date', analysisDateTo)
+      if (!teamWide) query = query.eq('assignee_profile_id', profile!.id)
+      else if (employeeFilter) query = query.eq('assignee_profile_id', employeeFilter)
+      const { data, error } = await query
       if (error) throw error
       return data
     },
@@ -1049,6 +1081,7 @@ function RecurringChecklistWidget({
   // Tashkent run replaces them, not immediately on check-off.
   const visibleTasks = (tasks ?? []).filter((tsk) => {
     if (filterSlug && recurrenceTypes?.find((r) => r.id === tsk.recurrence_id)?.slug !== filterSlug) return false
+    if (teamWide && employeeFilter && tsk.assignee_profile_id !== employeeFilter) return false
     const recSlug = recurrenceTypes?.find((r) => r.id === tsk.recurrence_id)?.slug
     if (recSlug === 'one_time' && tsk.status_id === doneId) return false
     return true
@@ -1058,7 +1091,7 @@ function RecurringChecklistWidget({
   // src/lib/checklistVerdict.ts) -- reuses exactly the set of tasks already
   // shown below (same filterSlug), so the ring can never disagree with the
   // card grid right under it.
-  const analysisItems = visibleTasks.map((tsk) => ({
+  const liveAnalysisItems = visibleTasks.map((tsk) => ({
     id: tsk.id,
     title: tsk.title,
     verdict: checklistVerdict(
@@ -1068,6 +1101,20 @@ function RecurringChecklistWidget({
     ),
     assigneeName: teamWide ? assigneeName(tsk.assignee_profile_id) : undefined,
   }))
+
+  // History has only ever "сделано"/"не сделано" -- "планируется" only
+  // makes sense for a period that hasn't finished yet, and every logged
+  // day is already in the past by definition.
+  const historicalAnalysisItems = (historyLog ?? [])
+    .filter((row) => !filterSlug || recurrenceTypes?.find((r) => r.id === row.recurrence_id)?.slug === filterSlug)
+    .map((row) => ({
+      id: row.id,
+      title: `${row.title} — ${formatLocalDate(row.log_date, i18n.language)}`,
+      verdict: (row.is_done ? 'сделано' : 'не сделано') as 'сделано' | 'не сделано',
+      assigneeName: teamWide ? assigneeName(row.assignee_profile_id) : undefined,
+    }))
+
+  const analysisItems = isHistoricalMode ? historicalAnalysisItems : liveAnalysisItems
 
   return (
     <Card>
@@ -1106,8 +1153,29 @@ function RecurringChecklistWidget({
           ))}
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          {teamWide && (
+            <Combobox
+              className="w-48"
+              options={(profiles ?? []).map((p) => ({ value: p.id, label: p.full_name }))}
+              value={employeeFilter}
+              onChange={setEmployeeFilter}
+              placeholder={t('tasks.checklistAllEmployees')}
+            />
+          )}
+          <DateRangeFilter
+            from={analysisDateFrom}
+            to={analysisDateTo}
+            onFromChange={setAnalysisDateFrom}
+            onToChange={setAnalysisDateTo}
+          />
+        </div>
+
         {!isLoading && analysisItems.length > 0 && (
           <div className="rounded-lg border border-border p-3">
+            {isHistoricalMode && (
+              <p className="mb-2 text-xs text-muted-foreground">{t('tasks.checklistHistoricalNote')}</p>
+            )}
             <ChecklistAnalysisChart
               items={analysisItems}
               doneLabel={t('tasks.checklistVerdictDone')}
@@ -1117,7 +1185,11 @@ function RecurringChecklistWidget({
             />
           </div>
         )}
+        {!isLoading && isHistoricalMode && analysisItems.length === 0 && (
+          <p className="text-sm text-muted-foreground">{t('tasks.checklistHistoricalEmpty')}</p>
+        )}
 
+        {!isHistoricalMode && (
         <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
           {!isLoading && visibleTasks.length === 0 && (
@@ -1142,6 +1214,7 @@ function RecurringChecklistWidget({
             />
           ))}
         </div>
+        )}
       </CardContent>
 
       <ChecklistItemDialog open={creatingOpen} onOpenChange={setCreatingOpen} />
@@ -1162,6 +1235,13 @@ export function CabinetPage() {
   const isPm = hasCapability('projects.manage')
   const canSeeFinance = hasCapability('finance.read') || hasCapability('finance.write')
   const showSubtaskDuration = hasCapability('org.full_access') || isPm
+  // smm_manager/smm_assistant/shogird -- can hand tasks to others (RLS:
+  // tasks_insert_scoped_assign) but aren't PM/CEO, so they get no team-wide
+  // widgets above. "Задачи команды" here is deliberately narrower: only
+  // tasks THEY created for someone else, never anyone else's assignments
+  // (per the CEO: "задачи команды только те задачи которые он сам дал").
+  const canAssignOthers = hasCapability('tasks.assign_others')
+  const [myTasksTab, setMyTasksTab] = useState<'mine' | 'team'>('mine')
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [openContentItemId, setOpenContentItemId] = useState<string | null>(null)
 
@@ -1205,6 +1285,40 @@ export function CabinetPage() {
   const myOpenTasks = useMemo(
     () => (tasks ?? []).filter((t) => t.status_id !== myDoneStatusId),
     [tasks, myDoneStatusId]
+  )
+
+  // "Задачи команды" tab: relies on RLS tasks_select_created_scoped (0075)
+  // -- only ever returns tasks this profile created themselves, so it's
+  // impossible for it to leak a task someone else (PM, another SMM
+  // teammate) assigned, even if the query below were changed later.
+  const { data: teamCreatedTasks, isLoading: isTeamTasksLoading } = useQuery({
+    queryKey: ['cabinet-team-created-tasks', profile?.id],
+    enabled: !!profile && canAssignOthers && myTasksTab === 'team',
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('v_task_queue')
+        .select('*')
+        .eq('created_by', profile!.id)
+        .neq('assignee_profile_id', profile!.id)
+        .order('sort_score', { ascending: false })
+        .order('deadline', { ascending: true, nullsFirst: false })
+      if (error) throw error
+      return data
+    },
+  })
+  const { data: teamTaskAssignees } = useQuery({
+    queryKey: ['profiles-lookup'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url')
+      if (error) throw error
+      return data
+    },
+  })
+  const teamAssigneeName = (id: string | null) => teamTaskAssignees?.find((p) => p.id === id)?.full_name
+  const teamAssigneeAvatar = (id: string | null) => teamTaskAssignees?.find((p) => p.id === id)?.avatar_url
+  const myTeamOpenTasks = useMemo(
+    () => (teamCreatedTasks ?? []).filter((t) => t.status_id !== myDoneStatusId),
+    [teamCreatedTasks, myDoneStatusId]
   )
   const taskIds = useMemo(() => (tasks ?? []).map((t) => t.id), [tasks])
   const { data: subtasksByTask } = useSubtasksBatch(taskIds)
@@ -1257,31 +1371,81 @@ export function CabinetPage() {
       )}
 
       <Card>
-        <CardHeader>
+        <CardHeader className={canAssignOthers ? 'flex flex-row items-center justify-between gap-2' : undefined}>
           <CardTitle className="text-base font-medium">{t('cabinet.myTasks')}</CardTitle>
+          {canAssignOthers && (
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setMyTasksTab('mine')}
+                className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  myTasksTab === 'mine'
+                    ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
+                    : 'border-border text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {t('cabinet.myTasksMine')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMyTasksTab('team')}
+                className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  myTasksTab === 'team'
+                    ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200'
+                    : 'border-border text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {t('cabinet.myTasksTeam')}
+              </button>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
-          {!isLoading && myOpenTasks.length === 0 && (
-            <p className="text-sm text-muted-foreground">{t('cabinet.empty')}</p>
+          {myTasksTab === 'mine' ? (
+            <>
+              {isLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
+              {!isLoading && myOpenTasks.length === 0 && (
+                <p className="text-sm text-muted-foreground">{t('cabinet.empty')}</p>
+              )}
+              {myOpenTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  title={task.title}
+                  statusSlug={myTaskStatusSlug(task.status_id)}
+                  deadline={task.deadline}
+                  percentComplete={task.percent_complete}
+                  subtasks={subtasksByTask?.get(task.id)}
+                  onOpen={() => setOpenTaskId(task.id)}
+                  onToggleSubtask={(id, done) => toggleSubtask.mutate({ id, is_done: done })}
+                  showSubtaskDuration={showSubtaskDuration}
+                  recurrenceLabel={myRecurrenceLabel(task.recurrence_id)}
+                  onToggleChecklistDone={
+                    task.recurrence_id ? (done) => toggleMyChecklistDone.mutate({ id: task.id, done }) : undefined
+                  }
+                />
+              ))}
+            </>
+          ) : (
+            <>
+              {isTeamTasksLoading && <p className="text-sm text-muted-foreground">{t('common.loading')}...</p>}
+              {!isTeamTasksLoading && myTeamOpenTasks.length === 0 && (
+                <p className="text-sm text-muted-foreground">{t('cabinet.empty')}</p>
+              )}
+              {myTeamOpenTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  title={task.title}
+                  statusSlug={myTaskStatusSlug(task.status_id)}
+                  deadline={task.deadline}
+                  percentComplete={task.percent_complete}
+                  assigneeName={teamAssigneeName(task.assignee_profile_id)}
+                  assigneeAvatarUrl={teamAssigneeAvatar(task.assignee_profile_id)}
+                  onOpen={() => setOpenTaskId(task.id)}
+                  recurrenceLabel={myRecurrenceLabel(task.recurrence_id)}
+                />
+              ))}
+            </>
           )}
-          {myOpenTasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              title={task.title}
-              statusSlug={myTaskStatusSlug(task.status_id)}
-              deadline={task.deadline}
-              percentComplete={task.percent_complete}
-              subtasks={subtasksByTask?.get(task.id)}
-              onOpen={() => setOpenTaskId(task.id)}
-              onToggleSubtask={(id, done) => toggleSubtask.mutate({ id, is_done: done })}
-              showSubtaskDuration={showSubtaskDuration}
-              recurrenceLabel={myRecurrenceLabel(task.recurrence_id)}
-              onToggleChecklistDone={
-                task.recurrence_id ? (done) => toggleMyChecklistDone.mutate({ id: task.id, done }) : undefined
-              }
-            />
-          ))}
         </CardContent>
       </Card>
 

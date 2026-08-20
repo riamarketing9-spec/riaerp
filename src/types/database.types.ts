@@ -415,6 +415,17 @@ type ContentPlanDeliverableTypeRow = { content_plan_item_id: string; deliverable
 type ContentPlanResponsibleRow = { content_plan_item_id: string; profile_id: string }
 type ContentPlanPersonDeliverableTypeRow = { content_plan_item_id: string; profile_id: string; deliverable_type_id: string }
 
+type ChecklistCompletionLogRow = {
+  id: string
+  task_id: string | null
+  title: string
+  recurrence_id: string | null
+  assignee_profile_id: string | null
+  is_done: boolean
+  log_date: string
+  created_at: string
+}
+
 type KbArticleRow = {
   id: string
   title: string
@@ -540,6 +551,7 @@ export type Database = {
       content_plan_platforms: { Row: ContentPlanPlatformRow; Insert: ContentPlanPlatformRow; Update: Partial<ContentPlanPlatformRow>; Relationships: [] }
       content_plan_formats: { Row: ContentPlanFormatRow; Insert: ContentPlanFormatRow; Update: Partial<ContentPlanFormatRow>; Relationships: [] }
       content_plan_deliverable_types: { Row: ContentPlanDeliverableTypeRow; Insert: ContentPlanDeliverableTypeRow; Update: Partial<ContentPlanDeliverableTypeRow>; Relationships: [] }
+      checklist_completion_log: { Row: ChecklistCompletionLogRow; Insert: Partial<ChecklistCompletionLogRow>; Update: Partial<ChecklistCompletionLogRow>; Relationships: [] }
       content_plan_responsibles: { Row: ContentPlanResponsibleRow; Insert: ContentPlanResponsibleRow; Update: Partial<ContentPlanResponsibleRow>; Relationships: [] }
       content_plan_person_deliverable_types: { Row: ContentPlanPersonDeliverableTypeRow; Insert: ContentPlanPersonDeliverableTypeRow; Update: Partial<ContentPlanPersonDeliverableTypeRow>; Relationships: [] }
       kb_articles: ReturnType<typeof table<KbArticleRow, 'title'>>
