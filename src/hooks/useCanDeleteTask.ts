@@ -8,6 +8,7 @@ export function useCanDeleteTask() {
   const { profile, hasCapability } = useAuth()
   const isCeo = hasCapability('org.full_access')
   const canManageProjects = hasCapability('projects.manage')
+  const canAssignOthers = hasCapability('tasks.assign_others')
 
   const { data: pmProjectIds } = useQuery({
     queryKey: ['pm-project-ids', profile?.id],
@@ -22,6 +23,10 @@ export function useCanDeleteTask() {
   return function canDeleteTask(task: { created_by: string | null; assignee_profile_id: string | null; project_id: string | null }) {
     if (isCeo || canManageProjects) return true
     if (task.project_id && pmProjectIds?.has(task.project_id)) return true
-    return !!profile && task.created_by === profile.id && task.assignee_profile_id === profile.id
+    if (!!profile && task.created_by === profile.id && task.assignee_profile_id === profile.id) return true
+    // tasks_delete_scoped_assign (0078): a creator with tasks.assign_others
+    // can delete a task they made for someone else -- undoing a mistaken
+    // assignment, not just self-assigned tasks.
+    return !!profile && canAssignOthers && task.created_by === profile.id
   }
 }

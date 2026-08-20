@@ -197,12 +197,26 @@ export function TasksPage() {
     [tasks, profile?.id]
   )
 
+  // Someone whose only reason to see anyone else's tasks is
+  // tasks.assign_others (smm_manager/smm_assistant/shogird -- no real
+  // team-wide visibility like a PM/CEO has) gets a narrower "Jamoa" tab:
+  // only tasks THEY created for someone else, never their own assignments
+  // mixed in. Real team-wide viewers keep the existing unrestricted tab.
+  const teamScopeIsCreatedOnly =
+    hasCapability('tasks.assign_others') &&
+    !hasCapability('org.full_access') &&
+    !hasCapability('projects.manage') &&
+    !hasCapability('cabinets.read_all')
+
   const teamAssigneeOptions = useMemo(() => {
-    const ids = new Set((tasks ?? []).map((t) => t.assignee_profile_id).filter((id): id is string => !!id))
+    const source = teamScopeIsCreatedOnly
+      ? (tasks ?? []).filter((t) => t.created_by === profile?.id)
+      : (tasks ?? [])
+    const ids = new Set(source.map((t) => t.assignee_profile_id).filter((id): id is string => !!id && id !== profile?.id))
     return (profiles ?? [])
       .filter((p) => ids.has(p.id))
       .map((p) => ({ value: p.id, label: p.full_name }))
-  }, [tasks, profiles])
+  }, [tasks, profiles, teamScopeIsCreatedOnly, profile?.id])
 
   // Open tasks keep the view's own sort_score/deadline order; completed
   // tasks sink to the bottom, most-recently-completed first. "Completed"
@@ -229,6 +243,9 @@ export function TasksPage() {
     if (seesOthersTasks && scopeFilter === 'mine') {
       list = list.filter((t) => t.assignee_profile_id === profile?.id)
     }
+    if (seesOthersTasks && scopeFilter === 'team' && teamScopeIsCreatedOnly) {
+      list = list.filter((t) => t.created_by === profile?.id && t.assignee_profile_id !== profile?.id)
+    }
     if (seesOthersTasks && scopeFilter === 'team' && employeeFilter) {
       list = list.filter((t) => t.assignee_profile_id === employeeFilter)
     }
@@ -248,7 +265,7 @@ export function TasksPage() {
       list = list.filter((t) => t.status_id !== doneStatusId)
     }
     return list
-  }, [sortedTasks, seesOthersTasks, scopeFilter, employeeFilter, profile?.id, hasDateFilter, dateFrom, dateTo, doneStatusId])
+  }, [sortedTasks, seesOthersTasks, scopeFilter, teamScopeIsCreatedOnly, employeeFilter, profile?.id, hasDateFilter, dateFrom, dateTo, doneStatusId])
 
   return (
     <div className="flex flex-col gap-8">
