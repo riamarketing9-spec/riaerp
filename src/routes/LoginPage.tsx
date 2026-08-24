@@ -30,7 +30,7 @@ export function LoginPage() {
       </div>
       <Card className="w-full max-w-sm border-border shadow-sm">
         <CardHeader className="items-center gap-3 text-center">
-          <img src="/riaerp/logo.png" alt="RIA" className="h-auto w-28" />
+          <img src="/logo.png" alt="RIA" className="h-auto w-28" />
           <CardTitle className="text-lg font-medium">{t('auth.signInTitle')}</CardTitle>
         </CardHeader>
         <CardContent>

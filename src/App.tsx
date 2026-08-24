@@ -109,7 +109,6 @@ const router = createBrowserRouter(
       ],
     },
   ],
-  { basename: '/riaerp' }
 )
 
 export function App() {
