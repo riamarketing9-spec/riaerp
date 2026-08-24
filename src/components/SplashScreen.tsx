@@ -1,7 +1,7 @@
 export function SplashScreen() {
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-7 bg-background">
-      <img src="/logo.png" alt="RIA" className="h-auto w-40 sm:w-48" />
+      <img src="/riaerp/logo.png" alt="RIA" className="h-auto w-40 sm:w-48" />
       <p className="flex items-center gap-1 text-sm tracking-wide text-muted-foreground">
         Loading
         <span className="flex gap-0.5">
