@@ -187,7 +187,7 @@ export function AppShell() {
     <>
       <div className="mb-4 flex items-center justify-between gap-2 px-1.5">
         <div className="flex items-center gap-2">
-          <img src="/riaerp/logo.png" alt="RIA" className="h-7 w-auto" />
+          <img src="/logo.png" alt="RIA" className="h-7 w-auto" />
           <span className="text-base font-semibold tracking-tight">RIA ERP</span>
         </div>
         <div className="flex items-center gap-1">
@@ -227,7 +227,7 @@ export function AppShell() {
     <div className="flex min-h-svh flex-col bg-background md:flex-row">
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5 md:hidden">
         <div className="flex items-center gap-2">
-          <img src="/riaerp/logo.png" alt="RIA" className="h-6 w-auto" />
+          <img src="/logo.png" alt="RIA" className="h-6 w-auto" />
           <span className="text-sm font-semibold tracking-tight">RIA ERP</span>
         </div>
         <button
